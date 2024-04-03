@@ -75,11 +75,12 @@ function create_rts_sys(rts_dir::String,
     # prune_system_devices!(sys_UC, pruned_unit)
     # prune_system_devices!(sys_ED, pruned_unit)
 
+    sys_MD = PSY.System(joinpath(rts_dir,"MD_sys_EMIS_w2011_without_outage_PSY3.json"), time_series_directory = "/kfs3/scratch/nguo/");
     sys_UC = PSY.System(joinpath(rts_dir,"DA_sys_EMIS_w2011_2hrRT_with_outage_PSY3.json"), time_series_directory = "/kfs3/scratch/nguo/");
     sys_ED = PSY.System(joinpath(rts_dir,"RT_sys_EMIS_w2011_2hrRT_with_outage_PSY3.json"), time_series_directory = "/kfs3/scratch/nguo/");
 
     removegen_name = ["AUSTIN_1","AUSTIN_2"]
-    for sys in [sys_UC, sys_ED]
+    for sys in [sys_MD, sys_UC, sys_ED]
     	for d in PSY.get_components(PSY.Generator, sys)
             if d.name in removegen_name
     		    PSY.remove_component!(sys, d)
@@ -87,30 +88,31 @@ function create_rts_sys(rts_dir::String,
     	end
     end
 
-    for sys in [sys_UC, sys_ED]
+    for sys in [sys_MD, sys_UC, sys_ED]
         d= PSY.get_component(PSY.VariableReserve,sys,"SPIN")
         PSY.remove_component!(sys,d)
     end
 
-    for sys in [sys_UC, sys_ED]
+    for sys in [sys_MD, sys_UC, sys_ED]
         d= PSY.get_component(PSY.VariableReserveNonSpinning,sys,"NONSPIN")
         PSY.remove_component!(sys,d)
     end
 
-    for sys in [sys_UC, sys_ED]
+    for sys in [sys_MD, sys_UC, sys_ED]
         d= PSY.get_component(PSY.VariableReserve,sys,"REG_DN")
         PSY.set_name!(sys,d,"Reg_Down")
     end
 
-    for sys in [sys_UC, sys_ED]
+    for sys in [sys_MD, sys_UC, sys_ED]
         d= PSY.get_component(PSY.VariableReserve,sys,"REG_UP")
         PSY.set_name!(sys,d,"Reg_Up")
     end
 
+    PSY.set_units_base_system!(sys_MD, PSY.IS.UnitSystem.DEVICE_BASE)
     PSY.set_units_base_system!(sys_UC, PSY.IS.UnitSystem.DEVICE_BASE)
     PSY.set_units_base_system!(sys_ED, PSY.IS.UnitSystem.DEVICE_BASE)
 
-    return sys_UC, sys_ED
+    return sys_MD, sys_UC, sys_ED
 end
 
 function remove_vre_gens!(sys::PSY.System)

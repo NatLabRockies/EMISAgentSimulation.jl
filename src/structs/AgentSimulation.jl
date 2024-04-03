@@ -3,6 +3,7 @@ This struct contains all the data for the simulation to be run.
     case: CaseDefinition for creating and running the simulation.
     results_dir: Path to the directory where results are stored.
     iteration_year: Index of current iteration year.
+    system_MD: SIIP PSY System for Multi-Day Commitment.
     system_UC: SIIP PSY System for Unit Commitment.
     system_ED: SIIP PSY System for Economic Dispatch.
     zones: Names of modeled zones.
@@ -23,6 +24,7 @@ mutable struct AgentSimulation
     case::CaseDefinition
     results_dir::String
     iteration_year::Int64
+    system_MD::Union{Nothing, PSY.System}
     system_UC::Union{Nothing, PSY.System}
     system_ED::Union{Nothing, PSY.System}
     zones::Vector{String}
@@ -43,6 +45,7 @@ end
 get_case(sim::AgentSimulation) = sim.case
 get_results_dir(sim::AgentSimulation) = sim.results_dir
 get_iteration_year(sim::AgentSimulation) = sim.iteration_year
+get_system_MD(sim::AgentSimulation) = sim.system_MD
 get_system_UC(sim::AgentSimulation) = sim.system_UC
 get_system_ED(sim::AgentSimulation) = sim.system_ED
 get_zones(sim::AgentSimulation) = sim.zones
@@ -76,6 +79,7 @@ mutable struct AgentSimulationData
     case::CaseDefinition
     results_dir::String
     iteration_year::Int64
+    system_MD::Union{Nothing, PSY.System}
     system_UC::Union{Nothing, PSY.System}
     system_ED::Union{Nothing, PSY.System}
     zones::Vector{String}
@@ -98,6 +102,7 @@ end
 
 function AgentSimulationData(case::CaseDefinition,
                         results_dir::String,
+                        system_MD::Union{Nothing, PSY.System},
                         system_UC::Union{Nothing, PSY.System},
                         system_ED::Union{Nothing, PSY.System},
                         zones::Vector{String},
@@ -118,6 +123,7 @@ function AgentSimulationData(case::CaseDefinition,
     return AgentSimulationData(case,
                           results_dir,
                           1,
+                          system_MD,
                           system_UC,
                           system_ED,
                           zones,
@@ -141,6 +147,7 @@ end
 get_case(sim::AgentSimulationData) = sim.case
 get_results_dir(sim::AgentSimulationData) = sim.results_dir
 get_iteration_year(sim::AgentSimulationData) = sim.iteration_year
+get_system_MD(sim::AgentSimulationData) = sim.system_MD
 get_system_UC(sim::AgentSimulationData) = sim.system_UC
 get_system_ED(sim::AgentSimulationData) = sim.system_ED
 get_zones(sim::AgentSimulationData) = sim.zones

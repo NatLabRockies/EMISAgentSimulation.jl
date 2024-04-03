@@ -313,7 +313,12 @@ function add_psy_ordc!(simulation_dir::String,
                 #     "max_active_power"
                 #     )))
 
-                if type == "UC"
+                if type == "MD"
+                    time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2019-01-06T23:00:00"));
+                    product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", "Reserves", "$(product)_$(iteration_year - 1).csv"))[:, product]
+                    product_data_ts = process_ordc_data_for_siip(product_ts_raw)
+                    product_data_ts = [product_data_ts;product_data_ts[1:144]]
+                elseif type == "UC"
                     time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2019-01-01T11:00:00"));
                     product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", "Reserves", "$(product)_$(iteration_year - 1).csv"))[:, product]
                     product_data_ts = process_ordc_data_for_siip(product_ts_raw)

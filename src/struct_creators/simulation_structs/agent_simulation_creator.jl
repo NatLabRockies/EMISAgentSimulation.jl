@@ -61,14 +61,16 @@ function gather_data(case::CaseDefinition)
     
     if get_siip_market_clearing(case)
         base_power = 100.0
-        sys_UC, sys_ED = create_rts_sys(test_system_dir, base_power, data_dir, get_da_resolution(case), get_rt_resolution(case))
+        sys_MD, sys_UC, sys_ED = create_rts_sys(test_system_dir, base_power, data_dir, get_da_resolution(case), get_rt_resolution(case))
     else
+        sys_MD = nothing
         sys_UC = nothing
         sys_ED = nothing
     end
 
     #updating past growth rate in PSY Systems
     for y in 1:size(annual_growth_past)[2]
+        apply_PSY_past_load_growth!(sys_MD, annual_growth_past[:, y], data_dir)
         apply_PSY_past_load_growth!(sys_UC, annual_growth_past[:, y], data_dir)
         apply_PSY_past_load_growth!(sys_ED, annual_growth_past[:, y], data_dir)
     end
@@ -114,6 +116,7 @@ function gather_data(case::CaseDefinition)
 
     simulation_data = AgentSimulationData(case,
                                         results_dir,
+                                        sys_MD,
                                         sys_UC,
                                         sys_ED,
                                         zones,
@@ -138,10 +141,13 @@ function gather_data(case::CaseDefinition)
     # convert_thermal_clean_energy!(sys_UC)
     # convert_thermal_clean_energy!(sys_ED)
 
+    convert_thermal_fast_start!(sys_MD)
     convert_thermal_fast_start!(sys_UC)
     convert_thermal_fast_start!(sys_ED)
 
     construct_ordc(deepcopy(sys_UC), data_dir, investors, 0, representative_periods, rep_period_interval, get_ordc_curved(case), get_ordc_unavailability_method(case), get_reserve_penalty(case))
+    # TODO: need to update this for MD
+    add_psy_ordc!(data_dir, markets_dict, sys_MD, "MD", 1, get_da_resolution(case), get_rt_resolution(case), get_reserve_penalty(case))
     add_psy_ordc!(data_dir, markets_dict, sys_UC, "UC", 1, get_da_resolution(case), get_rt_resolution(case), get_reserve_penalty(case))
     add_psy_ordc!(data_dir, markets_dict, sys_ED, "ED", 1, get_da_resolution(case), get_rt_resolution(case), get_reserve_penalty(case))
 
@@ -150,9 +156,11 @@ function gather_data(case::CaseDefinition)
         add_psy_inertia!(data_dir, sys_ED, "ED", get_reserve_penalty(case), system_peak_load)
     end
 
+    # TODO: need to update this for MD
     add_psy_clean_energy_constraint!(sys_UC, initial_rec_requirement)
 
-    transform_psy_timeseries!(sys_UC, sys_ED, get_da_resolution(case), get_rt_resolution(case), 36, 2)
+    # NG: this function works for ORDC because ORDC has SingleTimeSeries
+    transform_psy_timeseries!(sys_MD, sys_UC, sys_ED, get_da_resolution(case), get_rt_resolution(case), 168, 36, 2)
 
     # Adding representative days availability data to investor folders
     system_availability_data = DataFrames.DataFrame(CSV.File(joinpath(data_dir, "timeseries_data_files", "Availability", "DAY_AHEAD_availability.csv")))
@@ -217,6 +225,7 @@ function create_agent_simulation(case::CaseDefinition)
     simulation = AgentSimulation(case,
                             get_results_dir(simulation_data),
                             1,
+                            get_system_MD(simulation_data),
                             get_system_UC(simulation_data),
                             get_system_ED(simulation_data),
                             get_zones(simulation_data),

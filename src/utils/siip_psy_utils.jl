@@ -254,8 +254,16 @@ function update_PSY_timeseries!(sys::PSY.System,
                 append!(product_data_ts, product_data_ts[(length(product_data_ts) - intervals + 1):end])
                 data = Dict(time_stamps[i] => product_data_ts[i:(i + intervals  - 1)] for i in 1:Int(60 / rt_resolution):8760)
                 forecast = PSY.Deterministic("variable_cost", data, Dates.Minute(rt_resolution))
+            elseif type == "MD"
+                time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2019-01-06T23:00:00"));
+                product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", "Reserves", "$(service_name)_$(iteration_year - 1).csv"))[:, service_name]
+                product_data_ts = process_ordc_data_for_siip(product_ts_raw)
+                intervals = Int(7 * 24 * 60 / da_resolution)
+                append!(product_data_ts, product_data_ts[(length(product_data_ts) - (intervals - (8760-intervals*52)) + 1):end])
+                data = Dict(time_stamps[i] => product_data_ts[i:(i + intervals - 1)] for i in 1:Int(7 * 24 * 60 / da_resolution):8760)
+                forecast = PSY.Deterministic("variable_cost", data, Dates.Minute(da_resolution))
             else
-                error("Type should be UC or ED")
+                error("Type should be MD, UC or ED")
             end
 
             PSY.add_time_series!(sys, service, forecast)
@@ -390,7 +398,8 @@ end
 This function transforms the timeseries of PSY Systems.
 """
 
-function transform_psy_timeseries!(sys_UC::Nothing,
+function transform_psy_timeseries!(sys_MD::Nothing,
+                                   sys_UC::Nothing,
                                    sys_ED::Nothing,
                                    da_resolution::Int64,
                                    rt_resolution::Int64,
@@ -399,15 +408,18 @@ function transform_psy_timeseries!(sys_UC::Nothing,
     return
 end
 
-function transform_psy_timeseries!(sys_UC::PSY.System,
+function transform_psy_timeseries!(sys_MD::PSY.System,
+                                   sys_UC::PSY.System,
                                    sys_ED::PSY.System,
                                    da_resolution::Int64,
                                    rt_resolution::Int64,
+                                   md_horizon::Int64,
                                    da_horizon::Int64,
                                    rt_horizon::Int64)
-
+    # TODO: may want to add md_resolution
+    PSY.transform_single_time_series!(sys_MD, Int(md_horizon * 60 / da_resolution), Dates.Hour(168))
     PSY.transform_single_time_series!(sys_UC, Int(da_horizon * 60 / da_resolution), Dates.Hour(24))
-    PSY.transform_single_time_series!(sys_ED, Int(rt_horizon * 60/ rt_resolution), Dates.Hour(1))
+    PSY.transform_single_time_series!(sys_ED, Int(rt_horizon * 60 / rt_resolution), Dates.Hour(1))
     return
 end
 

@@ -1047,7 +1047,7 @@ function add_csv_time_series!(sys_DA::PSY.System,sys_RT::PSY.System, outage_csv_
     file_location = joinpath(dir_location,"Generator_year$(iteration_year).csv")
 
     # Handling days of interest to generate time stamps
-    first_ts_temp_DA = first(PSY.get_time_series_multiple(sys_DA));
+    first_ts_temp_DA = first(PSY.get_time_series_multiple(sys_DA, type = PSY.Deterministic))
     len_ts_data_DA = length(first_ts_temp_DA.data);
 
     if (days_of_interest === nothing)

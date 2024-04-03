@@ -3,6 +3,7 @@
 This function creates the realized market data based on actual market clearing.
 """
 function create_realized_marketdata(simulation::AgentSimulation,
+                                    sys_MD::Union{Nothing, PSY.System},
                                     sys_UC::Union{Nothing, PSY.System},
                                     sys_ED::Union{Nothing, PSY.System},
                                     market_names::Vector{Symbol},
@@ -53,31 +54,40 @@ function create_realized_marketdata(simulation::AgentSimulation,
 
     rec_perc_requirement = get_rec_requirement(simulation)[iteration_year]
 
-    energy_price,
-    reserve_price,
+    energy_price_ed,
+    energy_price_uc,
+    energy_price_md,
+    reserve_price_ed,
+    reserve_price_uc,
+    reserve_price_md,
     inertia_price,
-    capacity_factors,
-    reserve_perc,
+    capacity_factors_md,
+    capacity_factors_uc,
+    capacity_factors_ed,
+    reserve_perc_md,
+    reserve_perc_uc,
+    reserve_perc_ed,
     inertia_perc,
     start_up_costs,
     shut_down_costs,
     energy_voll,
     reserve_voll,
-    inertia_voll = energy_mkt_clearing(sys_UC, sys_ED, system, simulation_dir, load_growth, reserve_penalty, rec_perc_requirement, zones, num_days, iteration_year, get_da_resolution(get_case(simulation)), get_rt_resolution(get_case(simulation)), get_name(get_case(simulation)), solver, get_base_dir(get_case(simulation)),simulation,current_siip_sim)
+    inertia_voll = energy_mkt_clearing(sys_MD, sys_UC, sys_ED, system, simulation_dir, load_growth, reserve_penalty, rec_perc_requirement, zones, num_days, iteration_year, get_da_resolution(get_case(simulation)), get_rt_resolution(get_case(simulation)), get_name(get_case(simulation)), solver, get_base_dir(get_case(simulation)),simulation,current_siip_sim)
 
     println("Clean energy requirement for this year is $(get_rec_requirement(simulation)[iteration_year] * 100) percent")
     total_production = 0.0
     total_cec_production = 0.0
     day = 0
     get_rt_resolution(get_case(simulation))
-    for time in 1:Int(24*60/get_rt_resolution(get_case(simulation))):(Int(24*60/get_rt_resolution(get_case(simulation))) * 365)
+    # for time in 1:Int(24*60/get_rt_resolution(get_case(simulation))):(Int(24*60/get_rt_resolution(get_case(simulation))) * 365)
+    for time in 1:Int(24*60/get_rt_resolution(get_case(simulation))):(Int(24*60/get_rt_resolution(get_case(simulation))) * 7)
         day += 1
         daily_total_production = 0.0
         daily_cec_production = 0.0
         for gen in get_all_techs(sys_ED)
             name = PSY.get_name(gen)
             if !(occursin("BA", string(PSY.get_prime_mover_type(gen)))) #!(occursin("BA", name))
-                energy_production = sum(capacity_factors[name][time:time + Int(24*60/get_rt_resolution(get_case(simulation)))-1]) * get_device_size(gen)
+                energy_production = sum(capacity_factors_ed[name][time:time + Int(24*60/get_rt_resolution(get_case(simulation)))-1]) * get_device_size(gen)
                 total_production += energy_production
                 daily_total_production += energy_production
                 if occursin("WT", string(PSY.get_prime_mover_type(gen))) || occursin("PVe", string(PSY.get_prime_mover_type(gen))) || occursin("HY", string(PSY.get_prime_mover_type(gen))) #occursin("WT", name) || occursin("WIND", name) || occursin("PV", name) || occursin("HY", name) || occursin("NU", name) || occursin("RE", name)
@@ -105,9 +115,13 @@ function create_realized_marketdata(simulation::AgentSimulation,
     # Create empty market prices struct
     market_prices = MarketPrices()
 
-    set_energy_price!(market_prices, "realized", energy_price)
+    set_energy_price!(market_prices, "realized-ed", energy_price_ed)
+    set_energy_price!(market_prices, "realized-uc", energy_price_uc)
+    set_energy_price!(market_prices, "realized-md", energy_price_md)
 
-    set_reserve_price!(market_prices, "realized", reserve_price)
+    set_reserve_price!(market_prices, "realized-ed", reserve_price_ed)
+    set_reserve_price!(market_prices, "realized-uc", reserve_price_uc)
+    set_reserve_price!(market_prices, "realized-md", reserve_price_md)
 
     if in(:Inertia, market_names)
         set_inertia_price!(market_prices, "realized", inertia_price)
@@ -229,12 +243,20 @@ function create_realized_marketdata(simulation::AgentSimulation,
 
     FileIO.save(output_file,
                      "capacity_price", capacity_price,
-                     "energy_price", energy_price,
-                     "reserve_price", reserve_price,
+                     "energy_price_ed", energy_price_ed,
+                     "energy_price_uc", energy_price_uc,
+                     "energy_price_md", energy_price_md,
+                     "reserve_price_ed", reserve_price_ed,
+                     "reserve_price_uc", reserve_price_uc,
+                     "reserve_price_md", reserve_price_md,
                      "rec_price", rec_price,
                      "inertia_price", inertia_price,
-                     "capacity_factors", capacity_factors,
-                     "reserve_perc", reserve_perc,
+                     "capacity_factors_md", capacity_factors_md,
+                     "capacity_factors_uc", capacity_factors_uc,
+                     "capacity_factors_ed", capacity_factors_ed,
+                     "reserve_perc_md", reserve_perc_md,
+                     "reserve_perc_uc", reserve_perc_uc,
+                     "reserve_perc_ed", reserve_perc_ed,
                      "capacity_accepted_bids", capacity_accepted_bids,
                      "rec_accepted_bids", rec_accepted_bids,
                      "inertia_perc", inertia_perc,
@@ -300,5 +322,5 @@ function create_realized_marketdata(simulation::AgentSimulation,
     peak_load_new = (1 + average_load_growth) * peak_load
     set_peak_load!(simulation, peak_load_new)
 
-    return market_prices, capacity_factors, reserve_perc, inertia_perc, capacity_accepted_bids, rec_accepted_bids, clean_energy_percentage, cet_achieved_ratio
+    return market_prices, capacity_factors_md, capacity_factors_uc, capacity_factors_ed, reserve_perc_md, reserve_perc_uc, reserve_perc_ed, inertia_perc, capacity_accepted_bids, rec_accepted_bids, clean_energy_percentage, cet_achieved_ratio
 end
