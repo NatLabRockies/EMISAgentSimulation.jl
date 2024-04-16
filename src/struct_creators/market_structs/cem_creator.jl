@@ -161,10 +161,17 @@ function create_cem_mkt_clr_problem(investor_dir::String,
     rec_markets = Vector{RECMarket}(undef, num_invperiods)
     inertia_markets = Vector{InertiaMarket}(undef, num_invperiods)
 
+    capacity_mkt_params = read_data(capacity_mkt_param_file)[1, :]
+
+    introduction_year = capacity_mkt_params["introduction_year"]
+    discontinuation_year = capacity_mkt_params["discontinuation_year"]
+    capacity_active_years = [if iteration_year + i - 1 >= introduction_year && iteration_year + i - 1 < discontinuation_year 1 else 0 end for i in 1:num_invperiods]
+    
     for p in 1:num_invperiods
         system_peak_load = average_annual_increment[p] * peak_load
 
-        capacity_markets[p] = create_capacity_demand_curve(capacity_mkt_param_file, system_peak_load, irm_scalar, delta_irm, capacity_market_bool)
+        capacity_mkt_active = Bool(capacity_market_bool * capacity_active_years[p])
+        capacity_markets[p] = create_capacity_demand_curve(capacity_mkt_param_file, system_peak_load, irm_scalar, delta_irm, capacity_mkt_active)
         rec_markets[p] = RECMarket(min(rec_req + rec_annual_increment * (p + iteration_year - 1), 1), price_cap_rec, !(iszero(rec_binding_array[p])))
         inertia_markets[p] = InertiaMarket(system_peak_load * inertia_req_multiplier, price_cap_inertia)
     end

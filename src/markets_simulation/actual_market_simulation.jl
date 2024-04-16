@@ -124,6 +124,12 @@ function create_realized_marketdata(simulation::AgentSimulation,
     peak_load = get_peak_load(simulation)
     capacity_annual_increment = load_growth
 
+    capacity_mkt_params = read_data(capacity_mkt_param_file)[1, :]
+
+    introduction_year = capacity_mkt_params["introduction_year"]
+    discontinuation_year = capacity_mkt_params["discontinuation_year"]
+    capacity_active = (iteration_year >= introduction_year && iteration_year < discontinuation_year) ? 1 : 0
+
     average_load_growth = Statistics.mean(load_growth)
 
     capacity_supply_curve = Vector{Union{String, Float64}}[]
@@ -142,7 +148,8 @@ function create_realized_marketdata(simulation::AgentSimulation,
 
     if in(:Capacity, market_names) && iteration_year + capacity_forward_years - 1 <= simulation_years
         system_peak_load = (1 + average_load_growth) ^ (capacity_forward_years) * peak_load
-        capacity_demand_curve = create_capacity_demand_curve(capacity_mkt_param_file, system_peak_load, irm_scalar, delta_irm, capacity_market_bool)
+        capacity_active_bool = Bool(capacity_active * capacity_market_bool)
+        capacity_demand_curve = create_capacity_demand_curve(capacity_mkt_param_file, system_peak_load, irm_scalar, delta_irm, capacity_active_bool)
 
         sort!(capacity_supply_curve, by = x -> x[3])      # Sort capacity supply curve by capacity bid
 

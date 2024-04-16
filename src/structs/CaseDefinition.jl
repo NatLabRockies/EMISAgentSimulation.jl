@@ -32,6 +32,7 @@
         irm_scalar: Scalar for installed reserve margin to be used for creating the capacity market demand curve.
         accreditation_methodology: RA metric used for ELCC and EFC accreditation methodology. Options: LOLE or EUE. Set to "Nothing" if accreditation methodology is TopNetLoad.
         accreditation_metric: Scalar used for modifying the derating factors of VRE and batteries. Range > 0.0
+        marginal_cc_switch: Whether marginal CC is used instead of average CC for new VRE and battery resources.
         forecast_type: "Perfect" or "imperfect" forecasts used for price prediction.
         max_carbon_tax_increase: Maximum annual increase in carbon prices due to under-achievement of Clean Energy Targets.
         info_symmetry: Whether investors have symmetric information about forecast parameters.
@@ -68,6 +69,7 @@ struct CaseDefinition
     irm_scalar::Float64
     accreditation_methodology::String
     accreditation_metric::String
+    marginal_cc_switch::Bool
     derating_scale::Float64
     mopr::Bool
     battery_cap_mkt::Bool
@@ -107,6 +109,7 @@ struct CaseDefinition
                             irm_scalar,
                             accreditation_methodology,
                             accreditation_metric,
+                            marginal_cc_switch,
                             derating_scale,
                             mopr,
                             battery_cap_mkt,
@@ -167,6 +170,7 @@ struct CaseDefinition
                    irm_scalar,
                    accreditation_methodology,
                    accreditation_metric,
+                   marginal_cc_switch,
                    derating_scale,
                    mopr,
                    battery_cap_mkt,
@@ -208,6 +212,7 @@ function CaseDefinition(name::String,
                         irm_scalar::Float64 = 1.0,
                         accreditation_methodology::String = "TopNetLoad",
                         accreditation_metric::String = "None",
+                        marginal_cc_switch::Bool = true,
                         derating_scale::Float64 = 1.0,
                         mopr::Bool = false,
                         battery_cap_mkt::Bool = true,
@@ -247,6 +252,7 @@ function CaseDefinition(name::String,
                    irm_scalar,
                    accreditation_methodology,
                    accreditation_metric,
+                   marginal_cc_switch,
                    derating_scale,
                    mopr,
                    battery_cap_mkt,
@@ -286,6 +292,7 @@ get_irm_scalar(case::CaseDefinition) = case.irm_scalar
 get_ordc_unavailability_method(case::CaseDefinition) = case.ordc_unavailability_method
 get_accreditation_methodology(case::CaseDefinition) = case.accreditation_methodology
 get_accreditation_metric(case::CaseDefinition) = case.accreditation_metric
+get_marginal_cc_switch(case::CaseDefinition) = case.marginal_cc_switch
 get_derating_scale(case::CaseDefinition) = case.derating_scale
 get_mopr(case::CaseDefinition) = case.mopr
 get_battery_cap_mkt(case::CaseDefinition) = case.battery_cap_mkt
