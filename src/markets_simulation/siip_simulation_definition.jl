@@ -874,6 +874,7 @@ function create_problem(template::PSI.ProblemTemplate, sys::PSY.System, type::St
                                     warm_start = true,
                                     calculate_conflict = true,
                                     store_variable_names = true,
+                                    export_pwl_vars=true,
                                     )
 
         elseif type == "ED"
@@ -888,6 +889,7 @@ function create_problem(template::PSI.ProblemTemplate, sys::PSY.System, type::St
                                         horizon =1,
                                         calculate_conflict = true,
                                         store_variable_names = true,
+                                        export_pwl_vars=true,
                                         )
             else
                 problem = PSI.DecisionModel(
@@ -900,6 +902,7 @@ function create_problem(template::PSI.ProblemTemplate, sys::PSY.System, type::St
                                         horizon =1,
                                         calculate_conflict = true,
                                         store_variable_names = true,
+                                        export_pwl_vars=true,
                                         )
             end
         elseif type == "MD"
@@ -912,6 +915,7 @@ function create_problem(template::PSI.ProblemTemplate, sys::PSY.System, type::St
                                     warm_start = true,
                                     calculate_conflict = true,
                                     store_variable_names = true,
+                                    export_pwl_vars=true,
                                     )
         else
             error("Type should be either UC or ED")

@@ -312,6 +312,7 @@ import StatsBase
 import Statistics
 import TimeSeries
 const TS = TimeSeries
+import DataStructures
 
 import TimeZones
 

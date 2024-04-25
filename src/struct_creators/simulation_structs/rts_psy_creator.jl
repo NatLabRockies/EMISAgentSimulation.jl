@@ -75,9 +75,25 @@ function create_rts_sys(rts_dir::String,
     # prune_system_devices!(sys_UC, pruned_unit)
     # prune_system_devices!(sys_ED, pruned_unit)
 
-    sys_MD = PSY.System(joinpath(rts_dir,"MD_sys_EMIS_w2011_without_outage_PSY3.json"), time_series_directory = "/kfs3/scratch/nguo/");
     sys_UC = PSY.System(joinpath(rts_dir,"DA_sys_EMIS_w2011_2hrRT_with_outage_PSY3.json"), time_series_directory = "/kfs3/scratch/nguo/");
     sys_ED = PSY.System(joinpath(rts_dir,"RT_sys_EMIS_w2011_2hrRT_with_outage_PSY3.json"), time_series_directory = "/kfs3/scratch/nguo/");
+
+    sys_MD_initial = PSY.System(joinpath(rts_dir,"DA_sys_EMIS_w2011_2hrRT_with_outage_PSY3.json"), time_series_directory = "/kfs3/scratch/nguo/");
+
+    # create MD system
+    create_sys_w_updated_ts(
+        "/kfs2/projects/gmlcmarkets/Phase2_EMIS_Analysis/Feb2024_ERCOT_2011_MARKET_Test_NGUO/NTP_TimeSeries_Data",
+        sys_MD_initial,
+        2011,
+        2021,
+        "baseline",
+        75.0, #GW
+        168, # hours
+        168, # hours
+        joinpath(rts_dir,"MD_sys_EMIS_w2011_without_outage_PSY3.json"),
+    )
+    sys_MD = PSY.System(joinpath(rts_dir,"MD_sys_EMIS_w2011_without_outage_PSY3.json"), time_series_directory = "/kfs3/scratch/nguo/");
+
 
     removegen_name = ["AUSTIN_1","AUSTIN_2"]
     for sys in [sys_MD, sys_UC, sys_ED]
@@ -123,4 +139,262 @@ function remove_vre_gens!(sys::PSY.System)
             PSY.remove_component!(sys, gen)
         end
     end
+end
+
+
+function create_sys_w_updated_ts(
+    data_dir::String,
+    initial_sys::PSY.System,
+    weatheryear::Int64,
+    loadyear::Int64,
+    scenario::String,
+    loadscaler_base::Float64, #GW
+    horizon::Int64, # hours
+    interval::Int64, # hours
+    output_file::String,
+)
+
+    #--------------------------------------------
+    # Calculate load scaling factor: scale 2021 load to 75 GW
+    #--------------------------------------------
+    loadscaler_profile=DataFrame(CSV.File(joinpath(data_dir, "Load_Actuals_tzcorrect", "20221010_ercot_regional_load_$(scenario)_e2021_w$(weatheryear)_cst.csv"))) #in GW
+    loadscaler_peak=maximum(sum(eachcol(select(loadscaler_profile, Not([:year, :timestamp])))))
+    loadscaler = loadscaler_peak/loadscaler_base
+
+    sys_MD = initial_sys
+    PSY.set_units_base_system!(sys_MD, PSY.IS.UnitSystem.NATURAL_UNITS)
+
+    # Remove the generator that availability is false
+    # for sys in [sys_MD]
+    # 	d=PSY.get_component(Generator, sys, "Glove Solar")
+    # 	PSY.remove_component!(sys, d)
+    # end
+    # 
+    # PSY.get_available(PSY.get_component(Generator, sys_DA, "Glove Solar"))
+    # PSY.get_components(PSY.Generator, sys_DA, x -> x.available == false)
+
+    #-----------------------------------------------------------------------------------
+    # Construct hydro timeseries with new horizon from existing Deterministic timeseries
+    #-----------------------------------------------------------------------------------
+    first_ts_temp_MD = first(PSY.get_time_series_multiple(sys_MD))
+    start_datetime_MD = PSY.IS.get_initial_timestamp(first_ts_temp_MD);
+    sys_MD_res = PSY.get_time_series_resolution(sys_MD)
+    finish_datetime_MD = start_datetime_MD + Dates.Hour(8759*sys_MD_res);
+    # timestep here indicate how many MD periods are being constructed
+    timestep = StepRange(start_datetime_MD, sys_MD_res*interval, finish_datetime_MD);
+    additional_timestep = horizon - (8760-(interval*(length(timestep)-1)))
+
+    for component in collect(get_components(HydroDispatch, sys_MD))
+        forecast = get_time_series(Deterministic, component, "max_active_power")
+
+        reconstruct_single_ts = Float64[]
+        for (key, value) in forecast.data
+            append!(reconstruct_single_ts, value[1:24])
+        end
+        append!(reconstruct_single_ts, reconstruct_single_ts[1:additional_timestep])
+
+        dates = range(DateTime("2018-01-01T00:00:00"), step = sys_MD_res, length = 8760 + additional_timestep)
+        data = TS.TimeArray(dates, reconstruct_single_ts)
+        single_time_series = SingleTimeSeries("max_active_power", data)
+
+        add_time_series!(sys_MD, component, single_time_series)
+    end
+
+    remove_time_series!(sys_MD, Deterministic)
+
+    for component in collect(get_components(HydroDispatch, sys_MD))
+
+        revisedts = DataStructures.SortedDict{DateTime,Vector}()
+        newtsdata = values(get_time_series(SingleTimeSeries, component, "max_active_power").data)
+
+        for t in 1:length(timestep)
+            rtseries=[]
+            datetimeindex = timestep[t]
+            if t < length(timestep)
+                rtseries = newtsdata[(interval*(t-1)+1):(interval*(t-1)+horizon)]
+            else  #last day
+                rtseries = [newtsdata[(interval*(t-1)+1):8760];newtsdata[1:horizon-(8760-(horizon*(t-1)))]]
+            end
+            push!(revisedts, datetimeindex => rtseries)
+        end
+
+        # conver to deterministic time series
+        revisedts_deterministic = PSY.Deterministic(;
+            name="max_active_power",
+            data=revisedts,
+            resolution=Dates.Hour(1),
+            scaling_factor_multiplier=get_max_active_power
+        )
+
+        # remove old time series
+        # remove_time_series!(sys_MD, Deterministic, d, "max_active_power")
+        # add new time series to dataset
+        add_time_series!(sys_MD, component, revisedts_deterministic)
+    end
+
+    remove_time_series!(sys_MD, SingleTimeSeries)
+
+    #-----------------------------------------------------------
+    # Replacing wind & solar time series  !! In NATURAL_UNITS !!
+    #-----------------------------------------------------------
+    namemapping = DataFrame(CSV.File(joinpath(data_dir, "GeneratorNameMapping.csv")))
+    # To get raw DA data time stamps
+    first_ts_temp_MD = first(PSY.get_time_series_multiple(sys_MD))
+    start_datetime_MD = PSY.IS.get_initial_timestamp(first_ts_temp_MD);
+    sys_MD_res = PSY.get_time_series_resolution(sys_MD)
+    finish_datetime_MD = start_datetime_MD + Dates.Hour(8759*sys_MD_res);
+    # timestep here indicate how many MD periods are being constructed
+    timestep = StepRange(start_datetime_MD, sys_MD_res*interval, finish_datetime_MD);
+    # hourlytimestep  = StepRange(start_datetime_DA, sys_DA_res, finish_datetime_DA);
+
+    # remove_time_series!(sys_MD, Deterministic)
+
+    for d in get_components(x -> get_prime_mover_type(x) in [PrimeMovers.PVe, PrimeMovers.WT], Generator, sys_MD)
+        # println("Processing generator: $(get_name(d))")
+        #create dictionary
+        # revisedts = Dict{DateTime, Array{Float64}}()
+        revisedts = DataStructures.SortedDict{DateTime,Vector}()
+
+        tstype = "1dayahead" ## actuals/, 1dayahead/, intraday/
+        if get_prime_mover_type(d) == PrimeMovers.WT
+            technology = "wind" 
+        else
+            technology = "pv" 
+        end
+
+        profile = DataFrame(CSV.File(joinpath(data_dir, "Wind_PV_Profiles_tzcorrected", "$(tstype)/ercot_$(technology)_build-$(weatheryear)_cst.csv")))
+        newtsdata = profile[!, namemapping[in([PSY.get_name(d)]).(namemapping.jsonname), :csvname][1]]
+        basepower = get_rating(d)
+        newtsdata = newtsdata ./ basepower
+
+        for t in 1:length(timestep)
+            rtseries=[]
+            datetimeindex = timestep[t]
+            if t < length(timestep)
+                rtseries = newtsdata[(interval*(t-1)+1):(interval*(t-1)+horizon)]
+            else  #last day
+                rtseries = [newtsdata[(interval*(t-1)+1):8760];newtsdata[1:horizon-(8760-(horizon*(t-1)))]]
+            end
+            push!(revisedts, datetimeindex => rtseries)
+        end
+
+        # conver to deterministic time series
+        revisedts_deterministic = PSY.Deterministic(;
+            name="max_active_power",
+            data=revisedts,
+            resolution=Dates.Hour(1),
+            scaling_factor_multiplier=get_max_active_power
+        )
+
+        # remove old time series
+        # remove_time_series!(sys_MD, Deterministic, d, "max_active_power")
+        # add new time series to dataset
+        add_time_series!(sys_MD, d, revisedts_deterministic)
+    end
+
+    #--------------------------------------------
+    # Load Forecasts !!!!!!!!!!!!! CHECK SYSTEM BASE !!!!!!!!!
+    #--------------------------------------------
+    profile=DataFrame(CSV.File(joinpath(data_dir, "Load_Forecast_from_Local", "$(scenario)", "$(loadyear)", "preds_$(weatheryear)0101_365days.csv"))) #in GW
+
+    for d in get_components(PowerLoad, sys_MD)
+        # println("Processing region: $(get_name(get_bus(d)))")
+        #create dictionary
+        # revisedts = Dict{DateTime, Array{Float64}}()
+        revisedts = DataStructures.SortedDict{DateTime,Vector}()
+
+        newtsdata = profile[!,lowercase(PSY.get_name(PSY.get_bus(d)))] 
+        baseload = get_max_active_power(d)
+        newtsdata = newtsdata./baseload
+        newtsdata = newtsdata.*1000
+        newtsdata = newtsdata./loadscaler # scale 2021 to 75GW peak
+
+        for t in 1:length(timestep)
+            rtseries=[]
+            datetimeindex = timestep[t]
+            if t < length(timestep)
+                rtseries = newtsdata[(interval*(t-1)+1):(interval*(t-1)+horizon)]
+            else  #last day
+                rtseries = [newtsdata[(interval*(t-1)+1):8760];newtsdata[1:horizon-(8760-(horizon*(t-1)))]]
+            end
+            push!(revisedts, datetimeindex => rtseries)
+        end
+
+        # conver to deterministic time series
+        revisedts_deterministic = PSY.Deterministic(;
+            name="max_active_power",
+            data=revisedts,
+            resolution=Dates.Hour(1),
+            scaling_factor_multiplier=get_max_active_power
+        )
+
+        # remove old time series
+        # remove_time_series!(sys_DA, Deterministic, d, "max_active_power")
+        # add new time series to dataset
+        add_time_series!(sys_MD, d, revisedts_deterministic)
+    end
+
+    #-----------------------------------------------------------------
+    # Regulation time series update
+    #-----------------------------------------------------------------
+    regdown_ts = DataFrame(CSV.File(joinpath(data_dir, "TS_for_Regulation_Req_Calc", "RegulationTS_Bethany", "DA_regDown_baseline_gmlc$(weatheryear).csv"))) #in MW
+    regup_ts = DataFrame(CSV.File(joinpath(data_dir, "TS_for_Regulation_Req_Calc", "RegulationTS_Bethany", "DA_regUp_baseline_gmlc$(weatheryear).csv"))) #in MW
+    regdown_ts= select!(regdown_ts, Not(:DATETIME))
+    regup_ts= select!(regup_ts, Not(:DATETIME))
+    regdown_ts[!,"RegDown"] = sum(eachcol(regdown_ts))
+    regup_ts[!,"RegUp"] = sum(eachcol(regup_ts))
+    reg_profile = DataFrame(REG_DN = regdown_ts[!,"RegDown"], REG_UP = regup_ts[!,"RegUp"])
+
+    for d in get_components(x -> PSY.get_name(x) in ["REG_DN","REG_UP"], Service, sys_MD)
+        # println("Processing serve: $(get_name(d))")
+        #create dictionary
+        # revisedts = Dict{DateTime, Array{Float64}}()
+        revisedts = DataStructures.SortedDict{DateTime,Vector}()
+
+        newtsdata = reg_profile[!,PSY.get_name(d)] 
+        basereq = get_requirement(d)
+        newtsdata = newtsdata./basereq
+
+        for t in 1:length(timestep)
+            rtseries=[]
+            datetimeindex = timestep[t]
+            if t < length(timestep)
+                rtseries = newtsdata[(interval*(t-1)+1):(interval*(t-1)+horizon)]
+            else  #last day
+                rtseries = [newtsdata[(interval*(t-1)+1):8760];newtsdata[1:horizon-(8760-(horizon*(t-1)))]]
+            end
+            push!(revisedts, datetimeindex => rtseries)
+        end
+
+        # conver to deterministic time series
+        revisedts_deterministic = PSY.Deterministic(;
+            name="requirement",
+            data=revisedts,
+            resolution=Dates.Hour(1),
+            scaling_factor_multiplier=get_requirement
+        )
+
+        # remove old time series
+        # remove_time_series!(sys_DA, Deterministic, d, "requirement")
+        # add new time series to dataset
+        add_time_series!(sys_MD, d, revisedts_deterministic)
+    end
+
+    # TODO: add outage timeseries
+    #--------------------------------------------
+    # Add thermal outage time series
+    # see /lustre/eaglefs/projects/gmlcmarkets/Phase2_EMIS_Analysis/ERCOT_Data_Prep/20221214_outage_example/
+    #--------------------------------------------
+    # outage_csv_location = "/lustre/eaglefs/projects/gmlcmarkets/PowerSystems2PRAS.jl/data/Generated-Outage-Profile-JSON/04371469-18e0-421c-b4e4-44a0f1c1213f/16-Jan-22-14-6-22/"
+    # sys_DA = System(joinpath(data_dir,"DA_sys_EMIS_v0811.json"), time_series_directory = "/tmp/scratch") #365*36
+    # sys_RT = System(joinpath(data_dir,"RT_sys_EMIS_v0811.json"), time_series_directory = "/tmp/scratch") #8760*24
+
+    # outage_csv_location = "/home/ysun/gmlcmarkets/Phase2_EMIS_Analysis/ERCOT_Data_Prep/20221214_outage_example/"
+    # outagescenario = 1
+
+    # sys_DA, sys_RT = add_csv_time_series!(sys_DA,sys_RT,outage_csv_location,add_scenario = outagescenario); # align outage structure to be the same as PRAS-ED (same value persist 36 times)
+
+    PSY.set_units_base_system!(sys_MD, PSY.IS.UnitSystem.SYSTEM_BASE)
+    to_json(sys_MD, output_file, force=true)
+
 end
