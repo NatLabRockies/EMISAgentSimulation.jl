@@ -88,8 +88,10 @@ end
 This function does nothing if Device is not of RenewableGen type.
 """
 function add_device_forecast!(simulation_dir::String,
+                              sys_MD::PSY.System,
                               sys_UC::PSY.System,
                               sys_ED::PSY.System,
+                              device_MD::D,
                               device_UC::D,
                               device_ED::D,
                               availability_df::Vector{Float64},
@@ -104,8 +106,10 @@ end
 This function adds forecast timeseries if Device is of RenewableGen type.
 """
 function add_device_forecast!(simulation_dir::String,
+                              sys_MD::PSY.System,
                               sys_UC::PSY.System,
                               sys_ED::PSY.System,
+                              device_MD::D,
                               device_UC::D,
                               device_ED::D,
                               availability_raw::Vector{Float64},
@@ -114,6 +118,23 @@ function add_device_forecast!(simulation_dir::String,
                               rt_resolution::Int64) where D <: PSY.RenewableGen
 
 
+    ######### Adding to MD##########
+
+    MD_horizon = PSY.get_forecast_horizon(sys_MD)
+    MD_interval = round(Dates.Millisecond(PSY.get_forecast_interval(sys_MD)), Dates.Hour)
+    interval = MD_interval.value
+    first_ts_temp_MD = first(PSY.get_time_series_multiple(sys_MD))
+    start_datetime_MD = PSY.IS.get_initial_timestamp(first_ts_temp_MD);
+    sys_MD_res = round(Dates.Millisecond(PSY.get_time_series_resolution(sys_MD)), Dates.Hour)
+    finish_datetime_MD = start_datetime_MD + Dates.Hour(8759*sys_MD_res.value);
+    # timestep here indicate how many MD periods are being constructed
+    timestep = StepRange(start_datetime_MD, sys_MD_res.value*MD_interval, finish_datetime_MD);
+    additional_timestep = MD_horizon - (8760-(interval*(length(timestep)-1)))
+
+    append!(availability_raw, availability_raw[1:additional_timestep])
+    data = Dict(timestep[i] => availability_raw[(interval*(i-1)+1):(interval*(i-1)+MD_horizon)] for i in 1:length(timestep))
+    forecast = PSY.Deterministic("max_active_power", data, Dates.Minute(da_resolution))
+    PSY.add_time_series!(sys_MD, device_MD, forecast)
 
     ######### Adding to UC##########
     # time_stamps = TS.timestamp(PSY.get_data(PSY.get_time_series(

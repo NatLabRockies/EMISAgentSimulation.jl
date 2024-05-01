@@ -90,6 +90,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
                                     yearly_horizon,
                                     simulation_years,
                                     capacity_forward_years,
+                                    sys_MD,
                                     sys_UC,
                                     sys_ED,
                                     get_case(simulation)
@@ -230,6 +231,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
                 retire_old!(projects,
                             i,
                             project,
+                            sys_MD,
                             sys_UC,
                             sys_ED,
                             get_data_dir(get_case(simulation)),
