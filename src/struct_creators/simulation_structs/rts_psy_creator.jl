@@ -35,7 +35,13 @@ function create_rts_sys(rts_dir::String,
                         base_power::Float64,
                         simulation_dir::String,
                         da_resolution::Int64,
-                        rt_resolution::Int64)
+                        rt_resolution::Int64,
+                        MD_horizon::Int64,
+                        MD_interval::Int64,
+                        UC_horizon::Int64,
+                        UC_interval::Int64,
+                        ED_horizon::Int64,
+                        ED_interval::Int64,)
 
     # da_products = split(read_data(joinpath(simulation_dir, "markets_data", "reserve_products.csv"))[1,"da_products"], "; ")
     #
@@ -75,24 +81,61 @@ function create_rts_sys(rts_dir::String,
     # prune_system_devices!(sys_UC, pruned_unit)
     # prune_system_devices!(sys_ED, pruned_unit)
 
-    sys_UC = PSY.System(joinpath(rts_dir,"DA_sys_EMIS_w2011_2hrRT_with_outage_PSY3.json"), time_series_directory = "/kfs3/scratch/nguo/");
-    sys_ED = PSY.System(joinpath(rts_dir,"RT_sys_EMIS_w2011_2hrRT_with_outage_PSY3.json"), time_series_directory = "/kfs3/scratch/nguo/");
+    scratch_dir = "/kfs3/scratch/nguo/"
+    ntp_ts_data_dir = joinpath(rts_dir, "..", "NTP_TimeSeries_Data")
 
-    sys_MD_initial = PSY.System(joinpath(rts_dir,"DA_sys_EMIS_w2011_2hrRT_with_outage_PSY3.json"), time_series_directory = "/kfs3/scratch/nguo/");
+    sys_UC_initial = PSY.System(joinpath(rts_dir,"DA_sys_EMIS_w2011_2hrRT_with_outage_PSY3.json"), time_series_directory = scratch_dir);
+    sys_ED_initial = PSY.System(joinpath(rts_dir,"RT_sys_EMIS_w2011_2hrRT_with_outage_PSY3.json"), time_series_directory = scratch_dir);
+    sys_MD_initial = PSY.System(joinpath(rts_dir,"DA_sys_EMIS_w2011_2hrRT_with_outage_PSY3.json"), time_series_directory = scratch_dir);
 
     # create MD system
-    create_sys_w_updated_ts(
-        "/kfs2/projects/gmlcmarkets/Phase2_EMIS_Analysis/Feb2024_ERCOT_2011_MARKET_Test_NGUO/NTP_TimeSeries_Data",
+    MD_number_of_forecast = create_sys_w_updated_ts(
+        ntp_ts_data_dir,
         sys_MD_initial,
         2011,
         2021,
         "baseline",
         75.0, #GW
-        168, # hours
-        168, # hours
-        joinpath(rts_dir,"MD_sys_EMIS_w2011_without_outage_PSY3.json"),
+        MD_horizon, # hours
+        MD_interval, # hours
+        joinpath(rts_dir,"MD_sys_EMIS_w2011_without_outage_PSY3_test.json"),
+        true,
     )
-    sys_MD = PSY.System(joinpath(rts_dir,"MD_sys_EMIS_w2011_without_outage_PSY3.json"), time_series_directory = "/kfs3/scratch/nguo/");
+    sys_MD = PSY.System(joinpath(rts_dir,"MD_sys_EMIS_w2011_without_outage_PSY3_test.json"), time_series_directory = scratch_dir);
+
+    UC_number_of_forecast = create_sys_w_updated_ts(
+        ntp_ts_data_dir,
+        sys_UC_initial,
+        2011,
+        2021,
+        "baseline",
+        75.0, #GW
+        UC_horizon, # hours
+        UC_interval, # hours
+        joinpath(rts_dir,"DA_sys_EMIS_w2011_without_outage_PSY3_test.json"),
+        false,
+        MD_horizon,
+        MD_interval,
+        MD_number_of_forecast,
+    )
+    sys_UC = PSY.System(joinpath(rts_dir,"DA_sys_EMIS_w2011_without_outage_PSY3_test.json"), time_series_directory = scratch_dir);
+
+    ED_number_of_forecast = create_sys_w_updated_ts(
+        ntp_ts_data_dir,
+        sys_ED_initial,
+        2011,
+        2021,
+        "baseline",
+        75.0, #GW
+        ED_horizon, # hours
+        ED_interval, # hours
+        joinpath(rts_dir,"RT_sys_EMIS_w2011_without_outage_PSY3_test.json"),
+        false,
+        MD_horizon,
+        MD_interval,
+        MD_number_of_forecast,
+    )
+    sys_ED = PSY.System(joinpath(rts_dir,"RT_sys_EMIS_w2011_without_outage_PSY3_test.json"), time_series_directory = scratch_dir);
 
 
     removegen_name = ["AUSTIN_1","AUSTIN_2"]
@@ -128,7 +171,7 @@ function create_rts_sys(rts_dir::String,
     PSY.set_units_base_system!(sys_UC, PSY.IS.UnitSystem.DEVICE_BASE)
     PSY.set_units_base_system!(sys_ED, PSY.IS.UnitSystem.DEVICE_BASE)
 
-    return sys_MD, sys_UC, sys_ED
+    return sys_MD, sys_UC, sys_ED, MD_horizon, MD_interval, UC_horizon, UC_interval, ED_horizon, ED_interval
 end
 
 function remove_vre_gens!(sys::PSY.System)
@@ -152,6 +195,10 @@ function create_sys_w_updated_ts(
     horizon::Int64, # hours
     interval::Int64, # hours
     output_file::String,
+    first_stage::Bool=false,
+    first_stage_horizon::Union{Nothing, Integer}=nothing, # hour (only need input if first_stage is false)
+    first_stage_interval::Union{Nothing, Integer}=nothing, # hour (only need input if first_stage is false)
+    first_stage_number_of_forecast::Union{Nothing, Integer}=nothing, # (only need input if first_stage is false)
 )
 
     #--------------------------------------------
@@ -177,19 +224,27 @@ function create_sys_w_updated_ts(
     # Construct hydro timeseries with new horizon from existing Deterministic timeseries
     #-----------------------------------------------------------------------------------
     first_ts_temp_MD = first(PSY.get_time_series_multiple(sys_MD))
-    start_datetime_MD = PSY.IS.get_initial_timestamp(first_ts_temp_MD);
+    start_datetime_MD = PSY.IS.get_initial_timestamp(first_ts_temp_MD)
     sys_MD_res = PSY.get_time_series_resolution(sys_MD)
-    finish_datetime_MD = start_datetime_MD + Dates.Hour(8759*sys_MD_res);
+    sys_MD_initial_interval = Int(sys_MD.data.time_series_params.forecast_params.interval / sys_MD_res)
+
+    # if not the first stage, i think finish_datetime_MD needs to be first stage's number_of_forecast * interval + (horizon - interval) -- all from first stage (need to pass down these parameters)
+    if first_stage == true
+        finish_datetime_MD = start_datetime_MD + Dates.Hour(8759*sys_MD_res)
+    else
+        finish_datetime_MD = start_datetime_MD + Dates.Hour((first_stage_number_of_forecast * first_stage_interval + (first_stage_horizon - first_stage_interval) - 1) *sys_MD_res)
+    end
     # timestep here indicate how many MD periods are being constructed
     timestep = StepRange(start_datetime_MD, sys_MD_res*interval, finish_datetime_MD);
-    additional_timestep = horizon - (8760-(interval*(length(timestep)-1)))
+    first_stage_total = Int((finish_datetime_MD - start_datetime_MD) / sys_MD_res + 1)
+    additional_timestep = Int(horizon - (first_stage_total-(interval*(length(timestep)-1))) + (first_stage_total - 8760))
 
     for component in collect(get_components(HydroDispatch, sys_MD))
         forecast = get_time_series(Deterministic, component, "max_active_power")
 
         reconstruct_single_ts = Float64[]
         for (key, value) in forecast.data
-            append!(reconstruct_single_ts, value[1:24])
+            append!(reconstruct_single_ts, value[1:sys_MD_initial_interval])
         end
         append!(reconstruct_single_ts, reconstruct_single_ts[1:additional_timestep])
 
@@ -210,11 +265,7 @@ function create_sys_w_updated_ts(
         for t in 1:length(timestep)
             rtseries=[]
             datetimeindex = timestep[t]
-            if t < length(timestep)
-                rtseries = newtsdata[(interval*(t-1)+1):(interval*(t-1)+horizon)]
-            else  #last day
-                rtseries = [newtsdata[(interval*(t-1)+1):8760];newtsdata[1:horizon-(8760-(horizon*(t-1)))]]
-            end
+            rtseries = newtsdata[(interval*(t-1)+1):(interval*(t-1)+horizon)]
             push!(revisedts, datetimeindex => rtseries)
         end
 
@@ -239,12 +290,12 @@ function create_sys_w_updated_ts(
     #-----------------------------------------------------------
     namemapping = DataFrame(CSV.File(joinpath(data_dir, "GeneratorNameMapping.csv")))
     # To get raw DA data time stamps
-    first_ts_temp_MD = first(PSY.get_time_series_multiple(sys_MD))
-    start_datetime_MD = PSY.IS.get_initial_timestamp(first_ts_temp_MD);
-    sys_MD_res = PSY.get_time_series_resolution(sys_MD)
-    finish_datetime_MD = start_datetime_MD + Dates.Hour(8759*sys_MD_res);
+    # first_ts_temp_MD = first(PSY.get_time_series_multiple(sys_MD))
+    # start_datetime_MD = PSY.IS.get_initial_timestamp(first_ts_temp_MD);
+    # sys_MD_res = PSY.get_time_series_resolution(sys_MD)
+    # finish_datetime_MD = start_datetime_MD + Dates.Hour(8759*sys_MD_res);
     # timestep here indicate how many MD periods are being constructed
-    timestep = StepRange(start_datetime_MD, sys_MD_res*interval, finish_datetime_MD);
+    # timestep = StepRange(start_datetime_MD, sys_MD_res*interval, finish_datetime_MD);
     # hourlytimestep  = StepRange(start_datetime_DA, sys_DA_res, finish_datetime_DA);
 
     # remove_time_series!(sys_MD, Deterministic)
@@ -270,10 +321,14 @@ function create_sys_w_updated_ts(
         for t in 1:length(timestep)
             rtseries=[]
             datetimeindex = timestep[t]
-            if t < length(timestep)
+            if t < 8760/interval
                 rtseries = newtsdata[(interval*(t-1)+1):(interval*(t-1)+horizon)]
-            else  #last day
-                rtseries = [newtsdata[(interval*(t-1)+1):8760];newtsdata[1:horizon-(8760-(horizon*(t-1)))]]
+            elseif t == ceil(Int, 8760/interval)
+                rtseries = [newtsdata[(interval*(t-1)+1):8760];newtsdata[1:horizon-(8760-(interval*(t-1)))]]
+            else
+                # simply use the end of the previous timeseries as the new start
+                new_start = horizon-(8760-(interval*(ceil(Int, 8760/interval)-1)))
+                rtseries = newtsdata[new_start+(t-ceil(Int, 8760/interval)-1)*interval+1:new_start+(t-ceil(Int, 8760/interval)-1)*interval+horizon]
             end
             push!(revisedts, datetimeindex => rtseries)
         end
@@ -312,10 +367,14 @@ function create_sys_w_updated_ts(
         for t in 1:length(timestep)
             rtseries=[]
             datetimeindex = timestep[t]
-            if t < length(timestep)
+            if t < 8760/interval
                 rtseries = newtsdata[(interval*(t-1)+1):(interval*(t-1)+horizon)]
-            else  #last day
-                rtseries = [newtsdata[(interval*(t-1)+1):8760];newtsdata[1:horizon-(8760-(horizon*(t-1)))]]
+            elseif t == ceil(Int, 8760/interval)
+                rtseries = [newtsdata[(interval*(t-1)+1):8760];newtsdata[1:horizon-(8760-(interval*(t-1)))]]
+            else
+                # simply use the end of the previous timeseries as the new start
+                new_start = horizon-(8760-(interval*(ceil(Int, 8760/interval)-1)))
+                rtseries = newtsdata[new_start+(t-ceil(Int, 8760/interval)-1)*interval+1:new_start+(t-ceil(Int, 8760/interval)-1)*interval+horizon]
             end
             push!(revisedts, datetimeindex => rtseries)
         end
@@ -358,10 +417,14 @@ function create_sys_w_updated_ts(
         for t in 1:length(timestep)
             rtseries=[]
             datetimeindex = timestep[t]
-            if t < length(timestep)
+            if t < 8760/interval
                 rtseries = newtsdata[(interval*(t-1)+1):(interval*(t-1)+horizon)]
-            else  #last day
-                rtseries = [newtsdata[(interval*(t-1)+1):8760];newtsdata[1:horizon-(8760-(horizon*(t-1)))]]
+            elseif t == ceil(Int, 8760/interval)
+                rtseries = [newtsdata[(interval*(t-1)+1):8760];newtsdata[1:horizon-(8760-(interval*(t-1)))]]
+            else
+                # simply use the end of the previous timeseries as the new start
+                new_start = horizon-(8760-(interval*(ceil(Int, 8760/interval)-1)))
+                rtseries = newtsdata[new_start+(t-ceil(Int, 8760/interval)-1)*interval+1:new_start+(t-ceil(Int, 8760/interval)-1)*interval+horizon]
             end
             push!(revisedts, datetimeindex => rtseries)
         end
@@ -396,5 +459,7 @@ function create_sys_w_updated_ts(
 
     PSY.set_units_base_system!(sys_MD, PSY.IS.UnitSystem.SYSTEM_BASE)
     to_json(sys_MD, output_file, force=true)
+
+    return sys_MD.data.time_series_params.forecast_params.count
 
 end

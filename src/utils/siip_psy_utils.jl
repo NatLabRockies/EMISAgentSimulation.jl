@@ -120,19 +120,31 @@ function add_device_forecast!(simulation_dir::String,
 
     ######### Adding to MD##########
 
-    MD_horizon = PSY.get_forecast_horizon(sys_MD)
-    MD_interval = round(Dates.Millisecond(PSY.get_forecast_interval(sys_MD)), Dates.Hour)
-    interval = MD_interval.value
-    first_ts_temp_MD = first(PSY.get_time_series_multiple(sys_MD))
-    start_datetime_MD = PSY.IS.get_initial_timestamp(first_ts_temp_MD);
-    sys_MD_res = round(Dates.Millisecond(PSY.get_time_series_resolution(sys_MD)), Dates.Hour)
-    finish_datetime_MD = start_datetime_MD + Dates.Hour(8759*sys_MD_res.value);
-    # timestep here indicate how many MD periods are being constructed
-    timestep = StepRange(start_datetime_MD, sys_MD_res.value*MD_interval, finish_datetime_MD);
-    additional_timestep = MD_horizon - (8760-(interval*(length(timestep)-1)))
+    # MD_horizon = PSY.get_forecast_horizon(sys_MD)
+    # MD_interval = round(Dates.Millisecond(PSY.get_forecast_interval(sys_MD)), Dates.Hour)
+    # interval = MD_interval.value
+    # first_ts_temp_MD = first(PSY.get_time_series_multiple(sys_MD))
+    # start_datetime_MD = PSY.IS.get_initial_timestamp(first_ts_temp_MD);
+    # sys_MD_res = round(Dates.Millisecond(PSY.get_time_series_resolution(sys_MD)), Dates.Hour)
+    # finish_datetime_MD = start_datetime_MD + Dates.Hour(8759*sys_MD_res.value);
+    # # timestep here indicate how many MD periods are being constructed
+    # timestep = StepRange(start_datetime_MD, sys_MD_res.value*MD_interval, finish_datetime_MD);
+    # additional_timestep = MD_horizon - (8760-(interval*(length(timestep)-1)))
 
-    append!(availability_raw, availability_raw[1:additional_timestep])
-    data = Dict(timestep[i] => availability_raw[(interval*(i-1)+1):(interval*(i-1)+MD_horizon)] for i in 1:length(timestep))
+    # append!(availability_raw, availability_raw[1:additional_timestep])
+    # data = Dict(timestep[i] => availability_raw[(interval*(i-1)+1):(interval*(i-1)+MD_horizon)] for i in 1:length(timestep))
+
+    sys_interval = sys_MD.data.time_series_params.forecast_params.interval
+    sys_horizon = sys_MD.data.time_series_params.forecast_params.horizon
+    forecast_count = sys_MD.data.time_series_params.forecast_params.count
+    sys_resolution = sys_MD.data.time_series_params.resolution
+    start_datetime = sys_MD.data.time_series_params.forecast_params.initial_timestamp
+    finish_datetime = start_datetime + Dates.Hour((forecast_count * sys_interval/sys_resolution + (sys_horizon - sys_interval/sys_resolution) - 1))
+    time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
+
+    additional_timestep = length(time_stamps) - 8760
+    append!(availability_raw, availability_raw[(length(availability_raw) - additional_timestep + 1):end])
+    data = Dict(time_stamps[i] => availability_raw[i:(i + sys_horizon - 1)] for i in 1:Int(sys_interval/sys_resolution):(length(time_stamps)-sys_horizon + 1))
     forecast = PSY.Deterministic("max_active_power", data, Dates.Minute(da_resolution))
     PSY.add_time_series!(sys_MD, device_MD, forecast)
 
@@ -149,10 +161,22 @@ function add_device_forecast!(simulation_dir::String,
     # forecast = PSY.Deterministic("max_active_power", data, Dates.Minute(da_resolution))
     # PSY.add_time_series!(sys_UC, device_UC, forecast)
 
-    time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2019-01-01T11:00:00"));
-    intervals = Int(36 * 60 / da_resolution)
-    append!(availability_raw, availability_raw[(length(availability_raw) - intervals + 25):end])
-    data = Dict(time_stamps[i] => availability_raw[i:(i + intervals - 1)] for i in 1:Int(24 * 60 / da_resolution):8760)
+    sys_interval = sys_UC.data.time_series_params.forecast_params.interval
+    sys_horizon = sys_UC.data.time_series_params.forecast_params.horizon
+    forecast_count = sys_UC.data.time_series_params.forecast_params.count
+    sys_resolution = sys_UC.data.time_series_params.resolution
+    start_datetime = sys_UC.data.time_series_params.forecast_params.initial_timestamp
+    finish_datetime = start_datetime + Dates.Hour((forecast_count * sys_interval/sys_resolution + (sys_horizon - sys_interval/sys_resolution) - 1))
+    time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
+
+    additional_timestep = length(time_stamps) - 8760
+    append!(availability_raw, availability_raw[(length(availability_raw) - additional_timestep + 1):end])
+    data = Dict(time_stamps[i] => availability_raw[i:(i + sys_horizon - 1)] for i in 1:Int(sys_interval/sys_resolution):(length(time_stamps)-sys_horizon + 1))
+
+    # time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2019-01-01T11:00:00"));
+    # intervals = Int(36 * 60 / da_resolution)
+    # append!(availability_raw, availability_raw[(length(availability_raw) - intervals + 25):end])
+    # data = Dict(time_stamps[i] => availability_raw[i:(i + intervals - 1)] for i in 1:Int(24 * 60 / da_resolution):8760)
     forecast = PSY.Deterministic("max_active_power", data, Dates.Minute(da_resolution))
     PSY.add_time_series!(sys_UC, device_UC, forecast)
 
@@ -162,10 +186,22 @@ function add_device_forecast!(simulation_dir::String,
     #                                                 first(PSY.get_components(PSY.ElectricLoad, sys_ED)),
     #                                                 "max_active_power"
     #                                                 )))
-    time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2019-01-01T01:00:00"));
-    intervals =  Int(2*60 / rt_resolution)
-    append!(availability_raw_rt, availability_raw_rt[(length(availability_raw_rt) - intervals + 1):end])
-    data = Dict(time_stamps[i] => availability_raw_rt[i:(i + intervals - 1)] for i in 1:Int(60 / rt_resolution):8760)
+
+    sys_interval = sys_ED.data.time_series_params.forecast_params.interval
+    sys_horizon = sys_ED.data.time_series_params.forecast_params.horizon
+    forecast_count = sys_ED.data.time_series_params.forecast_params.count
+    sys_resolution = sys_ED.data.time_series_params.resolution
+    start_datetime = sys_ED.data.time_series_params.forecast_params.initial_timestamp
+    finish_datetime = start_datetime + Dates.Hour((forecast_count * sys_interval/sys_resolution + (sys_horizon - sys_interval/sys_resolution) - 1))
+    time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
+
+    additional_timestep = length(time_stamps) - 8760
+    append!(availability_raw_rt, availability_raw_rt[(length(availability_raw_rt) - additional_timestep + 1):end])
+    data = Dict(time_stamps[i] => availability_raw_rt[i:(i + sys_horizon - 1)] for i in 1:Int(sys_interval/sys_resolution):(length(time_stamps)-sys_horizon + 1))
+    # time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2019-01-01T01:00:00"));
+    # intervals =  Int(2*60 / rt_resolution)
+    # append!(availability_raw_rt, availability_raw_rt[(length(availability_raw_rt) - intervals + 1):end])
+    # data = Dict(time_stamps[i] => availability_raw_rt[i:(i + intervals - 1)] for i in 1:Int(60 / rt_resolution):8760)
     forecast = PSY.Deterministic("max_active_power", data, Dates.Minute(rt_resolution))
     PSY.add_time_series!(sys_ED, device_ED, forecast)
 
@@ -174,7 +210,7 @@ function add_device_forecast!(simulation_dir::String,
     load_n_vg_df[:, get_name(device_UC)] = availability_raw[1:DataFrames.nrow(load_n_vg_df)] * get_device_size(device_UC) * PSY.get_base_power(sys_UC)
 
     load_n_vg_df_rt =  read_data(joinpath(simulation_dir, "timeseries_data_files", "Net Load Data", "load_n_vg_data_rt.csv"))
-    load_n_vg_df_rt[:, get_name(device_UC)] = availability_raw_rt[1:DataFrames.nrow(load_n_vg_df_rt)] * get_device_size(device_UC) * PSY.get_base_power(sys_UC)
+    load_n_vg_df_rt[:, get_name(device_ED)] = availability_raw_rt[1:DataFrames.nrow(load_n_vg_df_rt)] * get_device_size(device_ED) * PSY.get_base_power(sys_ED)
 
     write_data(joinpath(simulation_dir, "timeseries_data_files", "Net Load Data"), "load_n_vg_data.csv", load_n_vg_df)
     write_data(joinpath(simulation_dir, "timeseries_data_files", "Net Load Data"), "load_n_vg_data_rt.csv", load_n_vg_df_rt)
@@ -190,7 +226,6 @@ function update_PSY_timeseries!(sys_UC::Nothing,
                                load_growth::AxisArrays.AxisArray{Float64, 1},
                                rec_requirement::Float64,
                                simulation_dir::String,
-                               type::String,
                                iteration_year::Int64,
                                da_resolution::Int64,
                                rt_resolution::Int64)
@@ -204,7 +239,6 @@ function update_PSY_timeseries!(sys::PSY.System,
                                load_growth::AxisArrays.AxisArray{Float64, 1},
                                rec_requirement::Float64,
                                simulation_dir::String,
-                               type::String,
                                iteration_year::Int64,
                                da_resolution::Int64,
                                rt_resolution::Int64)
@@ -229,6 +263,16 @@ function update_PSY_timeseries!(sys::PSY.System,
 
     average_load_growth = Statistics.mean(load_growth)
 
+    sys_interval = sys.data.time_series_params.forecast_params.interval
+    sys_horizon = sys.data.time_series_params.forecast_params.horizon
+    forecast_count = sys.data.time_series_params.forecast_params.count
+    sys_resolution = sys.data.time_series_params.resolution
+    start_datetime = sys.data.time_series_params.forecast_params.initial_timestamp
+    finish_datetime = start_datetime + Dates.Hour((forecast_count * sys_interval/sys_resolution + (sys_horizon - sys_interval/sys_resolution) - 1))
+    time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
+
+    additional_timestep = length(time_stamps) - 8760
+
     # update service requirement timeseries.
     services = get_system_services(sys)
     ordc_products = split(read_data(joinpath(simulation_dir, "markets_data", "reserve_products.csv"))[1,"ordc_products"], "; ")
@@ -244,48 +288,57 @@ function update_PSY_timeseries!(sys::PSY.System,
             # time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2018-12-31T23:00:00"));
 
             PSY.remove_time_series!(sys, PSY.Deterministic, service, "variable_cost")
-            if type == "UC"
-                # product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", "Reserves", "$(service_name)_$(iteration_year - 1).csv"))[:, service_name]
-                # product_data_ts = process_ordc_data_for_siip(product_ts_raw)
-                # intervals = Int(24 * 60 / da_resolution)
-                # append!(product_data_ts, product_data_ts[(length(product_data_ts) - intervals + 1):end])
-                # data = Dict(time_stamps[i] => product_data_ts[i:(i + intervals - 1)] for i in 1:intervals:length(time_stamps))
-                # forecast = PSY.Deterministic("variable_cost", data, Dates.Minute(da_resolution))
 
-                time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2019-01-01T11:00:00"));
-                product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", "Reserves", "$(service_name)_$(iteration_year - 1).csv"))[:, service_name]
-                product_data_ts = process_ordc_data_for_siip(product_ts_raw)
-                intervals = Int(36 * 60 / da_resolution)
-                append!(product_data_ts, product_data_ts[(length(product_data_ts) - intervals + 25):end])
-                data = Dict(time_stamps[i] => product_data_ts[i:(i + intervals - 1)] for i in 1:Int(24 * 60 / da_resolution):8760)
-                forecast = PSY.Deterministic("variable_cost", data, Dates.Minute(da_resolution))
 
-            elseif type == "ED"
-                # product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", "Reserves", "$(service_name)_REAL_TIME_$(iteration_year - 1).csv"))[:, service_name]
-                # product_data_ts = process_ordc_data_for_siip(product_ts_raw)
-                # intervals =  Int(60 / rt_resolution)
-                # append!(product_data_ts, product_data_ts[(length(product_data_ts) - intervals + 1):end])
-                # data = Dict(time_stamps[i] => product_data_ts[i:(i + intervals  - 1)] for i in 1:intervals:length(time_stamps))
-                # forecast = PSY.Deterministic("variable_cost", data, Dates.Minute(rt_resolution))
+            time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
+            product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", "Reserves", "$(service_name)_$(iteration_year - 1).csv"))[:, service_name]
+            product_data_ts = process_ordc_data_for_siip(product_ts_raw)
+            product_data_ts = [product_data_ts;product_data_ts[1:additional_timestep]]
+            data = Dict(time_stamps[i] => product_data_ts[i:(i + sys_horizon - 1)] for i in 1:Int(sys_interval/sys_resolution):(length(time_stamps)-sys_horizon + 1))
+            forecast = PSY.Deterministic("variable_cost", data, Dates.Minute(da_resolution))
 
-                time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2019-01-01T01:00:00"));
-                product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", "Reserves", "$(service_name)_REAL_TIME_$(iteration_year - 1).csv"))[:, service_name]
-                product_data_ts = process_ordc_data_for_siip(product_ts_raw)
-                intervals =  Int(2*60 / rt_resolution)
-                append!(product_data_ts, product_data_ts[(length(product_data_ts) - intervals + 1):end])
-                data = Dict(time_stamps[i] => product_data_ts[i:(i + intervals  - 1)] for i in 1:Int(60 / rt_resolution):8760)
-                forecast = PSY.Deterministic("variable_cost", data, Dates.Minute(rt_resolution))
-            elseif type == "MD"
-                time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2019-01-06T23:00:00"));
-                product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", "Reserves", "$(service_name)_$(iteration_year - 1).csv"))[:, service_name]
-                product_data_ts = process_ordc_data_for_siip(product_ts_raw)
-                intervals = Int(7 * 24 * 60 / da_resolution)
-                append!(product_data_ts, product_data_ts[(length(product_data_ts) - (intervals - (8760-intervals*52)) + 1):end])
-                data = Dict(time_stamps[i] => product_data_ts[i:(i + intervals - 1)] for i in 1:Int(7 * 24 * 60 / da_resolution):8760)
-                forecast = PSY.Deterministic("variable_cost", data, Dates.Minute(da_resolution))
-            else
-                error("Type should be MD, UC or ED")
-            end
+            # if type == "UC"
+            #     # product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", "Reserves", "$(service_name)_$(iteration_year - 1).csv"))[:, service_name]
+            #     # product_data_ts = process_ordc_data_for_siip(product_ts_raw)
+            #     # intervals = Int(24 * 60 / da_resolution)
+            #     # append!(product_data_ts, product_data_ts[(length(product_data_ts) - intervals + 1):end])
+            #     # data = Dict(time_stamps[i] => product_data_ts[i:(i + intervals - 1)] for i in 1:intervals:length(time_stamps))
+            #     # forecast = PSY.Deterministic("variable_cost", data, Dates.Minute(da_resolution))
+
+            #     time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2019-01-01T11:00:00"));
+            #     product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", "Reserves", "$(service_name)_$(iteration_year - 1).csv"))[:, service_name]
+            #     product_data_ts = process_ordc_data_for_siip(product_ts_raw)
+            #     intervals = Int(36 * 60 / da_resolution)
+            #     append!(product_data_ts, product_data_ts[(length(product_data_ts) - intervals + 25):end])
+            #     data = Dict(time_stamps[i] => product_data_ts[i:(i + intervals - 1)] for i in 1:Int(24 * 60 / da_resolution):8760)
+            #     forecast = PSY.Deterministic("variable_cost", data, Dates.Minute(da_resolution))
+
+            # elseif type == "ED"
+            #     # product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", "Reserves", "$(service_name)_REAL_TIME_$(iteration_year - 1).csv"))[:, service_name]
+            #     # product_data_ts = process_ordc_data_for_siip(product_ts_raw)
+            #     # intervals =  Int(60 / rt_resolution)
+            #     # append!(product_data_ts, product_data_ts[(length(product_data_ts) - intervals + 1):end])
+            #     # data = Dict(time_stamps[i] => product_data_ts[i:(i + intervals  - 1)] for i in 1:intervals:length(time_stamps))
+            #     # forecast = PSY.Deterministic("variable_cost", data, Dates.Minute(rt_resolution))
+
+            #     time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2019-01-01T01:00:00"));
+            #     product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", "Reserves", "$(service_name)_REAL_TIME_$(iteration_year - 1).csv"))[:, service_name]
+            #     product_data_ts = process_ordc_data_for_siip(product_ts_raw)
+            #     intervals =  Int(2*60 / rt_resolution)
+            #     append!(product_data_ts, product_data_ts[(length(product_data_ts) - intervals + 1):end])
+            #     data = Dict(time_stamps[i] => product_data_ts[i:(i + intervals  - 1)] for i in 1:Int(60 / rt_resolution):8760)
+            #     forecast = PSY.Deterministic("variable_cost", data, Dates.Minute(rt_resolution))
+            # elseif type == "MD"
+            #     time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2019-01-06T23:00:00"));
+            #     product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", "Reserves", "$(service_name)_$(iteration_year - 1).csv"))[:, service_name]
+            #     product_data_ts = process_ordc_data_for_siip(product_ts_raw)
+            #     intervals = Int(7 * 24 * 60 / da_resolution)
+            #     append!(product_data_ts, product_data_ts[(length(product_data_ts) - (intervals - (8760-intervals*52)) + 1):end])
+            #     data = Dict(time_stamps[i] => product_data_ts[i:(i + intervals - 1)] for i in 1:Int(7 * 24 * 60 / da_resolution):8760)
+            #     forecast = PSY.Deterministic("variable_cost", data, Dates.Minute(da_resolution))
+            # else
+            #     error("Type should be MD, UC or ED")
+            # end
 
             PSY.add_time_series!(sys, service, forecast)
         elseif service_name == "Clean_Energy"
@@ -425,7 +478,10 @@ function transform_psy_timeseries!(sys_MD::Nothing,
                                    da_resolution::Int64,
                                    rt_resolution::Int64,
                                    da_horizon::Int64,
-                                   rt_horizon::Int64)
+                                   rt_horizon::Int64,
+                                   md_interval::Int64,
+                                   da_interval::Int64,
+                                   rt_interval::Int64,)
     return
 end
 
@@ -436,11 +492,14 @@ function transform_psy_timeseries!(sys_MD::PSY.System,
                                    rt_resolution::Int64,
                                    md_horizon::Int64,
                                    da_horizon::Int64,
-                                   rt_horizon::Int64)
+                                   rt_horizon::Int64,
+                                   md_interval::Int64,
+                                   da_interval::Int64,
+                                   rt_interval::Int64,)
     # TODO: may want to add md_resolution
-    PSY.transform_single_time_series!(sys_MD, Int(md_horizon * 60 / da_resolution), Dates.Hour(168))
-    PSY.transform_single_time_series!(sys_UC, Int(da_horizon * 60 / da_resolution), Dates.Hour(24))
-    PSY.transform_single_time_series!(sys_ED, Int(rt_horizon * 60 / rt_resolution), Dates.Hour(1))
+    PSY.transform_single_time_series!(sys_MD, Int(md_horizon * 60 / da_resolution), Dates.Hour(md_interval))
+    PSY.transform_single_time_series!(sys_UC, Int(da_horizon * 60 / da_resolution), Dates.Hour(da_interval))
+    PSY.transform_single_time_series!(sys_ED, Int(rt_horizon * 60 / rt_resolution), Dates.Hour(rt_interval))
     return
 end
 
@@ -520,7 +579,13 @@ function add_psy_clean_energy_constraint!(sys::PSY.System,
     #                 first(PSY.get_components(PSY.ElectricLoad, sys)),
     #                 "max_active_power"
     #                 )))
-    time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2019-01-01T11:00:00"));
+    sys_interval = sys.data.time_series_params.forecast_params.interval
+    sys_horizon = sys.data.time_series_params.forecast_params.horizon
+    forecast_count = sys.data.time_series_params.forecast_params.count
+    sys_resolution = sys.data.time_series_params.resolution
+    start_datetime = sys.data.time_series_params.forecast_params.initial_timestamp
+    finish_datetime = start_datetime + Dates.Hour((forecast_count * sys_interval/sys_resolution + (sys_horizon - sys_interval/sys_resolution) - 1))
+    time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
     #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     clean_energy_ts_data = zeros(length(time_stamps))
@@ -539,9 +604,9 @@ function add_psy_clean_energy_constraint!(sys::PSY.System,
                                                 ))
         ts_data =[]
         for timestep in keys(loadts_raw)
-            ts_data=[ts_data;loadts_raw[timestep][1:24]]
+            ts_data=[ts_data;loadts_raw[timestep][1:Int(sys_interval/sys_resolution)]]
         end
-        ts_data=[ts_data;loadts_raw[Dates.DateTime("2018-12-31T00:00:00")][25:36]]
+        ts_data=[ts_data;loadts_raw[end][Int(sys_interval/sys_resolution)+1:end]]
         clean_energy_ts_data .+= (TS.values(ts_data) .* load_active_power)
     end
 
@@ -571,6 +636,9 @@ end
 function calculate_total_load(sys::PSY.System, time_resolution::Int64)
     total_load = 0.0
 
+    sys_interval = sys.data.time_series_params.forecast_params.interval
+    sys_resolution = sys.data.time_series_params.resolution
+
     nodal_loads = PSY.get_components(PSY.PowerLoad, sys)
     for load in nodal_loads
         zone = "zone_$(PSY.get_name(PSY.get_area(PSY.get_bus(load))))"
@@ -586,9 +654,9 @@ function calculate_total_load(sys::PSY.System, time_resolution::Int64)
                                                 ))
         ts_data =[]
         for timestep in keys(loadts_raw)
-            ts_data=[ts_data;loadts_raw[timestep][1:Int(8760/length(keys(loadts_raw)))]]
+            ts_data=[ts_data;loadts_raw[timestep][1:Int(sys_interval/sys_resolution)]]
         end
-        total_load += sum(TS.values(ts_data) * PSY.get_max_active_power(load)) * time_resolution / 60
+        total_load += sum(TS.values(ts_data[1:8760]) * PSY.get_max_active_power(load)) * time_resolution / 60
 
     end
     return total_load

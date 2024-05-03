@@ -81,6 +81,12 @@ struct CaseDefinition
     risk_aversion::Bool
     parallel_investors::Bool
     parallel_scenarios::Bool
+    md_horizon::Int64
+    md_interval::Int64
+    uc_horizon::Int64
+    uc_interval::Int64
+    ed_horizon::Int64
+    ed_interval::Int64
 
     function CaseDefinition(name,
                             base_dir,
@@ -119,7 +125,13 @@ struct CaseDefinition
                             uncertainty,
                             risk_aversion,
                             parallel_investors,
-                            parallel_scenarios)
+                            parallel_scenarios,
+                            md_horizon,
+                            md_interval,
+                            uc_horizon,
+                            uc_interval,
+                            ed_horizon,
+                            ed_interval,)
 
         @assert total_horizon >= simulation_years
 
@@ -142,6 +154,7 @@ struct CaseDefinition
             @assert da_resolution == rt_resolution
         end
         =#
+        # TODO: add assertion to MD, DA, RT horizon and interval
         return new(name,
                    base_dir,
                    sys_dir,
@@ -179,7 +192,13 @@ struct CaseDefinition
                    uncertainty,
                    risk_aversion,
                    parallel_investors,
-                   parallel_scenarios)
+                   parallel_scenarios,
+                   md_horizon,
+                   md_interval,
+                   uc_horizon,
+                   uc_interval,
+                   ed_horizon,
+                   ed_interval,)
     end
 end
 
@@ -220,7 +239,13 @@ function CaseDefinition(name::String,
                         uncertainty::Bool = false,
                         risk_aversion::Bool = false,
                         parallel_investors::Bool = false,
-                        parallel_scenarios::Bool = false)
+                        parallel_scenarios::Bool = false,
+                        md_horizon::Int64 = 168,
+                        md_interval::Int64 = 168,
+                        uc_horizon::Int64 = 36,
+                        uc_interval::Int64 = 24,
+                        ed_horizon::Int64 = 2,
+                        ed_interval::Int64 = 1,)
 
     CaseDefinition(name,
                    base_dir,
@@ -259,7 +284,13 @@ function CaseDefinition(name::String,
                    uncertainty,
                    risk_aversion,
                    parallel_investors,
-                   parallel_scenarios)
+                   parallel_scenarios,
+                   md_horizon,
+                   md_interval,
+                   uc_horizon,
+                   uc_interval,
+                   ed_horizon,
+                   ed_interval,)
 end
 
 get_base_dir(case::CaseDefinition) = case.base_dir
@@ -299,6 +330,12 @@ get_uncertainty(case::CaseDefinition) = case.uncertainty
 get_risk_aversion(case::CaseDefinition) = case.risk_aversion
 get_parallel_investors(case::CaseDefinition) = case.parallel_investors
 get_parallel_scenarios(case::CaseDefinition) = case.parallel_scenarios
+get_md_horizon(case::CaseDefinition) = case.md_horizon
+get_md_interval(case::CaseDefinition) = case.md_interval
+get_uc_horizon(case::CaseDefinition) = case.uc_horizon
+get_uc_interval(case::CaseDefinition) = case.uc_interval
+get_ed_horizon(case::CaseDefinition) = case.ed_horizon
+get_ed_interval(case::CaseDefinition) = case.ed_interval
 
 function get_name(case::CaseDefinition)
     #=

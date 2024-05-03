@@ -80,7 +80,7 @@ function create_realized_marketdata(simulation::AgentSimulation,
     day = 0
     get_rt_resolution(get_case(simulation))
     # for time in 1:Int(24*60/get_rt_resolution(get_case(simulation))):(Int(24*60/get_rt_resolution(get_case(simulation))) * 365)
-    for time in 1:Int(24*60/get_rt_resolution(get_case(simulation))):(Int(24*60/get_rt_resolution(get_case(simulation))) * 300)
+    for time in 1:Int(24*60/get_rt_resolution(get_case(simulation))):(Int(24*60/get_rt_resolution(get_case(simulation))) * 7)
         day += 1
         daily_total_production = 0.0
         daily_cec_production = 0.0

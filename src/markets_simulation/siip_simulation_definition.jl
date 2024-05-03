@@ -1100,7 +1100,7 @@ function create_simulation( sys_MD::PSY.System,
 
     sim = PSI.Simulation(
                     name = "emis_$(case_name)",
-                    steps = 52,
+                    steps = 2,
                     models = models,
                     sequence = sequence,
                     simulation_folder = ".",
