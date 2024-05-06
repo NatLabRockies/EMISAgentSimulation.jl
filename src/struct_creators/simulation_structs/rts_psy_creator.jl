@@ -94,6 +94,7 @@ function create_rts_sys(rts_dir::String,
         sys_MD_initial,
         2011,
         2021,
+        "dayahead",
         "baseline",
         75.0, #GW
         MD_horizon, # hours
@@ -108,6 +109,7 @@ function create_rts_sys(rts_dir::String,
         sys_UC_initial,
         2011,
         2021,
+        "dayahead",
         "baseline",
         75.0, #GW
         UC_horizon, # hours
@@ -125,6 +127,7 @@ function create_rts_sys(rts_dir::String,
         sys_ED_initial,
         2011,
         2021,
+        "realtime",
         "baseline",
         75.0, #GW
         ED_horizon, # hours
@@ -190,6 +193,7 @@ function create_sys_w_updated_ts(
     initial_sys::PSY.System,
     weatheryear::Int64,
     loadyear::Int64,
+    market_stage::String, # dayahead, realtime
     scenario::String,
     loadscaler_base::Float64, #GW
     horizon::Int64, # hours
@@ -306,7 +310,14 @@ function create_sys_w_updated_ts(
         # revisedts = Dict{DateTime, Array{Float64}}()
         revisedts = DataStructures.SortedDict{DateTime,Vector}()
 
-        tstype = "1dayahead" ## actuals/, 1dayahead/, intraday/
+        # tstype = "1dayahead" ## actuals/, 1dayahead/, intraday/
+        if market_stage == "dayahead"
+            tstype = "1dayahead"
+        elseif market_stage == "realtime"
+            # TODO: the real-time timeseries actually uses both "actuals" and "intraday", but it limits the RT horizon to 2-hour.
+            tstype = "actuals"
+        end
+
         if get_prime_mover_type(d) == PrimeMovers.WT
             technology = "wind" 
         else
@@ -350,7 +361,11 @@ function create_sys_w_updated_ts(
     #--------------------------------------------
     # Load Forecasts !!!!!!!!!!!!! CHECK SYSTEM BASE !!!!!!!!!
     #--------------------------------------------
-    profile=DataFrame(CSV.File(joinpath(data_dir, "Load_Forecast_from_Local", "$(scenario)", "$(loadyear)", "preds_$(weatheryear)0101_365days.csv"))) #in GW
+    if market_stage == "dayahead"
+        profile=DataFrame(CSV.File(joinpath(data_dir, "Load_Forecast_from_Local", "$(scenario)", "$(loadyear)", "preds_$(weatheryear)0101_365days.csv"))) #in GW
+    elseif market_stage == "realtime"
+        profile=DataFrame(CSV.File(joinpath(data_dir, "Load_Actuals_tzcorrect", "20221010_ercot_regional_load_$(scenario)_e$(loadyear)_w$(weatheryear)_cst.csv"))) #in GW
+    end
 
     for d in get_components(PowerLoad, sys_MD)
         # println("Processing region: $(get_name(get_bus(d)))")
@@ -438,7 +453,7 @@ function create_sys_w_updated_ts(
         )
 
         # remove old time series
-        # remove_time_series!(sys_DA, Deterministic, d, "requirement")
+        # remove_time_series!(sys_MD, Deterministic, d, "requirement")
         # add new time series to dataset
         add_time_series!(sys_MD, d, revisedts_deterministic)
     end
