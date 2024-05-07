@@ -67,6 +67,8 @@ end
 function find_representative_periods(simulation_dir::String,
                                   test_system_dir::String,
                                   base_dir::String,
+                                  scenario::String,
+                                  sim_year::Int64,
                                   interval::Int64,
                                   n_clusters::Int64)
 
@@ -82,7 +84,7 @@ function find_representative_periods(simulation_dir::String,
         allperiods = sort(Dict(cluster_indices_data[i, "Period"] => cluster_indices_data[i, "Rep_Period"] for i in 1:DataFrames.nrow(cluster_indices_data)))
         
     else
-        net_load_data = read_data(joinpath(simulation_dir, "timeseries_data_files", "Net Load Data", "load_n_vg_data.csv"))
+        net_load_data = read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Net Load Data", "load_n_vg_data.csv"))
         net_load_data[!, "Period_Number"] = 1:size(net_load_data, 1)
         net_load_data[!, "Representative_Period"] = add_representative_period.(net_load_data[:, "Period_Number"], interval)
         net_load_data = prune_extra_rows!(net_load_data, interval)

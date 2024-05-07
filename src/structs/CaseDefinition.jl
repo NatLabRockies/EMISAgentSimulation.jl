@@ -7,6 +7,7 @@
         cem_solver: Solvers used for optimization problems. (The solver should be able to solve QP for price prediction and MILP for SIIP production cost model)
         siip_solver: Solvers used for optimization problems. (The solver should be able to solve QP for price prediction and MILP for SIIP production cost model)
         siip_market_clearing: Whether SIIP production cost model is to be used for energy market clearing. If false, the endogenous Economic Dispatch model will be used for market clearing.
+        pcm_scenario: Which scenario to use for PCM timeseries runs in the actual market clearing process.Scenarios could be based on electrification, climate models, etc. Default = scenario_1
         start_year: Start year for the simulation (default is set to 2020)
         total_horizon: Number of years of data available for the simulation.
         rolling_horizon: Number of years to be used for price prediction. If end of rolling horizon exceeds the years of available data, a receding horizon approach is used.
@@ -49,6 +50,7 @@ struct CaseDefinition
     sys_dir::String
     solver::JuMP.MOI.OptimizerWithAttributes
     siip_market_clearing::Bool
+    pcm_scenario::String
     start_year::Int64
     total_horizon::Int64
     rolling_horizon::Int64
@@ -89,6 +91,7 @@ struct CaseDefinition
                             sys_dir,
                             solver,
                             siip_market_clearing,
+                            pcm_scenario,
                             start_year,
                             total_horizon,
                             rolling_horizon,
@@ -145,11 +148,13 @@ struct CaseDefinition
             @assert da_resolution == rt_resolution
         end
         =#
-        return new(name,
+
+        case = new(name,
                    base_dir,
                    sys_dir,
                    solver,
                    siip_market_clearing,
+                   pcm_scenario,
                    start_year,
                    total_horizon,
                    rolling_horizon,
@@ -184,6 +189,10 @@ struct CaseDefinition
                    risk_aversion,
                    parallel_investors,
                    parallel_scenarios)
+
+        make_case_data_dir(case)
+
+        return case
     end
 end
 
@@ -192,6 +201,7 @@ function CaseDefinition(name::String,
                         sys_dir::String,
                         solver::JuMP.MOI.OptimizerWithAttributes;
                         siip_market_clearing::Bool = true,
+                        pcm_scenario::String = "scenario_1",
                         start_year::Int64 = 2020,
                         total_horizon::Int64 = 15,
                         rolling_horizon::Int64 = 10,
@@ -232,6 +242,7 @@ function CaseDefinition(name::String,
                    sys_dir,
                    solver,
                    siip_market_clearing,
+                   pcm_scenario,
                    start_year,
                    total_horizon,
                    rolling_horizon,
@@ -272,6 +283,7 @@ get_base_dir(case::CaseDefinition) = case.base_dir
 get_sys_dir(case::CaseDefinition) = case.sys_dir
 get_solver(case::CaseDefinition) = case.solver
 get_siip_market_clearing(case::CaseDefinition) = case.siip_market_clearing
+get_pcm_scenario(case::CaseDefinition) = case.pcm_scenario
 get_start_year(case::CaseDefinition) = case.start_year
 get_total_horizon(case::CaseDefinition) = case.total_horizon
 get_rolling_horizon(case::CaseDefinition) = case.rolling_horizon

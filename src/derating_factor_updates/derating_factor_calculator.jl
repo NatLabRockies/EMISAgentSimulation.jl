@@ -15,6 +15,7 @@ This function calculates the derating data for existing and new renewable genera
 based on top 100 net-load hour methodology.
 """
 function calculate_derating_data(simulation_dir::String,
+                                scenario::String,
                                 active_projects::Vector{Project},
                                 derating_scale::Float64,
                                 marginal_cc::Bool)
@@ -27,11 +28,18 @@ function calculate_derating_data(simulation_dir::String,
     zones = unique(get_zone.(get_tech.(renewable_existing)))
     types = unique(get_type.(get_tech.(renewable_existing)))
 
-    load_n_vg_data =  read_data(joinpath(simulation_dir, "timeseries_data_files", "Net Load Data", "load_n_vg_data.csv"))
-    availability_data = read_data(joinpath(simulation_dir, "timeseries_data_files", "Availability", "DAY_AHEAD_availability.csv"))
+    simulation_years = readdir(joinpath(simulation_dir, "timeseries_data_files", scenario))
+
+    load_n_vg_data = DataFrames.DataFrame()
+    availability_data = DataFrames.DataFrame()
+
+    for sim_year in simulation_years
+        load_n_vg_data = vcat(load_n_vg_data, read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, sim_year, "Net Load Data", "load_n_vg_data.csv")))
+        availability_data = vcat(availability_data, read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, sim_year, "Availability", "DAY_AHEAD_availability.csv")))
+    end
 
     num_hours = DataFrames.nrow(load_n_vg_data)
-    num_top_hours = cap_mkt_params.num_top_hours[1]
+    num_top_hours = cap_mkt_params.num_top_hours[1] * length(simulation_years)
 
     existing_vg_power = zeros(num_hours)
 
@@ -46,7 +54,7 @@ function calculate_derating_data(simulation_dir::String,
 
     net_load_sorted_df = deepcopy(DataFrames.sort(net_load_df, "net_load", rev = true))
 
-    derating_factors = read_data(joinpath(simulation_dir, "markets_data", "derating_dict.csv"))
+    derating_factors = read_data(joinpath(simulation_dir, "markets_data", "derating_data", scenario, "derating_dict.csv"))
 
     type_zone_max_cap = Dict{String, Float64}()
     for zone in zones
@@ -162,8 +170,6 @@ function calculate_derating_data(simulation_dir::String,
         # then a 2-hour peak would be served by a 3-hour device, a 3-hour peak
         # by a 4-hour device, etc.
 
-        stor_buffer_minutes = 120
-
         stor_buffer_hrs = stor_buffer_minutes / 60
         required_MWhs = required_MWhs + (batt_powers[1] * stor_buffer_hrs)[1]
         stor_CC = peak_reduction * stor_duration / required_MWhs
@@ -213,8 +219,6 @@ function calculate_derating_data(simulation_dir::String,
         # then a 2-hour peak would be served by a 3-hour device, a 3-hour peak
         # by a 4-hour device, etc.
 
-        stor_buffer_minutes = 120
-
         stor_buffer_hrs = stor_buffer_minutes / 60
         required_MWhs = required_MWhs + (batt_powers[1] * stor_buffer_hrs)[1]
         stor_CC = peak_reduction_new * stor_duration / required_MWhs
@@ -251,7 +255,7 @@ function calculate_derating_data(simulation_dir::String,
         end
     end
 
-    write_data(joinpath(simulation_dir, "markets_data"), "derating_dict.csv", derating_factors)
+    write_data(joinpath(simulation_dir, "markets_data", "derating_data", scenario), "derating_dict.csv", derating_factors)
     return
 end
 
@@ -262,6 +266,7 @@ and storage based on PRAS outcomes.
 
 function calculate_derating_factors(
     simulation::Union{AgentSimulation,AgentSimulationData},
+    scenario::String,
     iteration_year::Int64,
     derating_scale::Float64,
     methodology::String,
@@ -289,9 +294,7 @@ function calculate_derating_factors(
     da_resolution = get_da_resolution(get_case(simulation))
     zones = get_zones(simulation)
 
-    derating_factors = read_data(joinpath(simulation_dir, "markets_data", "derating_dict.csv"))
-
-    load_growth = get_annual_growth(simulation)[:, iteration_year]
+    derating_factors = read_data(joinpath(simulation_dir, "markets_data", "derating_data", scenario, "derating_dict.csv"))
 
     active_projects = get_activeprojects(simulation)
     
@@ -301,7 +304,9 @@ function calculate_derating_factors(
     existing_types = unique(get_type.(get_tech.(existing)))
     new_types = unique(get_type.(get_tech.(options)))
 
-    capacity_forward_years = 3
+    capacity_forward_years = get_capacity_forward_years(simulation)
+
+    capacity_market_year = iteration_year + capacity_forward_years - 1
 
     resource_adequacy = get_resource_adequacy(simulation)
 
@@ -313,9 +318,9 @@ function calculate_derating_factors(
     adjusted_base_system = create_base_system(base_sys,
         active_projects,
         capacity_forward_years,
-        resource_adequacy,
+        scenario,
+        resource_adequacy[scenario],
         iteration_year,
-        load_growth,
         simulation_dir,
         da_resolution,
         simulation)
@@ -348,7 +353,7 @@ function calculate_derating_factors(
                     for i in 1:build_size
                         new_project = deepcopy(options[idx])
                         set_name!(new_project, "$(get_name(new_project))_$i")
-                        add_capacity_market_project!(augmented_sys, new_project, simulation_dir, da_resolution)
+                        add_capacity_market_project!(augmented_sys, new_project, simulation_dir, scenario, capacity_market_year, da_resolution)
                     end
                     
                     augmented_pras_system = make_pras_system(augmented_sys,
@@ -361,10 +366,10 @@ function calculate_derating_factors(
                                         outage_csv_location = correlated_outage_csv_location)
 
                     # Call PRAS accreditation methodology. Adjust sample size, seed, etc. here.
-                    cc_result  =  PRAS.assess(base_pras_system,  augmented_pras_system,  methodology{ra_matric}(Int(ceil(max_cap)), "Region"), PRAS.SequentialMonteCarlo(samples = 100, seed = 42))
+                    cc_result  =  PRAS.assess(base_pras_system,  augmented_pras_system,  methodology{ra_matric}(Int(ceil(max_cap)), "Region"), PRAS.SequentialMonteCarlo(samples = 10, seed = 42))
                     cc_lower,  cc_upper  =  extrema(cc_result) 
                     cc_final = (cc_lower + cc_upper) * derating_scale / (2 * max_cap)
-                    derating_factors[!, "new_$(type)_zone_$(zone)"] .= cc_final
+                    derating_factors[!, "new_$(type)_$(zone)"] .= cc_final
                 end
             end
         end
@@ -403,11 +408,11 @@ function calculate_derating_factors(
                                         availability_flag=true,
                                         outage_csv_location = correlated_outage_csv_location)
                 #  Call PRAS accreditation methodology. Adjust sample size, seed, etc. here.
-                cc_result  =  PRAS.assess(pruned_base_pras_system, augmented_pras_system, PRAS.ELCC{ra_matric}(Int(ceil(total_capacity)), "Region"), PRAS.SequentialMonteCarlo(samples = 100, seed = 42))
+                cc_result  =  PRAS.assess(pruned_base_pras_system, augmented_pras_system, PRAS.ELCC{ra_matric}(Int(ceil(total_capacity)), "Region"), PRAS.SequentialMonteCarlo(samples = 10, seed = 42))
                 cc_lower,  cc_upper  =  extrema(cc_result) 
                 cc_final = (cc_lower + cc_upper) * derating_scale / (2 * total_capacity)
 
-                derating_factors[!, "existing_$(type)_zone_$(zone)"] .= cc_final
+                derating_factors[!, "existing_$(type)_$(zone)"] .= cc_final
             end
         end
     end
@@ -458,7 +463,7 @@ function calculate_derating_factors(
             outage_csv_location = correlated_outage_csv_location)
         
             # Call PRAS accreditation methodology. Adjust sample size, seed, etc. here.
-        cc_result  =  PRAS.assess(pruned_base_pras_system, augmented_pras_system, PRAS.ELCC{ra_matric}(Int(ceil(total_capacity)), "Region"), PRAS.SequentialMonteCarlo(samples = 100, seed = 42))
+        cc_result  =  PRAS.assess(pruned_base_pras_system, augmented_pras_system, PRAS.ELCC{ra_matric}(Int(ceil(total_capacity)), "Region"), PRAS.SequentialMonteCarlo(samples = 10, seed = 42))
         cc_lower,  cc_upper  =  extrema(cc_result) 
         cc_final = (cc_lower + cc_upper) * derating_scale / (2 * total_capacity)
         derating_factors[!, "existing_BA_$(stor_duration)"] .= cc_final
@@ -475,7 +480,7 @@ function calculate_derating_factors(
                 if !(project_name in new_project_names)
                     push!(new_project_names, project_name)
                     max_cap += get_maxcap(project)
-                    add_capacity_market_project!(augmented_sys, new_project, simulation_dir, da_resolution)
+                    add_capacity_market_project!(augmented_sys, new_project, simulation_dir, scenario, capacity_market_year,  da_resolution)
                 end
             end
             
@@ -489,7 +494,7 @@ function calculate_derating_factors(
             outage_csv_location = correlated_outage_csv_location)
 
             # Call PRAS accreditation methodology. Adjust sample size, seed, etc. here.
-            cc_result  =  PRAS.assess(base_pras_system,  augmented_pras_system,  methodology{ra_matric}(Int(ceil(max_cap)), "Region"), PRAS.SequentialMonteCarlo(samples = 100, seed = 42))
+            cc_result  =  PRAS.assess(base_pras_system,  augmented_pras_system,  methodology{ra_matric}(Int(ceil(max_cap)), "Region"), PRAS.SequentialMonteCarlo(samples = 10, seed = 42))
             cc_lower,  cc_upper  =  extrema(cc_result) 
             cc_final = (cc_lower + cc_upper) * derating_scale / (2 * max_cap)
             derating_factors[!, "new_BA_$(stor_duration)"] .= cc_final
@@ -506,7 +511,7 @@ function calculate_derating_factors(
     end
 
     # Overwrite file with new derating factors.
-    write_data(joinpath(simulation_dir, "markets_data"), "derating_dict.csv", derating_factors)
+    write_data(joinpath(simulation_dir, "markets_data", "derating_data", scenario), "derating_dict.csv", derating_factors)
 end
 
 
@@ -515,6 +520,7 @@ This function does nothing is project is not of ThermalGenEMIS, HydroGenEMIS, Re
 """
 function update_derating_factor!(project::P,
                                simulation_dir::String,
+                               scenario::String,
                                derating_scale::Float64,
                                marginal_cc::Bool
                                ) where P <: Project{<:BuildPhase}
@@ -526,11 +532,12 @@ This function updates the derating factors of ThermalGenEMIS and HydroGenEMIS pr
 """
 function update_derating_factor!(project::Union{ThermalGenEMIS{<:BuildPhase}, HydroGenEMIS{<:BuildPhase}},
                                simulation_dir::String,
+                               scenario::String,
                                derating_scale::Float64,
                                marginal_cc::Bool
                                )
 
-    derating_data = read_data(joinpath(simulation_dir, "markets_data", "derating_dict.csv"))
+    derating_data = read_data(joinpath(simulation_dir, "markets_data", "derating_data", scenario, "derating_dict.csv"))
     derating_factor = derating_data[1, get_type(get_tech(project))]
     for product in get_products(project)
         set_derating!(product, derating_factor)
@@ -543,11 +550,12 @@ This function updates the derating factors of existing RenewableGenEMIS projects
 """
 function update_derating_factor!(project::RenewableGenEMIS{Existing},
                                simulation_dir::String,
+                               scenario::String,
                                derating_scale::Float64,
                                marginal_cc::Bool
                                )
 
-    derating_data = read_data(joinpath(simulation_dir, "markets_data", "derating_dict.csv"))
+    derating_data = read_data(joinpath(simulation_dir, "markets_data", "derating_data", scenario, "derating_dict.csv"))
     name = get_name(project)
     tech = get_tech(project)
     type_zone_id = "$(get_type(tech))_$(get_zone(tech))"
@@ -570,11 +578,12 @@ This function updates the derating factors of new RenewableGenEMIS projects.
 """
 function update_derating_factor!(project::RenewableGenEMIS{<:BuildPhase},
                                simulation_dir::String,
+                               scenario::String,
                                derating_scale::Float64,
                                marginal_cc::Bool
                                )
 
-    derating_data = read_data(joinpath(simulation_dir, "markets_data", "derating_dict.csv"))
+    derating_data = read_data(joinpath(simulation_dir, "markets_data", "derating_data", scenario, "derating_dict.csv"))
     name = get_name(project)
     tech = get_tech(project)
     type_zone_id = "$(get_type(tech))_$(get_zone(tech))"
@@ -605,6 +614,7 @@ This function updates the derating factors of Existing BatteryEMIS projects.
 """
 function update_derating_factor!(project::BatteryEMIS{Existing},
                                simulation_dir::String,
+                               scenario::String,
                                derating_scale::Float64,
                                marginal_cc::Bool
                                )
@@ -612,7 +622,7 @@ function update_derating_factor!(project::BatteryEMIS{Existing},
     duration = Int(round(get_storage_capacity(tech)[:max] / get_maxcap(project)))
     project_type = "existing_$(get_type(tech))_$(duration)"
 
-    derating_data = read_data(joinpath(simulation_dir, "markets_data", "derating_dict.csv"))
+    derating_data = read_data(joinpath(simulation_dir, "markets_data", "derating_data", scenario, "derating_dict.csv"))
     derating_factor = derating_data[1, project_type]
     derating_factor = min(derating_factor * derating_scale, 1.0)
     for product in get_products(project)
@@ -626,6 +636,7 @@ This function updates the derating factors of BatteryEMIS projects.
 """
 function update_derating_factor!(project::BatteryEMIS{<:BuildPhase},
                                simulation_dir::String,
+                               scenario::String,
                                derating_scale::Float64,
                                marginal_cc::Bool
                                )
@@ -638,7 +649,7 @@ function update_derating_factor!(project::BatteryEMIS{<:BuildPhase},
         project_type = "existing_$(get_type(tech))_$(duration)"
     end
 
-    derating_data = read_data(joinpath(simulation_dir, "markets_data", "derating_dict.csv"))
+    derating_data = read_data(joinpath(simulation_dir, "markets_data", "derating_data", scenario, "derating_dict.csv"))
     derating_factor = derating_data[1, project_type]
     derating_factor = min(derating_factor * derating_scale, 1.0)
     for product in get_products(project)
@@ -652,6 +663,7 @@ This function updates the derating factors of all active projects in the simulat
 """
 function update_simulation_derating_data!(
     simulation::Union{AgentSimulation,AgentSimulationData},
+    scenario::String,
     iteration_year::Int64,
     derating_scale::Float64;
     methodology::String = "ELCC",
@@ -662,12 +674,12 @@ function update_simulation_derating_data!(
     active_projects = get_activeprojects(simulation)
 
     if methodology == "TopNetLoad"
-        calculate_derating_data(data_dir, active_projects, derating_scale, marginal_cc)
+        calculate_derating_data(data_dir, scenario, active_projects, derating_scale, marginal_cc)
     else
-        calculate_derating_factors(simulation, iteration_year, derating_scale, methodology, ra_metric, marginal_cc)
+        calculate_derating_factors(simulation, scenario, iteration_year, derating_scale, methodology, ra_metric, marginal_cc)
     end
     for project in active_projects
-        update_derating_factor!(project, data_dir, derating_scale, marginal_cc)
+        update_derating_factor!(project, data_dir, scenario, derating_scale, marginal_cc)
     end
     return
 end

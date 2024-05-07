@@ -3,6 +3,8 @@ This function constructs the ORDCs for spinning and primary reserve products.
 """
 function construct_ordc(sys::PSY.System,
                         simulation_dir::String,
+                        scenario::String,
+                        sim_year::Int64,
                         investors::Vector{Investor},
                         iteration_year::Int64,
                         representative_periods::Union{Dict{Int64,Int64},OrderedCollections.OrderedDict{Int64, Int64}},
@@ -13,14 +15,15 @@ function construct_ordc(sys::PSY.System,
 
     products = split(read_data(joinpath(simulation_dir, "markets_data", "reserve_products.csv"))[1,"ordc_products"], "; ")
     println("Creating ORDC for products: $(products)")
-    generators = filter(p -> in(typeof(p), leaftypes(GeneratorEMIS{Existing})), vcat(get_existing.(investors)...))
+    existing_gens = leaftypes(GeneratorEMIS{Existing})
+    generators = filter(p -> in(typeof(p), existing_gens), vcat(get_existing.(investors)...))
     zonal = false
 
     smc_unavailability_timeseries = construct_smc_unavailabilities(sys, ordc_unavailability_method)
-    conv_unavail_mean, conv_unavail_std = construct_conv_unavailabilities(simulation_dir, generators, zonal, ordc_unavailability_method)
+    conv_unavail_mean, conv_unavail_std = construct_conv_unavailabilities(simulation_dir, scenario, sim_year, generators, zonal, ordc_unavailability_method)
 
-    load_n_vg_df = read_data(joinpath(simulation_dir, "timeseries_data_files", "Net Load Data", "load_n_vg_data.csv"))
-    load_n_vg_df_rt = read_data(joinpath(simulation_dir, "timeseries_data_files", "Net Load Data", "load_n_vg_data_rt.csv"))
+    load_n_vg_df = read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Net Load Data", "load_n_vg_data.csv"))
+    load_n_vg_df_rt = read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Net Load Data", "load_n_vg_data_rt.csv"))
     zones = chop.(filter(n -> occursin("load", n), names(load_n_vg_df)), head = 5, tail = 0)
 
 
@@ -36,7 +39,7 @@ function construct_ordc(sys::PSY.System,
         penalty = product_data[1,"penalty"]
         step_size = product_data[1, "stepsize (MW)"]
 
-        MRR = calculate_min_reserve_req(simulation_dir, generators, MRR_scale, zonal)
+        MRR = calculate_min_reserve_req(simulation_dir, scenario, sim_year, generators, MRR_scale, zonal)
 
         #println("MRR_$(product): ", MRR)
         #println("Penalty_$(product): ", penalty)
@@ -93,9 +96,9 @@ function construct_ordc(sys::PSY.System,
                 hours = timeblock_hours[hours_key]
                 rt_periods = find_rt_periods(hours, num_rt_intervals)
 
-                error_mean, error_var,meanload = construct_net_load_forecast_error_distribution(simulation_dir, renewable_generators, months, hours, zonal)
+                error_mean, error_var,meanload = construct_net_load_forecast_error_distribution(simulation_dir, scenario, sim_year, renewable_generators, months, hours, zonal)
                 #println("$(product), $(months_key): error_mean is $(error_mean) & error_var is $(error_var) & meanload is $(meanload)")
-                unavail_mean, unavail_std = construct_gen_unavail_distribution(simulation_dir, smc_unavailability_timeseries, conv_unavail_mean, conv_unavail_std, months, hours)
+                unavail_mean, unavail_std = construct_gen_unavail_distribution(simulation_dir, scenario, sim_year, smc_unavailability_timeseries, conv_unavail_mean, conv_unavail_std, months, hours)
                 #println("$(product), $(months_key): unavail_mean is $(unavail_mean) & unavail_std is $(unavail_std)")
 
                 if zonal
@@ -190,15 +193,15 @@ function construct_ordc(sys::PSY.System,
             end
         end
 
-        write_data(joinpath(simulation_dir, "timeseries_data_files", "Reserves"), "$(product)_$(iteration_year).csv", ordc_df)
-        write_data(joinpath(simulation_dir, "timeseries_data_files", "Reserves"), "$(product)_REAL_TIME_$(iteration_year).csv", ordc_df_rt)
+        write_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Reserves"), "$(product).csv", ordc_df)
+        write_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Reserves"), "$(product)_REAL_TIME.csv", ordc_df_rt)
 
         ordc_df[!, "Period_Number"] = 1:size(ordc_df, 1)
         ordc_df[!, "Representative_Period"] = add_representative_period.(ordc_df[:, "Period_Number"], rep_period_interval)
 
         rep_ordc_df = filter(row -> in(row["Representative_Period"], keys(representative_periods)), ordc_df)
 
-        write_data(joinpath(simulation_dir, "timeseries_data_files", "Reserves"), "rep_$(product)_$(iteration_year).csv", rep_ordc_df)
+        write_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Reserves"), "rep_$(product).csv", rep_ordc_df)
     end
     return
 end
@@ -244,6 +247,7 @@ function add_psy_ordc!(simulation_dir::String,
              markets_dict::Dict{Symbol, Bool},
              sys::Nothing,
              type::String,
+             scenario::String,
              iteration_year::Int64,
              da_resolution::Int64,
              rt_resolution::Int64,
@@ -255,6 +259,7 @@ function add_psy_ordc!(simulation_dir::String,
              markets_dict::Dict{Symbol, Bool},
              sys::PSY.System,
              type::String,
+             scenario::String,
              iteration_year::Int64,
              da_resolution::Int64,
              rt_resolution::Int64,
@@ -315,12 +320,12 @@ function add_psy_ordc!(simulation_dir::String,
 
                 if type == "UC"
                     time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2019-01-01T11:00:00"));
-                    product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", "Reserves", "$(product)_$(iteration_year - 1).csv"))[:, product]
+                    product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year)", "Reserves", "$(product).csv"))[:, product]
                     product_data_ts = process_ordc_data_for_siip(product_ts_raw)
                     product_data_ts = [product_data_ts;product_data_ts[1:12]]
                 elseif type == "ED"
                     time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2019-01-01T00:00:00"));
-                    product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", "Reserves", "$(product)_REAL_TIME_$(iteration_year - 1).csv"))[:, product]
+                    product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year)", "Reserves", "$(product)_REAL_TIME.csv"))[:, product]
                     product_data_ts = process_ordc_data_for_siip(product_ts_raw)
                     product_data_ts = [product_data_ts;product_data_ts[[1]]]
                 else

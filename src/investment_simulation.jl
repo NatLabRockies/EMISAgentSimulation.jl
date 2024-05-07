@@ -1,7 +1,9 @@
 
 function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int64, current_siip_sim)
-    total_horizon = get_total_horizon(get_case(simulation))
-    rolling_horizon = get_rolling_horizon(get_case(simulation))
+    case = get_case(simulation)
+    total_horizon = get_total_horizon(case)
+    rolling_horizon = get_rolling_horizon(case)
+
 
     installed_capacity =  zeros(simulation_years)
     capacity_forward_years = get_capacity_forward_years(simulation)
@@ -44,42 +46,40 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
                                                    iteration_year,
                                                    simulation_years)
 
-        derating_factors = read_data(joinpath(get_data_dir(get_case(simulation)), "markets_data", "derating_dict.csv"))
+        scenario_names = String.(get_all_scenario_names(get_data_dir(case)))
 
-        output_file = joinpath(get_results_dir(simulation), "derating_data_year_$(iteration_year).jld2")
+        for scenario in scenario_names
+            derating_factors = read_data(joinpath(get_data_dir(case), "markets_data", "derating_data", scenario, "derating_dict.csv"))
 
-        FileIO.save(output_file, "derating_factors", derating_factors)
+            output_file = joinpath(get_results_dir(simulation), "derating_data", scenario, "derating_data_year_$(iteration_year).jld2")
 
-        update_delta_irm!(sys_UC,
-                        active_projects,
-                        capacity_forward_years,
-                        get_resource_adequacy(simulation),
-                        get_peak_load(simulation),
-                        get_static_capacity_market(get_case(simulation)),
-                        iteration_year,
-                        get_annual_growth(simulation)[:, iteration_year],
-                        get_data_dir(get_case(simulation)),
-                        get_da_resolution(get_case(simulation)),
-                        simulation)
+            FileIO.save(output_file, "derating_factors", derating_factors)
+        end
 
+        num_scenarios = length(scenario_names)
+        sys_UCs, active_projects_list, capacity_forward_years_list, resource_adequacies, peak_loads, static_capacity_bools, iteration_years, simulation_years_list, data_dirs, da_resolutions, results_dirs = repeat_arguments(num_scenarios, sys_UC, active_projects, capacity_forward_years, get_resource_adequacy(simulation), get_peak_load(simulation), get_static_capacity_market(case), iteration_year, simulation_years, get_data_dir(case), get_da_resolution(case), get_results_dir(simulation))
+
+        # Parallelize the processing of scenarios using Distributed.pmap
+        @time resource_adequacy_tuples = Distributed.pmap(parallelize_update_delta_irm!, zip(scenario_names, sys_UCs, active_projects_list, capacity_forward_years_list, resource_adequacies, peak_loads, static_capacity_bools, iteration_years, simulation_years_list, data_dirs, da_resolutions, results_dirs))
+        set_resource_adequacy!(simulation, Dict(key => value for (key, value) in resource_adequacy_tuples))
 
         create_investor_predictions(investors,
                                     active_projects,
                                     iteration_year,
                                     yearly_horizon,
-                                    get_data_dir(get_case(simulation)),
+                                    get_data_dir(case),
                                     get_results_dir(simulation),
                                     average_capital_cost_multiplier,
                                     get_zones(simulation),
                                     get_lines(simulation),
                                     get_peak_load(simulation),
-                                    get_rps_target(get_case(simulation)),
-                                    get_reserve_penalty(get_case(simulation)),
+                                    get_rps_target(case),
+                                    get_reserve_penalty(case),
                                     get_resource_adequacy(simulation),
-                                    get_irm_scalar(get_case(simulation)),
-                                    get_solver(get_case(simulation)),
-                                    get_parallel_investors(get_case(simulation)),
-                                    get_parallel_scenarios(get_case(simulation))
+                                    get_irm_scalar(case),
+                                    get_solver(case),
+                                    get_parallel_investors(case),
+                                    get_parallel_scenarios(case)
                                     )
 
         for investor in investors
@@ -91,17 +91,15 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
                                     capacity_forward_years,
                                     sys_UC,
                                     sys_ED,
-                                    get_case(simulation)
+                                    case,
+                                    scenario_names
                                     )
 
         end
 
-        update_simulation_derating_data!(
-            simulation,
-            iteration_year,
-            get_derating_scale(get_case(simulation)),
-            methodology = get_accreditation_methodology(get_case(simulation)),
-            ra_metric = get_accreditation_metric(get_case(simulation)))
+        simulations, iteration_years, derating_scales, methodologies, ra_metric_list =  repeat_arguments(num_scenarios, simulation, iteration_year, get_derating_scale(case), get_accreditation_methodology(case), get_accreditation_metric(case))
+   
+        @time Distributed.pmap(parallelize_update_derating_data, zip(scenario_names, simulations, iteration_years, derating_scales, methodologies, ra_metric_list))
 
         #Get all existing projects to calculate realized profits for energy and REC markets.
         all_existing_projects = vcat(get_existing.(get_investors(simulation))...)
@@ -151,31 +149,31 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
                             sys_UC,
                             sys_ED,
                             markets,
-                            get_rps_target(get_case(simulation)),
-                            get_reserve_penalty(get_case(simulation)),
-                            get_ordc_curved(get_case(simulation)),
+                            get_rps_target(case),
+                            get_reserve_penalty(case),
+                            get_ordc_curved(case),
                             all_existing_projects,
                             capacity_market_projects,
                             capacity_forward_years,
                             iteration_year,
                             simulation_years,
-                            get_solver(get_case(simulation)),
+                            get_solver(case),
                             get_results_dir(simulation),
                             current_siip_sim)
 
 
         existing_project_types = unique(get_type.(get_tech.(all_existing_projects)))
-        rt_products = String.(split(read_data(joinpath(get_data_dir(get_case(simulation)), "markets_data", "reserve_products.csv"))[1,"rt_products"], "; "))
+        rt_products = String.(split(read_data(joinpath(get_data_dir(case), "markets_data", "reserve_products.csv"))[1,"rt_products"], "; "))
 
         if iteration_year < simulation_years
 
             update_rec_correction_factors!(get_activeprojects(simulation),
                                         realized_capacity_factors,
-                                        get_rt_resolution(get_case(simulation)),
+                                        get_rt_resolution(case),
                                         iteration_year)
 
             if get_markets(simulation)[:CarbonTax]
-                max_carbon_tax_increment = get_max_carbon_tax_increase(get_case(simulation))
+                max_carbon_tax_increment = get_max_carbon_tax_increase(case)
                 if cet_achieved_ratio == 0.0
                     delta_carbon_tax = max_carbon_tax_increment
                 else
@@ -188,14 +186,15 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
 
         ra_metrics, shortfall = calculate_RA_metrics(deepcopy(sys_ED),true,get_results_dir(simulation),iteration_year)
         println(ra_metrics)
-        set_metrics!(get_resource_adequacy(simulation), iteration_year, ra_metrics)
+        set_metrics!(get_resource_adequacy(simulation)[get_pcm_scenario(case)], iteration_year, ra_metrics)
 
         #Update forecasts and realized profits of all existing projects for each investor.
 
         for investor in get_investors(simulation)
-            if iteration_year < simulation_years
+            # DEPRECATED: Load growth forecast updates commented out due to changes in input timeseries structure.
+            #= if iteration_year < simulation_years
                 update_forecast!(get_forecast(investor), get_annual_growth(simulation)[:, iteration_year], iteration_year)
-            end
+            end =#
 
             projects = get_projects(investor)
             for (i, project) in enumerate(projects)
@@ -211,8 +210,8 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
                                          iteration_year,
                                          capacity_forward_years,
                                          get_carbon_tax(simulation)[iteration_year],
-                                         get_da_resolution(get_case(simulation)),
-                                         get_rt_resolution(get_case(simulation)),
+                                         get_da_resolution(case),
+                                         get_rt_resolution(case),
                                          rt_products)
 
                 update_annual_cashflow!(project, iteration_year)
@@ -222,8 +221,10 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
                             project,
                             sys_UC,
                             sys_ED,
-                            get_data_dir(get_case(simulation)),
-                            iteration_year)
+                            get_data_dir(case),
+                            iteration_year,
+                            scenario_names,
+                            total_horizon)
 
             end
 

@@ -5,17 +5,19 @@ Returns the market clearing prices, capacity factors and reserve percentages.
 function energy_mkt_clearing(sys_UC::Nothing,
                              sys_ED::Nothing,
                              sys_local_ED::MarketClearingProblem,
-                             load_growth::AxisArrays.AxisArray{Float64, 1},
                              reserve_penalty::String,
                              rec_requirement::Float64,
                              simulation_dir::String,
                              zones::Vector{String},
                              num_days::Int64,
+                             pcm_scenario::String,
                              iteration_year::Int64,
                              da_resolution::Int64,
                              rt_resolution::Int64,
                              case_name::String,
                              solver::JuMP.MOI.OptimizerWithAttributes)
+    @warn "This functionality has been deprecated. All PCMs are currently run with Sienna."
+   
     energy_price,
     reserve_up_price,
     reserve_down_price,
@@ -36,11 +38,11 @@ function energy_mkt_clearing(sys_UC::PSY.System,
                              sys_ED::PSY.System,
                              sys_local_ED::Union{Nothing, MarketClearingProblem},
                              simulation_dir::String,
-                             load_growth::AxisArrays.AxisArray{Float64, 1},
                              reserve_penalty::String,
                              rec_requirement::Float64,
                              zones::Vector{String},
                              num_days::Int64,
+                             pcm_scenario::String,
                              iteration_year::Int64,
                              da_resolution::Int64,
                              rt_resolution::Int64,
@@ -50,8 +52,9 @@ function energy_mkt_clearing(sys_UC::PSY.System,
                              simulation::AgentSimulation,
                              current_siip_sim)
 
-    update_PSY_timeseries!(sys_UC, load_growth, rec_requirement, simulation_dir, "UC", iteration_year, da_resolution, rt_resolution)
-    update_PSY_timeseries!(sys_ED, load_growth, rec_requirement, simulation_dir, "ED", iteration_year, da_resolution, rt_resolution)
+    @warn "Uncomment the update_PSY_timeseries function calls"
+    #= update_PSY_timeseries!(sys_UC, rec_requirement, simulation_dir, "UC", pcm_scenario, iteration_year, da_resolution, rt_resolution)
+    update_PSY_timeseries!(sys_ED, rec_requirement, simulation_dir, "ED", pcm_scenario, iteration_year, da_resolution, rt_resolution) =#
     update_PSY_outage_timeseries!(sys_UC, sys_ED,get_results_dir(simulation),base_dir,iteration_year)
 
     energy_price,

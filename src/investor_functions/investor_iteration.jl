@@ -6,7 +6,8 @@ function run_investor_iteration(investor::Investor,
                                  capacity_forward_years::Int64,
                                  sys_UC::Union{Nothing, PSY.System},
                                  sys_ED::Union{Nothing, PSY.System},
-                                 case::CaseDefinition
+                                 case::CaseDefinition,
+                                 scenario_names::Vector{String}
                             )
 
     sys_data_dir = get_data_dir(case)
@@ -73,6 +74,7 @@ function run_investor_iteration(investor::Investor,
                          iteration_year,
                          yearly_horizon,
                          simulation_years,
+                         scenario_names,
                          capacity_forward_years,
                          solver)
 
@@ -86,6 +88,9 @@ function run_investor_iteration(investor::Investor,
                       solver)
 
     println(get_name.(get_queue(investor)))
+
+    pcm_scenario = get_pcm_scenario(case)
+    total_horizon = get_total_horizon(case)
 
     for (i, project) in enumerate(projects)
         # println("current investor is $(get_name(investor)), current project is $(get_name(project))")
@@ -101,6 +106,9 @@ function run_investor_iteration(investor::Investor,
                             sys_ED,
                             sys_data_dir,
                             iteration_year,
+                            pcm_scenario,
+                            total_horizon,
+                            scenario_names,
                             get_da_resolution(case),
                             get_rt_resolution(case))
 

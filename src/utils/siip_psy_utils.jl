@@ -94,6 +94,9 @@ function add_device_forecast!(simulation_dir::String,
                               device_ED::D,
                               availability_df::Vector{Float64},
                               availability_raw_rt::Vector{Float64},
+                              iteration_year::Int64,
+                              simulation_years::Int64,
+                              scenario_names::Vector{String},
                               da_resolution::Int64,
                               rt_resolution::Int64
                               ) where D <: Union{PSY.ThermalGen, PSY.HydroGen, PSY.Storage}
@@ -110,6 +113,9 @@ function add_device_forecast!(simulation_dir::String,
                               device_ED::D,
                               availability_raw::Vector{Float64},
                               availability_raw_rt::Vector{Float64},
+                              iteration_year::Int64,
+                              simulation_years::Int64,
+                              scenario_names::Vector{String},
                               da_resolution::Int64,
                               rt_resolution::Int64) where D <: PSY.RenewableGen
 
@@ -149,14 +155,18 @@ function add_device_forecast!(simulation_dir::String,
     PSY.add_time_series!(sys_ED, device_ED, forecast)
 
     ########## Adding to Net Load Data ##############
-    load_n_vg_df =  read_data(joinpath(simulation_dir, "timeseries_data_files", "Net Load Data", "load_n_vg_data.csv"))
-    load_n_vg_df[:, get_name(device_UC)] = availability_raw[1:DataFrames.nrow(load_n_vg_df)] * get_device_size(device_UC) * PSY.get_base_power(sys_UC)
+    for scenario in scenario_names
+        for year in iteration_year:simulation_years
+            load_n_vg_df =  read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(year)", "Net Load Data", "load_n_vg_data.csv"))
+            load_n_vg_df[:, get_name(device_UC)] = availability_raw[1:DataFrames.nrow(load_n_vg_df)] * get_device_size(device_UC) * PSY.get_base_power(sys_UC)
 
-    load_n_vg_df_rt =  read_data(joinpath(simulation_dir, "timeseries_data_files", "Net Load Data", "load_n_vg_data_rt.csv"))
-    load_n_vg_df_rt[:, get_name(device_UC)] = availability_raw_rt[1:DataFrames.nrow(load_n_vg_df_rt)] * get_device_size(device_UC) * PSY.get_base_power(sys_UC)
+            load_n_vg_df_rt =  read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(year)", "Net Load Data", "load_n_vg_data_rt.csv"))
+            load_n_vg_df_rt[:, get_name(device_UC)] = availability_raw_rt[1:DataFrames.nrow(load_n_vg_df_rt)] * get_device_size(device_UC) * PSY.get_base_power(sys_UC)
 
-    write_data(joinpath(simulation_dir, "timeseries_data_files", "Net Load Data"), "load_n_vg_data.csv", load_n_vg_df)
-    write_data(joinpath(simulation_dir, "timeseries_data_files", "Net Load Data"), "load_n_vg_data_rt.csv", load_n_vg_df_rt)
+            write_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(year)", "Net Load Data"), "load_n_vg_data.csv", load_n_vg_df)
+            write_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(year)", "Net Load Data"), "load_n_vg_data_rt.csv", load_n_vg_df_rt)
+        end
+    end
 
     return
 end
@@ -166,10 +176,10 @@ end
 This function does nothing if PSY System is not defined.
 """
 function update_PSY_timeseries!(sys_UC::Nothing,
-                               load_growth::AxisArrays.AxisArray{Float64, 1},
                                rec_requirement::Float64,
                                simulation_dir::String,
                                type::String,
+                               pcm_scenario::String,
                                iteration_year::Int64,
                                da_resolution::Int64,
                                rt_resolution::Int64)
@@ -180,22 +190,27 @@ end
 This function updates the PSY load and reserve requirment timeseries each year.
 """
 function update_PSY_timeseries!(sys::PSY.System,
-                               load_growth::AxisArrays.AxisArray{Float64, 1},
                                rec_requirement::Float64,
                                simulation_dir::String,
                                type::String,
+                               pcm_scenario::String,
                                iteration_year::Int64,
                                da_resolution::Int64,
                                rt_resolution::Int64)
+
+    println(pcm_scenario)
 
     total_active_power = 0.0
 
     # update load timeseries.
     nodal_loads = PSY.get_components(PSY.PowerLoad, sys)
 
+
+    @warn "UPDATE PSY TIMESERIES!"
     for load in nodal_loads
         zone = "zone_$(PSY.get_name(PSY.get_area(PSY.get_bus(load))))"
-        scaled_active_power = deepcopy(PSY.get_max_active_power(load)) * (1 + load_growth[zone])
+        #scaled_active_power = deepcopy(PSY.get_max_active_power(load)) * (1 + load_growth[zone])
+        scaled_active_power = deepcopy(PSY.get_max_active_power(load))
         #= println(PSY.get_name(load))
         println(scaled_active_power) =#
 
@@ -206,7 +221,7 @@ function update_PSY_timeseries!(sys::PSY.System,
 
     println(total_active_power)
 
-    average_load_growth = Statistics.mean(load_growth)
+    #average_load_growth = Statistics.mean(load_growth)
 
     # update service requirement timeseries.
     services = get_system_services(sys)
@@ -222,6 +237,8 @@ function update_PSY_timeseries!(sys::PSY.System,
             #                                         )))
             # time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2018-12-31T23:00:00"));
 
+            @warn "UPDATE ORDC TIMESERIES REMOVAL BASED ON NEW SIENNA SYSTEM"
+
             PSY.remove_time_series!(sys, PSY.Deterministic, service, "variable_cost")
             if type == "UC"
                 # product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", "Reserves", "$(service_name)_$(iteration_year - 1).csv"))[:, service_name]
@@ -232,7 +249,7 @@ function update_PSY_timeseries!(sys::PSY.System,
                 # forecast = PSY.Deterministic("variable_cost", data, Dates.Minute(da_resolution))
 
                 time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2019-01-01T11:00:00"));
-                product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", "Reserves", "$(service_name)_$(iteration_year - 1).csv"))[:, service_name]
+                product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", pcm_scenario, "sim_year_$(iteration_year)", "Reserves", "$(service_name).csv"))[:, service_name]
                 product_data_ts = process_ordc_data_for_siip(product_ts_raw)
                 intervals = Int(36 * 60 / da_resolution)
                 append!(product_data_ts, product_data_ts[(length(product_data_ts) - intervals + 25):end])
@@ -248,7 +265,7 @@ function update_PSY_timeseries!(sys::PSY.System,
                 # forecast = PSY.Deterministic("variable_cost", data, Dates.Minute(rt_resolution))
 
                 time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2019-01-01T01:00:00"));
-                product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", "Reserves", "$(service_name)_REAL_TIME_$(iteration_year - 1).csv"))[:, service_name]
+                product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", pcm_scenario, "sim_year_$(iteration_year)", "Reserves", "$(service_name)_REAL_TIME.csv"))[:, service_name]
                 product_data_ts = process_ordc_data_for_siip(product_ts_raw)
                 intervals =  Int(2*60 / rt_resolution)
                 append!(product_data_ts, product_data_ts[(length(product_data_ts) - intervals + 1):end])
@@ -265,7 +282,8 @@ function update_PSY_timeseries!(sys::PSY.System,
             println(clean_energy_requirement) =#
             PSY.set_requirement!(service, clean_energy_requirement)
         else
-            scaled_requirement = deepcopy(PSY.get_requirement(service)) * (1 + average_load_growth)
+            #scaled_requirement = deepcopy(PSY.get_requirement(service)) * (1 + average_load_growth)
+            scaled_requirement = deepcopy(PSY.get_requirement(service))
             PSY.set_requirement!(service, scaled_requirement)
         end
 

@@ -25,10 +25,10 @@ mutable struct Investor
     carbon_tax::Vector{Float64}
     market_prices::MarketPrices
     rep_period_interval::Int64
-    rep_hour_weight::Vector{Float64}
+    rep_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}}
     avg_block_size::Int64
     fixed_block_size::Bool
-    chron_weights::Matrix{Int64}
+    chron_weights::Dict{String, Dict{Int64, Matrix{Int64}}}
     forecast::F where F <: Forecast
     cap_cost_multiplier::Float64
     preference_multiplier_range::NamedTuple{(:min, :max),Tuple{Float64,Float64}}

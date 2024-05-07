@@ -15,7 +15,7 @@ function calculate_RA_metrics(sys::PSY.System,
                               exportoutage::Bool,
                               base_dir::String,
                               iteration_year::Int64;
-                              samples::Int64 = 1000,
+                              samples::Int64 = 100,
                               seed::Int64 = 42)
 
     system_period_of_interest = range(1, length = 8760);
@@ -97,6 +97,8 @@ end
 function add_capacity_market_project!(capacity_market_system::PSY.System,
                                     project::Project,
                                     simulation_dir::String,
+                                    scenario::String,
+                                    target_year::Int64,
                                     da_resolution::Int64)
     PSY_project = create_PSY_generator(project, capacity_market_system)
 
@@ -109,7 +111,9 @@ function add_capacity_market_project!(capacity_market_system::PSY.System,
     type = get_type(get_tech(project))
     zone = get_zone(get_tech(project))
 
-    availability_df = read_data(joinpath(simulation_dir, "timeseries_data_files", "Availability", "DAY_AHEAD_availability.csv"))
+    max_year = maximum(map(s -> parse(Int, filter(x -> !isempty(x) && all(isdigit, x), split(s, "_"))[end]), readdir(joinpath(simulation_dir, "timeseries_data_files", scenario))))
+
+    availability_df = read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(min(max_year, target_year))", "Availability", "DAY_AHEAD_availability.csv"))
 
     if in(get_name(project), names(availability_df))
         availability_raw = availability_df[:, Symbol(get_name(project))]
@@ -123,8 +127,8 @@ end
 function create_capacity_mkt_system(initial_system::PSY.System,
                                     active_projects::Vector{Project},
                                     capacity_forward_years::Int64,
+                                    scenario::String,
                                     iteration_year::Int64,
-                                    load_growth::AxisArrays.AxisArray{Float64, 1},
                                     simulation_dir::String,
                                     da_resolution::Int64)
 
@@ -142,7 +146,7 @@ function create_capacity_mkt_system(initial_system::PSY.System,
         if end_life_year >= capacity_market_year && construction_year <= capacity_market_year
             push!(capacity_market_projects, project)
             if !(get_name(project) in PSY.get_name.(get_all_techs(capacity_market_system)))
-                add_capacity_market_project!(capacity_market_system, project, simulation_dir, da_resolution)
+                add_capacity_market_project!(capacity_market_system, project, simulation_dir, scenario, capacity_market_year, da_resolution)
             end
         end
 
@@ -156,13 +160,14 @@ function create_capacity_mkt_system(initial_system::PSY.System,
 
     nodal_loads = PSY.get_components(PSY.PowerLoad, capacity_market_system)
 
-    for load in nodal_loads
+    @warn "UPDATE PSY TIMESERIES!"
+    #= for load in nodal_loads
         zone = "zone_$(PSY.get_name(PSY.get_area(PSY.get_bus(load))))"
         scaled_active_power = deepcopy(PSY.get_max_active_power(load)) * (1 + load_growth["load_$(zone)"]) ^ (capacity_forward_years)
         PSY.set_max_active_power!(load, scaled_active_power)
 
     end
-
+ =#
     return capacity_market_system
 
 end
@@ -194,21 +199,23 @@ function update_delta_irm!(initial_system::PSY.System,
                             active_projects::Vector{Project},
                             capacity_forward_years::Int64,
                             resource_adequacy::ResourceAdequacy,
-                            peak_load::Float64,
+                            forward_peak_load::Float64,
                             static_capacity_market::Bool,
+                            scenario::String,
                             iteration_year::Int64,
-                            load_growth::AxisArrays.AxisArray{Float64, 1},
                             simulation_dir::String,
                             da_resolution::Int64,
-                            simulation::AgentSimulation)
+                            results_dir::String)
 
     if !(static_capacity_market)
-        forward_peak_load = peak_load * (1 + Statistics.mean(load_growth)) ^ (capacity_forward_years)
+
+        capacity_market_year = iteration_year + capacity_forward_years - 1
+
         capacity_market_system = create_capacity_mkt_system(initial_system,
                                                             active_projects,
                                                             capacity_forward_years,
+                                                            scenario,
                                                             iteration_year,
-                                                            load_growth,
                                                             simulation_dir,
                                                             da_resolution)
 
@@ -225,7 +232,7 @@ function update_delta_irm!(initial_system::PSY.System,
 
         @time begin
         if !isempty(ra_targets)
-            ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, get_results_dir(simulation),iteration_year)
+            ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, results_dir, iteration_year)
             #println(ra_metrics)
             adequacy_conditions_met, scarcity_conditions_met = check_ra_conditions(ra_targets, ra_metrics)
 
@@ -248,11 +255,11 @@ function update_delta_irm!(initial_system::PSY.System,
                         incremental_project = deepcopy(first(filter(p -> occursin("new_CT", get_name(p)), active_projects)))
                         set_name!(incremental_project, "addition_CT_project_$(count)")
                         total_added_capacity += get_maxcap(incremental_project)
-                        add_capacity_market_project!(capacity_market_system, incremental_project, simulation_dir, da_resolution)
+                        add_capacity_market_project!(capacity_market_system, incremental_project, simulation_dir, scenario, capacity_market_year, da_resolution)
                         count += 1
                     end
                     
-                    ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false,get_results_dir(simulation),iteration_year)
+                    ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, results_dir,iteration_year)
                     #println(ra_metrics)
                     adequacy_conditions_met, scarcity_conditions_met = check_ra_conditions(ra_targets, ra_metrics)
                 end
@@ -265,7 +272,7 @@ function update_delta_irm!(initial_system::PSY.System,
                         removed_capacity = get_device_size(removed_project) * PSY.get_base_power(removed_project)
                         total_removed_capacity += removed_capacity
                         PSY.remove_component!(capacity_market_system, removed_project)
-                        ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false,get_results_dir(simulation),iteration_year)
+                        ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, results_dir,iteration_year)
                         #println(ra_metrics)
                         adequacy_conditions_met, scarcity_conditions_met = check_ra_conditions(ra_targets, ra_metrics)
                         count += 1
@@ -277,28 +284,30 @@ function update_delta_irm!(initial_system::PSY.System,
             delta_irm = (total_added_capacity - total_removed_capacity) / forward_peak_load
         end
         end
-
-        set_delta_irm!(resource_adequacy, iteration_year, delta_irm)
     end
 
-    return
+    set_delta_irm!(resource_adequacy, iteration_year, delta_irm)
+
+    return resource_adequacy
 end
 
 function create_base_system(initial_system::PSY.System,
     active_projects::Vector{Project},
     capacity_forward_years::Int64,
+    scenario::String,
     resource_adequacy::ResourceAdequacy,
     iteration_year::Int64,
-    load_growth::AxisArrays.AxisArray{Float64, 1},
     simulation_dir::String,
     da_resolution::Int64,
     simulation::Union{AgentSimulation,AgentSimulationData})
 
+    capacity_market_year = iteration_year + capacity_forward_years - 1
+
     capacity_market_system = create_capacity_mkt_system(initial_system,
                                                         active_projects,
                                                         capacity_forward_years,
+                                                        scenario,
                                                         iteration_year,
-                                                        load_growth,
                                                         simulation_dir,
                                                         da_resolution)
 
@@ -338,7 +347,7 @@ function create_base_system(initial_system::PSY.System,
                     incremental_project = deepcopy(first(filter(p -> occursin("new_CT", get_name(p)), active_projects)))
                     set_name!(incremental_project, "addition_CT_project_$(count)")
                     total_added_capacity += get_maxcap(incremental_project)
-                    add_capacity_market_project!(capacity_market_system, incremental_project, simulation_dir, da_resolution)
+                    add_capacity_market_project!(capacity_market_system, incremental_project, simulation_dir, scenario, capacity_market_year, da_resolution)
                     count += 1
                 end
                 
@@ -366,8 +375,6 @@ function create_base_system(initial_system::PSY.System,
             end
             total_removed_capacity -= removed_capacity
         end
-
-        println(total_added_capacity - total_removed_capacity)
     end
     end
 

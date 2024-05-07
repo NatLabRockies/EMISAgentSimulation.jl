@@ -6,11 +6,13 @@ compatible with AgentSimulation
 function read_rts(data_dir::String,
                   test_system_dir::String,
                   base_dir::String,
+                  scenario::String,
                   test_system_load_da::DataFrames.DataFrame,
                   test_system_load_rt::DataFrames.DataFrame,
                   base_year::Int64,
                   annual_growth_past::AxisArrays.AxisArray{Float64, 2},
                   start_year::Int64,
+                  sim_year::Int64,
                   rep_period_interval::Int64,
                   n_rep_periods::Int64,
                   rep_checkpoint::Int64)
@@ -40,7 +42,7 @@ function read_rts(data_dir::String,
     for product in reserve_products
         test_system_reserves_data[product] = test_system_load_da[:, 1:4]
         test_system_reserves_data[product][:, product] = zeros(data_rows)
-        data = DataFrames.DataFrame(CSV.File(joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", "Reserves", "DAY_AHEAD_regional_$(product).csv")))
+        data = DataFrames.DataFrame(CSV.File(joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Reserves", "DAY_AHEAD_regional_$(product).csv")))
         for d in 1:Int(data_rows/24)
             for h in 1:24
                 test_system_reserves_data[product][(d - 1) * 24 + h, product] = data[d, Symbol(h)]
@@ -84,8 +86,8 @@ function read_rts(data_dir::String,
 
     existing_generator_data = DataFrames.DataFrame(CSV.File(joinpath(test_system_dir, "RTS_Data", "SourceData", "gen.csv")))
 
-    wind_timeseries_file = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", "WIND", "DAY_AHEAD_wind.csv")
-    wind_timeseries_file_rt = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", "WIND", "REAL_TIME_wind.csv")
+    wind_timeseries_file = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "WIND", "DAY_AHEAD_wind.csv")
+    wind_timeseries_file_rt = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "WIND", "REAL_TIME_wind.csv")
     if isfile(wind_timeseries_file)
         wind_timeseries_data = DataFrames.DataFrame(CSV.File(wind_timeseries_file))
         remove_leap_day!(wind_timeseries_data, start_year)
@@ -94,8 +96,8 @@ function read_rts(data_dir::String,
         remove_leap_day!(wind_timeseries_data_rt, start_year)
     end
 
-    pv_timeseries_file = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", "PV", "DAY_AHEAD_pv.csv")
-    pv_timeseries_file_rt = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", "PV", "REAL_TIME_pv.csv")
+    pv_timeseries_file = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "PV", "DAY_AHEAD_pv.csv")
+    pv_timeseries_file_rt = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "PV", "REAL_TIME_pv.csv")
     if isfile(pv_timeseries_file)
         pv_timeseries_data = DataFrames.DataFrame(CSV.File(pv_timeseries_file))
         remove_leap_day!(pv_timeseries_data, start_year)
@@ -104,8 +106,8 @@ function read_rts(data_dir::String,
         remove_leap_day!(pv_timeseries_data_rt, start_year)
     end
 
-    rtpv_timeseries_file = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", "RTPV", "DAY_AHEAD_rtpv.csv")
-    rtpv_timeseries_file_rt = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", "RTPV", "REAL_TIME_rtpv.csv")
+    rtpv_timeseries_file = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "RTPV", "DAY_AHEAD_rtpv.csv")
+    rtpv_timeseries_file_rt = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "RTPV", "REAL_TIME_rtpv.csv")
     if isfile(rtpv_timeseries_file)
         rtpv_timeseries_data = DataFrames.DataFrame(CSV.File(rtpv_timeseries_file))
         remove_leap_day!(rtpv_timeseries_data, start_year)
@@ -114,8 +116,8 @@ function read_rts(data_dir::String,
         remove_leap_day!(rtpv_timeseries_data_rt, start_year)
     end
 
-    hydro_timeseries_file = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", "Hydro", "DAY_AHEAD_hydro.csv")
-    hydro_timeseries_file_rt = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", "Hydro", "REAL_TIME_hydro.csv")
+    hydro_timeseries_file = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Hydro", "DAY_AHEAD_hydro.csv")
+    hydro_timeseries_file_rt = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Hydro", "REAL_TIME_hydro.csv")
     if isfile(hydro_timeseries_file)
         hydro_timeseries_data = DataFrames.DataFrame(CSV.File(hydro_timeseries_file))
         remove_leap_day!(hydro_timeseries_data, start_year)
@@ -152,13 +154,13 @@ function read_rts(data_dir::String,
         end
     end
 
-    write_data(joinpath(data_dir, "timeseries_data_files", "Availability"), "DAY_AHEAD_availability.csv", gen_availability_df)
-    write_data(joinpath(data_dir, "timeseries_data_files", "Availability"), "REAL_TIME_availability.csv", gen_availability_df_rt)
+    write_data(joinpath(data_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Availability"), "DAY_AHEAD_availability.csv", gen_availability_df)
+    write_data(joinpath(data_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Availability"), "REAL_TIME_availability.csv", gen_availability_df_rt)
 
-    write_data(joinpath(data_dir, "timeseries_data_files", "Net Load Data"), "load_n_vg_data.csv", net_load_df)
-    write_data(joinpath(data_dir, "timeseries_data_files", "Net Load Data"), "load_n_vg_data_rt.csv", net_load_df_rt)
+    write_data(joinpath(data_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Net Load Data"), "load_n_vg_data.csv", net_load_df)
+    write_data(joinpath(data_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Net Load Data"), "load_n_vg_data_rt.csv", net_load_df_rt)
 
-    representative_periods, cluster_indices = find_representative_periods(data_dir, test_system_dir, base_dir, rep_period_interval, n_rep_periods)
+    representative_periods, cluster_indices = find_representative_periods(data_dir, test_system_dir, base_dir, scenario, sim_year, rep_period_interval, n_rep_periods)
 
     scaled_test_sys_load[!, "Period_Number"] = 1:size(scaled_test_sys_load, 1)
     scaled_test_sys_load[!, "Representative_Period"] = add_representative_period.(scaled_test_sys_load[:, "Period_Number"], rep_period_interval)
@@ -166,7 +168,6 @@ function read_rts(data_dir::String,
     rep_load_data = filter(row -> in(row["Representative_Period"], keys(representative_periods)), scaled_test_sys_load)
 
     num_rep_hours = DataFrames.nrow(rep_load_data)
-    rep_datetime = [Dates.DateTime(row[:Year], row[:Month], row[:Day], row[:Period]) for row in eachrow(rep_load_data)] .- Dates.Hour(1)
 
     num_checkpoints = Int(floor(map(x -> isinf(x) ? 0.0 : x, 8760 / rep_checkpoint)))
     
@@ -219,8 +220,8 @@ function read_rts(data_dir::String,
     select!(scaled_test_sys_load, Not(["Period_Number", "Representative_Period"]))
     select!(rep_load_data, Not(["Period_Number", "Representative_Period"]))
 
-    write_data(joinpath(data_dir, "timeseries_data_files", "Load"), "load_0.csv", scaled_test_sys_load)
-    write_data(joinpath(data_dir, "timeseries_data_files", "Load"), "rep_load_0.csv", rep_load_data)
+    write_data(joinpath(data_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Load"), "load.csv", scaled_test_sys_load)
+    write_data(joinpath(data_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Load"), "rep_load.csv", rep_load_data)
 
     system_peak_load = maximum(sum(scaled_test_sys_load[:, zone] for zone in zone_numbers))
 
@@ -236,8 +237,8 @@ function read_rts(data_dir::String,
         select!(scaled_test_system_reserves_data[product], Not(["Period_Number", "Representative_Period"]))
         select!(rep_system_reserves_data[product], Not(["Period_Number", "Representative_Period"]))
 
-        write_data(joinpath(data_dir, "timeseries_data_files", "Reserves"), "$(product)_0.csv", scaled_test_system_reserves_data[product])
-        write_data(joinpath(data_dir, "timeseries_data_files", "Reserves"), "rep_$(product)_0.csv", rep_system_reserves_data[product])
+        write_data(joinpath(data_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Reserves"), "$(product).csv", scaled_test_system_reserves_data[product])
+        write_data(joinpath(data_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Reserves"), "rep_$(product).csv", rep_system_reserves_data[product])
     end
     
     # Create zonal lines
