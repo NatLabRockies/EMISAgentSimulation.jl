@@ -294,7 +294,7 @@ using PRAS
 using HiGHS
 using OrderedCollections
 import InfrastructureSystems
-import ReliablePowerSimulations
+# import ReliablePowerSimulations
 using HydroPowerSimulations
 using StorageSystemsSimulations
 
@@ -303,7 +303,7 @@ const PSY = PowerSystems
 const PSI = PowerSimulations
 const EMISEx = EMISExtensions
 const IS = InfrastructureSystems
-const RPSI = ReliablePowerSimulations
+# const RPSI = ReliablePowerSimulations
 const HSI = HydroPowerSimulations
 const SSI = StorageSystemsSimulations
 
@@ -313,6 +313,7 @@ import StatsBase
 import Statistics
 import TimeSeries
 const TS = TimeSeries
+import DataStructures
 
 import TimeZones
 

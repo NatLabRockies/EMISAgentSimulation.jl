@@ -270,6 +270,16 @@ function add_psy_ordc!(simulation_dir::String,
     da_products = split(read_data(joinpath(simulation_dir, "markets_data", "reserve_products.csv"))[1,"da_products"], "; ")
     rt_products = split(read_data(joinpath(simulation_dir, "markets_data", "reserve_products.csv"))[1,"rt_products"], "; ")
 
+    sys_interval = sys.data.time_series_params.forecast_params.interval
+    sys_horizon = sys.data.time_series_params.forecast_params.horizon
+    forecast_count = sys.data.time_series_params.forecast_params.count
+    sys_resolution = sys.data.time_series_params.resolution
+    start_datetime = sys.data.time_series_params.forecast_params.initial_timestamp
+    finish_datetime = start_datetime + Dates.Hour((forecast_count * sys_interval/sys_resolution + (sys_horizon - sys_interval/sys_resolution) - 1))
+    time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
+
+    additional_timestep = length(time_stamps) - 8760
+
     for product in products
         if markets_dict[Symbol(product)]
             product_data = read_data(joinpath(simulation_dir, "markets_data", "$(reserve_penalty)_reserve_penalty", "$(product).csv"))
@@ -318,19 +328,14 @@ function add_psy_ordc!(simulation_dir::String,
                 #     "max_active_power"
                 #     )))
 
-                if type == "UC"
-                    time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2019-01-01T11:00:00"));
-                    product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year)", "Reserves", "$(product).csv"))[:, product]
-                    product_data_ts = process_ordc_data_for_siip(product_ts_raw)
-                    product_data_ts = [product_data_ts;product_data_ts[1:12]]
-                elseif type == "ED"
-                    time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2019-01-01T00:00:00"));
+                # time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
+                if type == "ED"
                     product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year)", "Reserves", "$(product)_REAL_TIME.csv"))[:, product]
-                    product_data_ts = process_ordc_data_for_siip(product_ts_raw)
-                    product_data_ts = [product_data_ts;product_data_ts[[1]]]
                 else
-                    error("Type should be UC or ED")
+                    product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year)", "Reserves", "$(product).csv"))[:, product]
                 end
+                product_data_ts = process_ordc_data_for_siip(product_ts_raw)
+                product_data_ts = [product_data_ts;product_data_ts[1:additional_timestep]]
                 forecast = PSY.SingleTimeSeries("variable_cost", TimeSeries.TimeArray(time_stamps, product_data_ts))
                 PSY.add_time_series!(sys, reserve, forecast)
                 key = IS.TimeSeriesKey(forecast)

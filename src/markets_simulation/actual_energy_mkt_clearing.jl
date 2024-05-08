@@ -34,7 +34,8 @@ end
 This function runs the actual energy and ancillary services market clearing module using SIIP PSI Simualtion.
 Returns the market clearing prices, capacity factors and reserve percentages.
 """
-function energy_mkt_clearing(sys_UC::PSY.System,
+function energy_mkt_clearing(sys_MD::PSY.System,
+                             sys_UC::PSY.System,
                              sys_ED::PSY.System,
                              sys_local_ED::Union{Nothing, MarketClearingProblem},
                              simulation_dir::String,
@@ -54,20 +55,30 @@ function energy_mkt_clearing(sys_UC::PSY.System,
 
     @warn "Uncomment the update_PSY_timeseries function calls"
     #= update_PSY_timeseries!(sys_UC, rec_requirement, simulation_dir, "UC", pcm_scenario, iteration_year, da_resolution, rt_resolution)
-    update_PSY_timeseries!(sys_ED, rec_requirement, simulation_dir, "ED", pcm_scenario, iteration_year, da_resolution, rt_resolution) =#
-    update_PSY_outage_timeseries!(sys_UC, sys_ED,get_results_dir(simulation),base_dir,iteration_year)
+    update_PSY_timeseries!(sys_ED, rec_requirement, simulation_dir, "ED", pcm_scenario, iteration_year, da_resolution, rt_resolution) 
+    update_PSY_timeseries!(sys_MD, rec_requirement, simulation_dir, "MD", pcm_scenario, iteration_year, da_resolution, rt_resolution)=#
+    # TODO: need to update outage timeseries for MD as well
+    # update_PSY_outage_timeseries!(sys_UC, sys_ED,get_results_dir(simulation),base_dir,iteration_year)
 
-    energy_price,
-    reserve_price,
+    energy_price_ed,
+    energy_price_uc,
+    energy_price_md,
+    reserve_price_ed,
+    reserve_price_uc,
+    reserve_price_md,
     inertia_price,
-    capacity_factors,
-    reserve_perc,
+    capacity_factors_md,
+    capacity_factors_uc,
+    capacity_factors_ed,
+    reserve_perc_md,
+    reserve_perc_uc,
+    reserve_perc_ed,
     inertia_perc,
     start_up_costs,
     shut_down_costs,
     energy_voll,
     reserve_voll,
-    inertia_voll = create_simulation(sys_UC, sys_ED, simulation_dir, reserve_penalty, zones, num_days, da_resolution, rt_resolution, case_name, solver, current_siip_sim)
+    inertia_voll = create_simulation(sys_MD, sys_UC, sys_ED, simulation_dir, reserve_penalty, zones, num_days, da_resolution, rt_resolution, case_name, solver, current_siip_sim)
 
-    return energy_price, reserve_price, inertia_price, capacity_factors, reserve_perc, inertia_perc, start_up_costs, shut_down_costs, energy_voll, reserve_voll, inertia_voll;
+    return energy_price_ed, energy_price_uc, energy_price_md, reserve_price_ed, reserve_price_uc, reserve_price_md, inertia_price, capacity_factors_md, capacity_factors_uc, capacity_factors_ed, reserve_perc_md, reserve_perc_uc, reserve_perc_ed, inertia_perc, start_up_costs, shut_down_costs, energy_voll, reserve_voll, inertia_voll;
 end

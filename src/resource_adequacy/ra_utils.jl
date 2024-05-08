@@ -19,7 +19,7 @@ function calculate_RA_metrics(sys::PSY.System,
                               seed::Int64 = 42)
 
     system_period_of_interest = range(1, length = 8760);
-    correlated_outage_csv_location = "C:/Users/MANWAR2/Documents/Projects/EMIS/Test Cases/Correlated Outages/ThermalFOR_2011.csv"
+    correlated_outage_csv_location = "/kfs2/projects/gmlcmarkets/Phase2_EMIS_Analysis/Correlated Outages/ThermalFOR_2011.csv"
     pras_system = make_pras_system(sys,
                                     system_model="Single-Node",
                                     aggregation="Area",
@@ -83,11 +83,19 @@ function add_capacity_market_device_forecast!(sys_UC::PSY.System,
     #                                                 first(PSY.get_components(PSY.ElectricLoad, sys_UC)),
     #                                                 "max_active_power"
     #                                                 )))
-    time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2018-12-31T23:00:00"));                                                
+    sys_interval = sys_UC.data.time_series_params.forecast_params.interval
+    sys_horizon = sys_UC.data.time_series_params.forecast_params.horizon
+    forecast_count = sys_UC.data.time_series_params.forecast_params.count
+    sys_resolution = sys_UC.data.time_series_params.resolution
+    start_datetime = sys_UC.data.time_series_params.forecast_params.initial_timestamp
+    finish_datetime = start_datetime + Dates.Hour((forecast_count * sys_interval/sys_resolution + (sys_horizon - sys_interval/sys_resolution) - 1))
+    time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
 
-    intervals = Int(36 * 60 / da_resolution)
-    append!(availability_raw, availability_raw[(length(availability_raw) - intervals + 1):end])
-    data = Dict(time_stamps[i] => availability_raw[i:(i + intervals - 1)] for i in 1:Int(24 * 60 / da_resolution):8760)
+    additional_timestep = length(time_stamps) - 8760
+
+    # intervals = Int(36 * 60 / da_resolution)
+    append!(availability_raw, availability_raw[(length(availability_raw) - additional_timestep + 1):end])
+    data = Dict(time_stamps[i] => availability_raw[i:(i + sys_horizon - 1)] for i in 1:Int(sys_interval/sys_resolution):(length(time_stamps)-sys_horizon + 1))
     forecast = PSY.Deterministic("max_active_power", data, Dates.Minute(da_resolution))
     PSY.add_time_series!(sys_UC, device_UC, forecast)
 

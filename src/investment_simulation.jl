@@ -23,6 +23,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
         end
     end
 
+    sys_MD = get_system_MD(simulation)
     sys_UC = get_system_UC(simulation)
     sys_ED = get_system_ED(simulation)
 
@@ -89,6 +90,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
                                     yearly_horizon,
                                     simulation_years,
                                     capacity_forward_years,
+                                    sys_MD,
                                     sys_UC,
                                     sys_ED,
                                     case,
@@ -139,13 +141,18 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
 
         #Create realzed market prices for existing projects.
         realized_market_prices,
-        realized_capacity_factors,
-        realized_reserve_perc,
+        realized_capacity_factors_md,
+        realized_capacity_factors_uc,
+        realized_capacity_factors_ed,
+        realized_reserve_perc_md,
+        realized_reserve_perc_uc,
+        realized_reserve_perc_ed,
         realized_inertia_perc,
         capacity_accepted_bids,
         rec_accepted_bids,
         clean_energy_percentage_vector[iteration_year],
         cet_achieved_ratio = create_realized_marketdata(simulation,
+                            sys_MD,
                             sys_UC,
                             sys_ED,
                             markets,
@@ -168,7 +175,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
         if iteration_year < simulation_years
 
             update_rec_correction_factors!(get_activeprojects(simulation),
-                                        realized_capacity_factors,
+                                        realized_capacity_factors_ed,
                                         get_rt_resolution(case),
                                         iteration_year)
 
@@ -201,8 +208,12 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
 
                 update_realized_profits!(project,
                                          realized_market_prices,
-                                         realized_capacity_factors,
-                                         realized_reserve_perc,
+                                         realized_capacity_factors_md,
+                                         realized_capacity_factors_uc,
+                                         realized_capacity_factors_ed,
+                                         realized_reserve_perc_md,
+                                         realized_reserve_perc_uc,
+                                         realized_reserve_perc_ed,
                                          realized_inertia_perc,
                                          capacity_accepted_bids,
                                          rec_accepted_bids,
@@ -219,6 +230,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
                 retire_old!(projects,
                             i,
                             project,
+                            sys_MD,
                             sys_UC,
                             sys_ED,
                             get_data_dir(case),

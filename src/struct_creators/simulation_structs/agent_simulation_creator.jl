@@ -90,14 +90,18 @@ function gather_data(case::CaseDefinition)
     
     if get_siip_market_clearing(case)
         base_power = 100.0
-        sys_UC, sys_ED = create_rts_sys(test_system_dir, base_power, data_dir, get_da_resolution(case), get_rt_resolution(case))
+        sys_MD, sys_UC, sys_ED, MD_horizon, MD_interval, UC_horizon, UC_interval, ED_horizon, ED_interval = 
+        create_rts_sys(test_system_dir, base_power, data_dir, get_da_resolution(case), get_rt_resolution(case),
+        get_md_horizon(case), get_md_interval(case), get_uc_horizon(case), get_uc_interval(case), get_ed_horizon(case), get_ed_interval(case),)
     else
+        sys_MD = nothing
         sys_UC = nothing
         sys_ED = nothing
     end
 
     #updating past growth rate in PSY Systems
     for y in 1:size(annual_growth_past_first)[2]
+        apply_PSY_past_load_growth!(sys_MD, annual_growth_past_first[:, y], data_dir)
         apply_PSY_past_load_growth!(sys_UC, annual_growth_past_first[:, y], data_dir)
         apply_PSY_past_load_growth!(sys_ED, annual_growth_past_first[:, y], data_dir)
     end
@@ -142,6 +146,7 @@ function gather_data(case::CaseDefinition)
 
     simulation_data = AgentSimulationData(case,
                                         results_dir,
+                                        sys_MD,
                                         sys_UC,
                                         sys_ED,
                                         zones,
@@ -165,6 +170,7 @@ function gather_data(case::CaseDefinition)
     # convert_thermal_clean_energy!(sys_UC)
     # convert_thermal_clean_energy!(sys_ED)
 
+    convert_thermal_fast_start!(sys_MD)
     convert_thermal_fast_start!(sys_UC)
     convert_thermal_fast_start!(sys_ED)
 
@@ -175,6 +181,7 @@ function gather_data(case::CaseDefinition)
     sys_UCs, data_dirs, investors_list, representative_periods_list, rep_period_intervals, cases, iteration_years, rolling_horizons, simulation_years_list = repeat_arguments(num_scenarios, deepcopy(sys_UC), data_dir, investors, representative_periods, rep_period_interval, case, iteration_year, rolling_horizon, simulation_years)
     @time Distributed.pmap(parallelize_ordc_construction, zip(scenarios, sys_UCs, data_dirs, investors_list, representative_periods_list, rep_period_intervals, cases, iteration_years, rolling_horizons, simulation_years_list))
     
+    add_psy_ordc!(data_dir, markets_dict, sys_MD, "MD", pcm_scenario, 1, get_da_resolution(case), get_rt_resolution(case), get_reserve_penalty(case))
     add_psy_ordc!(data_dir, markets_dict, sys_UC, "UC", pcm_scenario, 1, get_da_resolution(case), get_rt_resolution(case), get_reserve_penalty(case))
     add_psy_ordc!(data_dir, markets_dict, sys_ED, "ED", pcm_scenario, 1, get_da_resolution(case), get_rt_resolution(case), get_reserve_penalty(case))
 
@@ -183,9 +190,11 @@ function gather_data(case::CaseDefinition)
         add_psy_inertia!(data_dir, sys_ED, "ED", get_reserve_penalty(case), system_peak_load)
     end
 
+    # TODO: need to update this for MD
     add_psy_clean_energy_constraint!(sys_UC, initial_rec_requirement)
 
-    transform_psy_timeseries!(sys_UC, sys_ED, get_da_resolution(case), get_rt_resolution(case), 36, 2)
+    # NG: this function works for ORDC because ORDC has SingleTimeSeries
+    transform_psy_timeseries!(sys_MD, sys_UC, sys_ED, get_da_resolution(case), get_rt_resolution(case), MD_horizon, UC_horizon, ED_horizon, MD_interval, UC_interval, ED_interval)
 
     # Adding representative days availability data
     for scenario in scenarios
@@ -248,6 +257,7 @@ function create_agent_simulation(case::CaseDefinition)
     simulation = AgentSimulation(case,
                             get_results_dir(simulation_data),
                             1,
+                            get_system_MD(simulation_data),
                             get_system_UC(simulation_data),
                             get_system_ED(simulation_data),
                             get_zones(simulation_data),
