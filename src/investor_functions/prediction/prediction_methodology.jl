@@ -7,24 +7,27 @@ function gather_prediction_parameters(investor::Investor,
     investor_name = get_name(investor)
     investor_dir = get_data_dir(investor)
 
-    load_dir = joinpath(investor_dir, "timeseries_data_files", "Load")
+    #With the changes in input timeseries structures, we will not be copying any timeseries files to investors' directories. 
+    #Therefore, the following copying commands have now been commented out/
+
+    #= load_dir = joinpath(investor_dir, "timeseries_data_files", "Load")
     dir_exists(load_dir)
     cp(joinpath(sys_data_dir, "timeseries_data_files", "Load", "rep_load_$(iteration_year - 1).csv"),
-    joinpath(load_dir, "load_$(iteration_year - 1).csv"), force = true)
+    joinpath(load_dir, "load_$(iteration_year - 1).csv"), force = true) =#
 
     reserve_definition = read_data(joinpath(sys_data_dir, "markets_data", "reserve_products.csv"))
 
     reserve_products = String.(split(reserve_definition[1, "all_products"], "; "))
     ordc_products = String.(split(reserve_definition[1, "ordc_products"], "; "))
 
-    reserve_dir = joinpath(investor_dir, "timeseries_data_files", "Reserves")
+    #= reserve_dir = joinpath(investor_dir, "timeseries_data_files", "Reserves")
     dir_exists(reserve_dir)
 
     for reserve in reserve_products
         cp(joinpath(sys_data_dir, "timeseries_data_files", "Reserves", "rep_$(reserve)_$(iteration_year - 1).csv"),
         joinpath(reserve_dir, "$(reserve)_$(iteration_year - 1).csv"), force = true)
     end
-
+ =#
     market_names = get_markets(investor)
 
     carbon_tax = get_carbon_tax(investor)
@@ -55,10 +58,10 @@ function create_investor_predictions(investors::Vector{Investor},
                                           average_capital_cost_multiplier::Float64,
                                           zones::Vector{String},
                                           lines::Vector{ZonalLine},
-                                          peak_load::Float64,
+                                          peak_load::Dict{String, Dict{Int64, Float64}},
                                           rps_target::String,
                                           reserve_penalty::String,
-                                          resource_adequacy::ResourceAdequacy,
+                                          resource_adequacy::Dict{String, ResourceAdequacy},
                                           irm_scalar::Float64,
                                           solver::JuMP.MOI.OptimizerWithAttributes,
                                           parallelize_investors::Bool,
@@ -71,6 +74,7 @@ function create_investor_predictions(investors::Vector{Investor},
             scenarios_pmap = Scenario[]
             investor_name_pmap = String[]
             investor_dir_pmap = String[]
+            sys_data_dir_pmap = String[]
             market_names_pmap = Vector{Symbol}[]
             carbon_tax_pmap = Vector{Float64}[]
             reserve_products_pmap = Vector{String}[]
@@ -105,6 +109,7 @@ function create_investor_predictions(investors::Vector{Investor},
                     push!(scenarios_pmap, scenario)
                     push!(investor_name_pmap, investor_name)
                     push!(investor_dir_pmap, investor_dir)
+                    push!(sys_data_dir_pmap, sys_data_dir)
                     push!(market_names_pmap, market_names)
                     push!(carbon_tax_pmap, carbon_tax)
                     push!(reserve_products_pmap, reserve_products)
@@ -127,6 +132,7 @@ function create_investor_predictions(investors::Vector{Investor},
             num_tasks = length(scenarios_pmap)
             Distributed.pmap(create_expected_marketdata,
                  investor_dir_pmap,
+                 sys_data_dir_pmap,
                  market_names_pmap,
                  carbon_tax_pmap,
                  reserve_products_pmap,
@@ -197,6 +203,7 @@ function create_investor_predictions(investors::Vector{Investor},
 
                 Distributed.pmap(create_expected_marketdata,
                     repeat([investor_dir], num_scenarios),
+                    repeat([sys_data_dir], num_scenarios),
                     repeat([market_names], num_scenarios),
                     repeat([carbon_tax], num_scenarios),
                     repeat([reserve_products], num_scenarios),
@@ -226,6 +233,7 @@ function create_investor_predictions(investors::Vector{Investor},
 
                 for scenario in scenarios
                     create_expected_marketdata(investor_dir,
+                                            sys_data_dir,
                                             market_names,
                                             carbon_tax,
                                             reserve_products,

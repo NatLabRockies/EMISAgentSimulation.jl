@@ -22,10 +22,10 @@ struct MarketClearingProblem{Z, T}
     carbon_tax::Vector{Float64}
     projects::Vector{MarketProject}
     rep_period_interval::Int64
-    rep_hour_weight::Vector{Float64}
+    rep_hour_weight::Vector{Vector{Float64}}
     avg_block_size::Int64
     fixed_block_size::Bool
-    chron_weights::Matrix{Int64}
+    chron_weights::Vector{Matrix{Int64}}
 
     function MarketClearingProblem(
         zones::Vector{String},
@@ -35,13 +35,16 @@ struct MarketClearingProblem{Z, T}
         carbon_tax::Vector{Float64},
         projects::Vector{MarketProject},
         rep_period_interval::Int64,
-        rep_hour_weight::Vector{Float64},
+        rep_hour_weight::Vector{Vector{Float64}},
         avg_block_size::Int64,
         fixed_block_size::Bool,
-        chron_weights::Matrix{Int64}
+        chron_weights::Vector{Matrix{Int64}}
     ) where {Z, T}
-        @assert T == length(rep_hour_weight)
-        @assert T == size(chron_weights, 2)
+
+        for y in 1:length(rep_hour_weight)
+            @assert T == length(rep_hour_weight[y])
+            @assert T == size(chron_weights[y], 2)
+        end
         @assert length(zones) ==  Z
         @assert length(inv_periods) == length(carbon_tax)
         @assert allunique(getproperty.(projects, :name))

@@ -134,6 +134,7 @@ export get_active_power_limit
 export get_active_power_limits
 export get_activeprojects
 export get_allprojects
+export get_all_scenario_names
 export get_all_techs
 export get_annual_cashflow
 export get_annual_growth

@@ -10,7 +10,7 @@ function update_expected_profit!(project::P,
                                               Tuple{Int64, Int64}},
                                  update_years::NamedTuple{(:start_year, :end_year),
                                               Tuple{Int64, Int64}},
-                                 rep_hour_weight::Vector{Float64},
+                                 rep_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
                                  queue_cost::Vector{Float64},
                                  capacity_forward_years::Int64,
                                  iteration_year::Int64,
@@ -47,8 +47,8 @@ function update_expected_profit!(project::P,
                                                       price_years[:end_year],
                                                       rep_hour_weight,
                                                       solver)
-        push!(operating_profit_array, operating_profit)
 
+        push!(operating_profit_array, operating_profit)
         # Calculate expected energy production (NOTE: For storage, we save expected energy consumption (instead of production) here, for adding to clean energy (REC) requirement constraint)
         expected_energy_production += get_probability(scenario) * energy_production
 

@@ -7,7 +7,7 @@ function calculate_option_expected_utility(project::P,
                                market_prices::MarketPrices,
                                carbon_tax_data::Vector{Float64},
                                risk_preference::R,
-                               rep_hour_weight::Vector{Float64},
+                               rep_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
                                iteration_year::Int64,
                                yearly_horizon::Int64,
                                queue_cost::Vector{Float64},
@@ -37,7 +37,7 @@ function calculate_option_expected_utility(project::P,
         end
 
         annual_profit = annual_revenue - get_fixed_OM_cost(finance_data)
-
+        
         tech_data = get_tech(project)
         preference_multiplier = portfolio_preference_multipliers[(get_type(tech_data), get_zone(tech_data))][iteration_year]
 
@@ -66,7 +66,7 @@ function add_profitable_option(projects::Vector{Project},
                                   iteration_year::Int64,
                                   yearly_horizon::Int64,
                                   simulation_years::Int64,
-                                  rep_hour_weight::Vector{Float64},
+                                  rep_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
                                   capacity_forward_years::Int64,
                                   solver::JuMP.MOI.OptimizerWithAttributes) where {R <: RiskPreference}
 

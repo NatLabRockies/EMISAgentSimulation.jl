@@ -25,12 +25,17 @@ function create_realized_marketdata(simulation::AgentSimulation,
     zones = get_zones(simulation)
     lines = get_lines(simulation)
     case = get_case(simulation)
-    annual_growth = get_annual_growth(simulation)[:, iteration_year]
+    pcm_scenario = get_pcm_scenario(case)
+    all_scenarios = String.(get_all_scenario_names(simulation_dir))
 
-    hour_weight = get_hour_weight(simulation)
+    # DEPRECATED: Commenting out all code related to load growth.
+
+    #annual_growth = get_annual_growth(simulation)[:, iteration_year]
+
+    hour_weight = get_hour_weight(simulation)[pcm_scenario][iteration_year]
 
     # Get actual value of load growth
-    load_growth = AxisArrays.AxisArray(zeros(length(zones)), zones)
+    #= load_growth = AxisArrays.AxisArray(zeros(length(zones)), zones)
     for (idx, zone) in enumerate(zones)
         load_growth[idx] = annual_growth["load_$(zone)"]
     end
@@ -38,15 +43,15 @@ function create_realized_marketdata(simulation::AgentSimulation,
     energy_annual_increment = load_growth
     reserveup_annual_increment = load_growth
     reservedown_annual_increment = load_growth
-
+ =#
     ######## Energy and Ancillary Services market clearing ############################################
 
     zonal_load, system = create_economic_dispatch_problem(simulation,
                                                           sys_UC,
                                                           market_names,
                                                           num_invperiods,
-                                                          load_growth,
                                                           existing_projects,
+                                                          pcm_scenario,
                                                           iteration_year)
 
     num_hours = size(zonal_load)[2]
@@ -72,7 +77,7 @@ function create_realized_marketdata(simulation::AgentSimulation,
     shut_down_costs,
     energy_voll,
     reserve_voll,
-    inertia_voll = energy_mkt_clearing(sys_MD, sys_UC, sys_ED, system, simulation_dir, load_growth, reserve_penalty, rec_perc_requirement, zones, num_days, iteration_year, get_da_resolution(get_case(simulation)), get_rt_resolution(get_case(simulation)), get_name(get_case(simulation)), solver, get_base_dir(get_case(simulation)),simulation,current_siip_sim)
+    inertia_voll = energy_mkt_clearing(sys_MD, sys_UC, sys_ED, system, simulation_dir, reserve_penalty, rec_perc_requirement, zones, num_days, pcm_scenario, iteration_year, get_da_resolution(case), get_rt_resolution(case), get_name(case), solver, get_base_dir(case), simulation,current_siip_sim)
 
     println("Clean energy requirement for this year is $(get_rec_requirement(simulation)[iteration_year] * 100) percent")
     total_production = 0.0
@@ -135,14 +140,21 @@ function create_realized_marketdata(simulation::AgentSimulation,
     end
 
     capacity_mkt_param_file = joinpath(simulation_dir, "markets_data", "Capacity.csv")
-    peak_load = get_peak_load(simulation)
-    capacity_annual_increment = load_growth
+    peak_load = get_peak_load(simulation)[pcm_scenario]
+    #capacity_annual_increment = load_growth
 
-    average_load_growth = Statistics.mean(load_growth)
+    capacity_mkt_params = read_data(capacity_mkt_param_file)[1, :]
+
+    introduction_year = capacity_mkt_params["introduction_year"]
+    discontinuation_year = capacity_mkt_params["discontinuation_year"]
+    capacity_year = iteration_year + capacity_forward_years - 1
+    capacity_active = (capacity_year >= introduction_year && capacity_year < discontinuation_year) ? 1 : 0
+
+    #average_load_growth = Statistics.mean(load_growth)
 
     capacity_supply_curve = Vector{Union{String, Float64}}[]
 
-    delta_irm = get_delta_irm(get_resource_adequacy(simulation), iteration_year)
+    delta_irm = get_delta_irm(get_resource_adequacy(simulation)[pcm_scenario], iteration_year)
     irm_scalar = get_irm_scalar(get_case(simulation))
 
     for project in capacity_market_projects
@@ -155,8 +167,10 @@ function create_realized_marketdata(simulation::AgentSimulation,
     capacity_accepted_bids = Dict("no_accepted_bids" => 0.0)
 
     if in(:Capacity, market_names) && iteration_year + capacity_forward_years - 1 <= simulation_years
-        system_peak_load = (1 + average_load_growth) ^ (capacity_forward_years) * peak_load
-        capacity_demand_curve = create_capacity_demand_curve(capacity_mkt_param_file, system_peak_load, irm_scalar, delta_irm, capacity_market_bool)
+        #system_peak_load = (1 + average_load_growth) ^ (capacity_forward_years) * peak_load
+        system_peak_load = peak_load[iteration_year + capacity_forward_years - 1]
+        capacity_active_bool = Bool(capacity_active * capacity_market_bool)
+        capacity_demand_curve = create_capacity_demand_curve(capacity_mkt_param_file, system_peak_load, irm_scalar, delta_irm, capacity_active_bool)
 
         sort!(capacity_supply_curve, by = x -> x[3])      # Sort capacity supply curve by capacity bid
 
@@ -184,7 +198,8 @@ function create_realized_marketdata(simulation::AgentSimulation,
     total_demand = 0.0
     for z in zones
         for t in 1:num_hours
-            total_demand += zonal_load[z, t] * (1 + energy_annual_increment[z]) * hour_weight[t]
+            #total_demand += zonal_load[z, t] * (1 + energy_annual_increment[z]) * hour_weight[t]
+            total_demand += zonal_load[z, t] * hour_weight[t]
         end
     end
 
@@ -269,9 +284,11 @@ function create_realized_marketdata(simulation::AgentSimulation,
                      "rec_energy_requirment", rec_energy_requirment,
                      "cet_achieved_ratio", cet_achieved_ratio
         )
+ 
+    ################ Update realized load data and peak load #########################################
 
-    ################ Update realized load growth and peak load #########################################
-
+    # DEPRECATED: No need to update load growth as with the new input file structure, timeseries for each simulation year would have load growth implicitly incorporated within them.
+    #= 
     load_data = read_data(joinpath(simulation_dir, "timeseries_data_files", "Load", "load_$(iteration_year - 1).csv"))
     rep_load_data = read_data(joinpath(simulation_dir, "timeseries_data_files", "Load", "rep_load_$(iteration_year - 1).csv"))
     load_n_vg_data = read_data(joinpath(simulation_dir, "timeseries_data_files", "Net Load Data", "load_n_vg_data.csv"))
@@ -314,13 +331,15 @@ function create_realized_marketdata(simulation::AgentSimulation,
         CSV.write(joinpath(simulation_dir, "timeseries_data_files", "Reserves", "$(product)_$(iteration_year).csv"), reserve_timeseries_data[product])
         CSV.write(joinpath(simulation_dir, "timeseries_data_files", "Reserves", "rep_$(product)_$(iteration_year).csv"), rep_reserve_timeseries_data[product])
     end
+ =#
 
-    ordc_unavailability_method = get_ordc_unavailability_method(get_case(simulation))
-
-    construct_ordc(deepcopy(sys_UC), simulation_dir, get_investors(simulation), iteration_year, get_rep_periods(simulation), get_rep_period_interval(simulation), ordc_curved, ordc_unavailability_method, reserve_penalty)
-
-    peak_load_new = (1 + average_load_growth) * peak_load
-    set_peak_load!(simulation, peak_load_new)
+    num_scenarios = length(all_scenarios)
+    sys_UCs, data_dirs, investors_list, representative_periods_list, rep_period_intervals, cases, iteration_years, rolling_horizons, simulation_years_list = repeat_arguments(num_scenarios, deepcopy(sys_UC), simulation_dir, get_investors(simulation), get_rep_periods(simulation), get_rep_period_interval(simulation), case, iteration_year, get_rolling_horizon(case), get_total_horizon(case))
+    @time Distributed.pmap(parallelize_ordc_construction, zip(all_scenarios, sys_UCs, data_dirs, investors_list, representative_periods_list, rep_period_intervals, cases, iteration_years + 1, rolling_horizons, simulation_years_list))
+    
+    # DEPRECATED: No need to update peak load with the new timeseries implementation.
+    #peak_load_new = (1 + average_load_growth) * peak_load
+    #set_peak_load!(simulation, peak_load_new)
 
     return market_prices, capacity_factors_md, capacity_factors_uc, capacity_factors_ed, reserve_perc_md, reserve_perc_uc, reserve_perc_ed, inertia_perc, capacity_accepted_bids, rec_accepted_bids, clean_energy_percentage, cet_achieved_ratio
 end

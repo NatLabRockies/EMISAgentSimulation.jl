@@ -9,52 +9,81 @@ function gather_data(case::CaseDefinition)
     rep_period_interval = get_rep_period_interval(case)
     n_rep_periods = get_num_rep_periods(case)
     rep_checkpoint = get_rep_chronology_checkpoint(case)
+    simulation_years = get_total_horizon(case)
+    rolling_horizon = get_rolling_horizon(case)
+    pcm_scenario = get_pcm_scenario(case)
 
     annual_growth_df = read_data(joinpath(data_dir, "markets_data", "annual_growth.csv"))
-
-    test_system_load_da = DataFrames.DataFrame(CSV.File(joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", "Load", "DAY_AHEAD_regional_Load.csv")))
-    test_system_load_rt = DataFrames.DataFrame(CSV.File(joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", "Load", "REAL_TIME_regional_Load.csv")))
-
-    base_year = test_system_load_da[1, "Year"]
-
-    @assert base_year <= start_year
-
-    annual_growth_df_past = filter(row -> row.year < start_year && row.year >= base_year, annual_growth_df)
     annual_growth_df_simulation = filter(row -> row.year >= start_year, annual_growth_df)
-
-    annual_growth_past = AxisArrays.AxisArray(collect(transpose(Matrix(annual_growth_df_past[:, 2:end]))),
-                              names(annual_growth_df_past)[2:end],
-                              1:DataFrames.nrow(annual_growth_df_past))
 
     annual_growth_simulation = AxisArrays.AxisArray(collect(transpose(Matrix(annual_growth_df_simulation[:, 2:end]))),
                               names(annual_growth_df_simulation)[2:end],
                               1:DataFrames.nrow(annual_growth_df_simulation))
 
-    zones,
-    representative_periods,
-    rep_hour_weight,
-    chron_weights,
-    system_peak_load,
-    test_sys_hour_weight,
-    zonal_lines = read_test_system(
-        data_dir,
-        test_system_dir,
-        get_base_dir(case),
-        test_system_load_da,
-        test_system_load_rt,
-        base_year,
-        annual_growth_past,
-        start_year,
-        rep_period_interval,
-        n_rep_periods,
-        rep_checkpoint)
+    zones = String[]
+    zonal_lines = ZonalLine[]
 
-    if isnothing(zones)
-        zones = ["zone_1"]
-    end
+    annual_growth_past_first = []
 
-    if isnothing(zonal_lines)
-        zonal_lines = [ZonalLine("line_1", zones[1], zones[1], 0.0)]
+    scenarios = get_all_scenario_names(data_dir)
+
+    representative_periods = Dict(scenario => Dict{Int64, Union{Dict{Int64,Int64}, OrderedCollections.OrderedDict{Int64, Int64}}}() for scenario in scenarios)
+    test_sys_hour_weight = Dict(scenario => Dict{Int64, Vector{Float64}}() for scenario in scenarios)
+    rep_hour_weight = Dict(scenario => Dict{Int64, Vector{Float64}}() for scenario in scenarios)                    
+    chron_weights = Dict(scenario => Dict{Int64, Matrix{Int64}}() for scenario in scenarios)
+    system_peak_load = Dict(scenario => Dict{Int64, Float64}() for scenario in scenarios)
+    
+    for scenario in scenarios
+        println(scenario)
+        for sim_year in collect(1:simulation_years)
+            println(sim_year)
+            test_system_load_da = DataFrames.DataFrame(CSV.File(joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Load", "DAY_AHEAD_regional_Load.csv")))
+            test_system_load_rt = DataFrames.DataFrame(CSV.File(joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Load", "REAL_TIME_regional_Load.csv")))
+
+            base_year = test_system_load_da[1, "Year"]
+
+            @assert base_year <= start_year
+
+            annual_growth_df_past = filter(row -> row.year < start_year && row.year >= base_year, annual_growth_df)
+
+            annual_growth_past = AxisArrays.AxisArray(collect(transpose(Matrix(annual_growth_df_past[:, 2:end]))),
+                                names(annual_growth_df_past)[2:end],
+                                1:DataFrames.nrow(annual_growth_df_past))
+
+            if sim_year == 1
+                annual_growth_past_first = annual_growth_past
+            end
+
+            zones,
+            representative_periods[scenario][sim_year],
+            rep_hour_weight[scenario][sim_year],
+            chron_weights[scenario][sim_year], 
+            system_peak_load[scenario][sim_year],
+            test_sys_hour_weight[scenario][sim_year],
+            zonal_lines = read_test_system(
+                data_dir,
+                test_system_dir,
+                get_base_dir(case),
+                scenario,
+                test_system_load_da,
+                test_system_load_rt,
+                base_year,
+                annual_growth_past,
+                start_year,
+                sim_year,
+                rep_period_interval,
+                n_rep_periods,
+                rep_checkpoint)
+
+            if isnothing(zones)
+                zones = ["zone_1"]
+            end
+
+            if isnothing(zonal_lines)
+                zonal_lines = [ZonalLine("line_1", zones[1], zones[1], 0.0)]
+            end
+
+        end
     end
 
     markets_dict = get_markets(case)
@@ -71,13 +100,11 @@ function gather_data(case::CaseDefinition)
     end
 
     #updating past growth rate in PSY Systems
-    for y in 1:size(annual_growth_past)[2]
-        apply_PSY_past_load_growth!(sys_MD, annual_growth_past[:, y], data_dir)
-        apply_PSY_past_load_growth!(sys_UC, annual_growth_past[:, y], data_dir)
-        apply_PSY_past_load_growth!(sys_ED, annual_growth_past[:, y], data_dir)
+    for y in 1:size(annual_growth_past_first)[2]
+        apply_PSY_past_load_growth!(sys_MD, annual_growth_past_first[:, y], data_dir)
+        apply_PSY_past_load_growth!(sys_UC, annual_growth_past_first[:, y], data_dir)
+        apply_PSY_past_load_growth!(sys_ED, annual_growth_past_first[:, y], data_dir)
     end
-
-    simulation_years = get_total_horizon(case)
 
     carbon_tax = zeros(simulation_years)
 
@@ -99,7 +126,7 @@ function gather_data(case::CaseDefinition)
 
     queue_cost_df = read_data(joinpath(data_dir, "queue_cost_data.csv"))
 
-    deratingdata = read_data(joinpath(data_dir, "markets_data", "derating_dict.csv"))
+    deratingdata = Dict(s => read_data(joinpath(data_dir, "markets_data", "derating_data", s, "derating_dict.csv")) for s in scenarios)
 
     ra_target_file = joinpath(data_dir, "markets_data", "resource_adequacy_targets.csv")
     ra_targets = Dict{String, Float64}()
@@ -112,7 +139,8 @@ function gather_data(case::CaseDefinition)
         end
     end
 
-    resource_adequacy = ResourceAdequacy(ra_targets, zeros(simulation_years), [ra_metrics for i in 1:simulation_years])
+    
+    resource_adequacy = Dict(s => ResourceAdequacy(ra_targets, zeros(simulation_years), [ra_metrics for i in 1:simulation_years]) for s in scenarios)
     
     results_dir = make_results_dir(case)
 
@@ -134,7 +162,6 @@ function gather_data(case::CaseDefinition)
                                         rec_requirement,
                                         queue_cost_df,
                                         deratingdata,
-                                        annual_growth_simulation,
                                         resource_adequacy)
 
     investors = create_investors(simulation_data)
@@ -147,11 +174,16 @@ function gather_data(case::CaseDefinition)
     convert_thermal_fast_start!(sys_UC)
     convert_thermal_fast_start!(sys_ED)
 
-    construct_ordc(deepcopy(sys_UC), data_dir, investors, 0, representative_periods, rep_period_interval, get_ordc_curved(case), get_ordc_unavailability_method(case), get_reserve_penalty(case))
-    # TODO: need to update this for MD
-    add_psy_ordc!(data_dir, markets_dict, sys_MD, 1, get_da_resolution(case), get_rt_resolution(case), get_reserve_penalty(case))
-    add_psy_ordc!(data_dir, markets_dict, sys_UC, 1, get_da_resolution(case), get_rt_resolution(case), get_reserve_penalty(case))
-    add_psy_ordc!(data_dir, markets_dict, sys_ED, 1, get_da_resolution(case), get_rt_resolution(case), get_reserve_penalty(case))
+    iteration_year = 1 
+
+    # Parallelize the processing of scenarios using Distributed.pmap
+    num_scenarios = length(scenarios)
+    sys_UCs, data_dirs, investors_list, representative_periods_list, rep_period_intervals, cases, iteration_years, rolling_horizons, simulation_years_list = repeat_arguments(num_scenarios, deepcopy(sys_UC), data_dir, investors, representative_periods, rep_period_interval, case, iteration_year, rolling_horizon, simulation_years)
+    @time Distributed.pmap(parallelize_ordc_construction, zip(scenarios, sys_UCs, data_dirs, investors_list, representative_periods_list, rep_period_intervals, cases, iteration_years, rolling_horizons, simulation_years_list))
+    
+    add_psy_ordc!(data_dir, markets_dict, sys_MD, "MD", pcm_scenario, 1, get_da_resolution(case), get_rt_resolution(case), get_reserve_penalty(case))
+    add_psy_ordc!(data_dir, markets_dict, sys_UC, "UC", pcm_scenario, 1, get_da_resolution(case), get_rt_resolution(case), get_reserve_penalty(case))
+    add_psy_ordc!(data_dir, markets_dict, sys_ED, "ED", pcm_scenario, 1, get_da_resolution(case), get_rt_resolution(case), get_reserve_penalty(case))
 
     if markets_dict[:Inertia]
         add_psy_inertia!(data_dir, sys_UC, "UC", get_reserve_penalty(case), system_peak_load)
@@ -164,24 +196,23 @@ function gather_data(case::CaseDefinition)
     # NG: this function works for ORDC because ORDC has SingleTimeSeries
     transform_psy_timeseries!(sys_MD, sys_UC, sys_ED, get_da_resolution(case), get_rt_resolution(case), MD_horizon, UC_horizon, ED_horizon, MD_interval, UC_interval, ED_interval)
 
-    # Adding representative days availability data to investor folders
-    system_availability_data = DataFrames.DataFrame(CSV.File(joinpath(data_dir, "timeseries_data_files", "Availability", "DAY_AHEAD_availability.csv")))
+    # Adding representative days availability data
+    for scenario in scenarios
+        for sim_year in collect(1:simulation_years)
+            system_availability_data = DataFrames.DataFrame(CSV.File(joinpath(data_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Availability", "DAY_AHEAD_availability.csv")))
 
-    system_availability_data[!, "Period_Number"] = 1:size(system_availability_data, 1)
-    system_availability_data[!, "Representative_Period"] = add_representative_period.(system_availability_data[:, "Period_Number"], rep_period_interval)
+            system_availability_data[!, "Period_Number"] = 1:size(system_availability_data, 1)
+            system_availability_data[!, "Representative_Period"] = add_representative_period.(system_availability_data[:, "Period_Number"], rep_period_interval)
 
-    rep_projects_availability = filter(row -> in(row["Representative_Period"], keys(representative_periods)), system_availability_data)
+            rep_projects_availability = filter(row -> in(row["Representative_Period"], keys(representative_periods[scenario][sim_year])), system_availability_data)
 
-    for dir in get_data_dir.(investors)
-        write_data(joinpath(dir, "timeseries_data_files", "Availability"), "DAY_AHEAD_availability.csv", rep_projects_availability)
+            write_data(joinpath(data_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)","Availability"), "rep_DAY_AHEAD_availability.csv", rep_projects_availability)
+        end
     end
 
-    update_simulation_derating_data!(
-        simulation_data,
-        1,
-        get_derating_scale(case),
-        methodology = get_accreditation_methodology(case),
-        ra_metric = get_accreditation_metric(case))
+    simulations, iteration_years, derating_scales, methodologies, ra_metric_list =  repeat_arguments(num_scenarios, simulation_data, iteration_year, get_derating_scale(case), get_accreditation_methodology(case), get_accreditation_metric(case))
+   
+    @time Distributed.pmap(parallelize_update_derating_data, zip(scenarios, simulations, iteration_years, derating_scales, methodologies, ra_metric_list))
 
     return simulation_data
 end
@@ -222,7 +253,6 @@ end
 This function returns the AgentSimulation struct which contains all the required data for running the simulation.
 """
 function create_agent_simulation(case::CaseDefinition)
-    make_case_data_dir(case)
     simulation_data = gather_data(case)
     simulation = AgentSimulation(case,
                             get_results_dir(simulation_data),
@@ -241,7 +271,6 @@ function create_agent_simulation(case::CaseDefinition)
                             get_rec_requirement(simulation_data),
                             get_investors(simulation_data),
                             get_derating_data(simulation_data),
-                            get_annual_growth(simulation_data),
                             get_resource_adequacy(simulation_data))
 
     return simulation

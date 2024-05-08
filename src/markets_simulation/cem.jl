@@ -267,10 +267,10 @@ function cem(system::MarketClearingProblem{Z, T},
     end
 
     if fixed_block_size
+        start_index = 2
         if avg_block_size == 1
             start_index = 0
         end
-        start_index = 2
         block_size = avg_block_size
 
         @assert start_index <= avg_block_size
@@ -298,7 +298,7 @@ function cem(system::MarketClearingProblem{Z, T},
             rep_hour_weight
             )
 
-        block_size_vec = block_size .* ones(TB)
+        block_size_vec = [block_size .* ones(TB) for p in invperiods]
     else
 
         K = Int(T / avg_block_size)
@@ -306,6 +306,7 @@ function cem(system::MarketClearingProblem{Z, T},
         time_blocks = generate_variable_blocks(
             K,
             T, ophours,
+            invperiods,
             rep_period_interval, 
             zones, demand_e,
             generator_projects, tech_type, availability, max_gen)
@@ -330,15 +331,15 @@ function cem(system::MarketClearingProblem{Z, T},
             rep_hour_weight
             )
 
-        block_size_vec = [length(i) for i in time_blocks]
+        block_size_vec = [[length(i) for i in time_blocks[p]] for p in invperiods] 
     end
     
     interval_blocks = Int(rep_period_interval / avg_block_size)
 
     end_of_period = collect(interval_blocks:interval_blocks:Int(T / avg_block_size))
 
-    opperiod_map = [find_index(i, time_blocks) for i in ophours]
-    
+    opperiod_map = [[find_index(i, time_blocks[p]) for i in ophours] for p in invperiods]
+
     m = JuMP.Model(solver)
 
     # m = JuMP.Model(HiGHS_optimizer)
@@ -402,7 +403,7 @@ function cem(system::MarketClearingProblem{Z, T},
 
     # Storage level evolution
     JuMP.@expression(m, storage_level[g in storage_projects, p in invperiods, t in opperiods],
-                    (p_in[g, p, t] * efficiency_in[g] - p_e[g, p, t] / efficiency_out[g]) * block_size_vec[t])
+                    (p_in[g, p, t] * efficiency_in[g] - p_e[g, p, t] / efficiency_out[g]) * block_size_vec[p][t])
 
     for g in projects
 
@@ -466,7 +467,7 @@ function cem(system::MarketClearingProblem{Z, T},
                               + carbon_emissions[g, p, t] * carbon_tax[p]
                               + sum(p_ru[g, rp, p, t] * marginal_reserve_cost[g][rp] for rp in reserve_up_products)
                               + sum(p_rd[g, rp, p, t] * marginal_reserve_cost[g][rp] for rp in reserve_down_products)
-                              + sum(p_ordc[g, rp, p, t] * marginal_reserve_cost[g][rp] for rp in ordc_products)) * rep_block_weight[t] for t in opperiods))
+                              + sum(p_ordc[g, rp, p, t] * marginal_reserve_cost[g][rp] for rp in ordc_products)) * rep_block_weight[p][t] for t in opperiods))
 
     # OBJECTIVE FUNCTION
 
@@ -477,9 +478,9 @@ function cem(system::MarketClearingProblem{Z, T},
     + 1/2 * sum(sum(cap_segmentgrad[p][s] * d_cap[p, s]^2 for s in 1:cap_numsegments[p]) * social_npv_array[p] for p in invperiods)
 
     # ORDC welfare
-    + sum(sum(d_ordc[rp, p, t, s] * rep_block_weight[t] * ordc_pricepoints_agg[rp][p, t][s] for rp in ordc_products, t in opperiods, s in 1:ordc_numsegments_agg[rp][p, t])
+    + sum(sum(d_ordc[rp, p, t, s] * rep_block_weight[p][t] * ordc_pricepoints_agg[rp][p, t][s] for rp in ordc_products, t in opperiods, s in 1:ordc_numsegments_agg[rp][p, t])
     * social_npv_array[p] for p in invperiods)
-    + 1/2 * sum(sum(ordc_segmentgrad_agg[rp][p, t][s] * (d_ordc[rp, p, t, s])^2 * rep_block_weight[t] for rp in ordc_products, t in opperiods, s in 1:ordc_numsegments_agg[rp][p, t])
+    + 1/2 * sum(sum(ordc_segmentgrad_agg[rp][p, t][s] * (d_ordc[rp, p, t, s])^2 * rep_block_weight[p][t] for rp in ordc_products, t in opperiods, s in 1:ordc_numsegments_agg[rp][p, t])
     * social_npv_array[p] for p in invperiods)
 
     # REC market Alternative Compliance Payment
@@ -496,16 +497,16 @@ function cem(system::MarketClearingProblem{Z, T},
 
     +  (# weigh operations according to actual duration
     # operations market shortfall penalties
-             - sum(v_e[z, p, t] * price_cap_e[z, p] * rep_block_weight[t] * social_npv_array[p]
+             - sum(v_e[z, p, t] * price_cap_e[z, p] * rep_block_weight[p][t] * social_npv_array[p]
                 for z in zones, p in invperiods, t in opperiods)
 
-             - sum(v_ru[rp, p, t] * price_cap_ru[rp][p] * rep_block_weight[t] * social_npv_array[p]
+             - sum(v_ru[rp, p, t] * price_cap_ru[rp][p] * rep_block_weight[p][t] * social_npv_array[p]
                 for rp in reserve_up_products, p in invperiods, t in opperiods)
 
-             - sum(v_rd[rp, p, t] * price_cap_rd[rp][p] * rep_block_weight[t] * social_npv_array[p]
+             - sum(v_rd[rp, p, t] * price_cap_rd[rp][p] * rep_block_weight[p][t] * social_npv_array[p]
                 for rp in reserve_down_products, p in invperiods, t in opperiods)
 
-             - sum(v_inertia[p, t] * price_cap_inertia[p] * rep_block_weight[t] * social_npv_array[p]
+             - sum(v_inertia[p, t] * price_cap_inertia[p] * rep_block_weight[p][t] * social_npv_array[p]
                 for p in invperiods, t in opperiods))
 
         )
@@ -633,7 +634,7 @@ function cem(system::MarketClearingProblem{Z, T},
         end
     end
 
-    if isempty(chron_weights)
+    if isempty(first(values(chron_weights)))
         println("no checkpoints")
         #= for g in storage_projects
             println(g)
@@ -649,11 +650,11 @@ function cem(system::MarketClearingProblem{Z, T},
             end
         end =#
     else
-        num_chron_checkpoints = size(chron_weights, 1)
+        num_chron_checkpoints = size(first(values(chron_weights))s, 1)
         println("number of chronological checkpoints: $(num_chron_checkpoints)")
 
         JuMP.@expression(m, chron_storage_level[g in storage_projects, p in invperiods, c in 1:num_chron_checkpoints], 
-                        sum((p_in[g, p, t] * efficiency_in[g] - p_e[g, p, t] / efficiency_out[g]) * chron_weights[c, t] * block_size_vec[t] for t in opperiods))
+                        sum((p_in[g, p, t] * efficiency_in[g] - p_e[g, p, t] / efficiency_out[g]) * chron_weights[p][c, t] * block_size_vec[p][t] for t in opperiods))
 
         for g in storage_projects
             for p in invperiods
@@ -699,8 +700,8 @@ function cem(system::MarketClearingProblem{Z, T},
 
     # REC market
     JuMP.@constraint(m, rps_compliance[p in invperiods],
-        sum(p_e[g, p, t] * rec_correction[g] * rep_block_weight[t] for g in rps_compliant_projects, t in opperiods) + v_rec[p]
-        >= (sum(demand_e_agg[z, p, t] * rep_block_weight[t] for z in zones, t in opperiods)) * rec_requirement[p])
+        sum(p_e[g, p, t] * rec_correction[g] * rep_block_weight[p][t] for g in rps_compliant_projects, t in opperiods) + v_rec[p]
+        >= (sum(demand_e_agg[z, p, t] * rep_block_weight[p][t] for z in zones, t in opperiods)) * rec_requirement[p])
 
     # Inertia market
     JuMP.@constraint(m, inertia_market[p in invperiods, t in opperiods],
@@ -760,7 +761,7 @@ function cem(system::MarketClearingProblem{Z, T},
                 capacity_accepted_perc[g][p] = value.(c[g, p]) / value.(unitsdispatchable[g, p])
             end
             for t in ophours
-                tb = opperiod_map[t]
+                tb = opperiod_map[p][t]
                 if (value.(unitsdispatchable[g, p]) < 0.0001) || (value.(p_e[g, p, tb]) < 0.0)
                     capacity_factor[g][p, t] = 0.0
                     total_utilization[g][p, t] = 0.0
@@ -838,19 +839,19 @@ function cem(system::MarketClearingProblem{Z, T},
         nominal_capacity_price[p] = capacity_price[p] / social_npv_array[p]
         nominal_REC_price[p] = REC_price[p] / social_npv_array[p]
         REC_slack[p] = value.(v_rec[p])
-        REC_supply[p] = sum(value.(p_e[g, p, t]) * rec_correction[g] * rep_block_weight[t] for g in rps_compliant_projects, t in opperiods) + value.(v_rec[p])
-        REC_demand[p] = (sum(demand_e_agg[z, p, t] * rep_block_weight[t] for z in zones, t in opperiods)) * rec_requirement[p]
+        REC_supply[p] = sum(value.(p_e[g, p, t]) * rec_correction[g] * rep_block_weight[p][t] for g in rps_compliant_projects, t in opperiods) + value.(v_rec[p])
+        REC_demand[p] = (sum(demand_e_agg[z, p, t] * rep_block_weight[p][t] for z in zones, t in opperiods)) * rec_requirement[p]
         for t in ophours
-            tb = opperiod_map[t]
-            nominal_energy_price[:, p, t] = (energy_price[:, p, tb] / (rep_block_weight[tb])) / social_npv_array[p]
+            tb = opperiod_map[p][t]
+            nominal_energy_price[:, p, t] = (energy_price[:, p, tb] / (rep_block_weight[p][tb])) / social_npv_array[p]
 
             for product in all_reserves
                 if product in reserve_up_products
-                    nominal_reserve_price[product][p, t] = (reserve_up_price[product, p, tb] / (rep_block_weight[tb])) / social_npv_array[p]
+                    nominal_reserve_price[product][p, t] = (reserve_up_price[product, p, tb] / (rep_block_weight[p][tb])) / social_npv_array[p]
                 elseif product in reserve_down_products
-                    nominal_reserve_price[product][p, t] = (reserve_down_price[product, p, tb] / (rep_block_weight[tb])) / social_npv_array[p]
+                    nominal_reserve_price[product][p, t] = (reserve_down_price[product, p, tb] / (rep_block_weight[p][tb])) / social_npv_array[p]
                 elseif product in ordc_products
-                    nominal_reserve_price[product][p, t] = (ordc_price[product, p, tb] / (rep_block_weight[tb])) / social_npv_array[p]
+                    nominal_reserve_price[product][p, t] = (ordc_price[product, p, tb] / (rep_block_weight[p][tb])) / social_npv_array[p]
                 end
             end
 
@@ -858,7 +859,7 @@ function cem(system::MarketClearingProblem{Z, T},
                 p_e_detail[g, p, t] = value.(p_e[g, p, tb])
             end
 
-            nominal_inertia_price[p, t] = (inertia_price[p, tb] / (rep_block_weight[tb])) / social_npv_array[p]
+            nominal_inertia_price[p, t] = (inertia_price[p, tb] / (rep_block_weight[p][tb])) / social_npv_array[p]
 
         end
         for g in projects
@@ -884,19 +885,19 @@ function cem(system::MarketClearingProblem{Z, T},
 
 
         println("Total Demand")
-        println(sum(demand_e_agg[z, p, t] * rep_block_weight[t] for z in zones, t in opperiods))
+        println(sum(demand_e_agg[z, p, t] * rep_block_weight[p][t] for z in zones, t in opperiods))
 
         println("Total Generation")
-        println(sum(value.(p_e[g, p, t]) * rep_block_weight[t] for g in generator_projects, t in opperiods))
+        println(sum(value.(p_e[g, p, t]) * rep_block_weight[p][t] for g in generator_projects, t in opperiods))
 
         println("Total Clean Generation")
-        println(sum(value.(p_e[g, p, t]) * rep_block_weight[t] for g in rps_compliant_projects, t in opperiods))
+        println(sum(value.(p_e[g, p, t]) * rep_block_weight[p][t] for g in rps_compliant_projects, t in opperiods))
 
         println("RPS Target")
         println(rec_requirement[p])
 
         println("RPS Achieved")
-        println(sum(value.(p_e[g, p, t]) * rep_block_weight[t] for g in rps_compliant_projects, t in opperiods) / (sum(demand_e_agg[z, p, t] * rep_block_weight[t] for z in zones, t in opperiods)))
+        println(sum(value.(p_e[g, p, t]) * rep_block_weight[p][t] for g in rps_compliant_projects, t in opperiods) / (sum(demand_e_agg[z, p, t] * rep_block_weight[p][t] for z in zones, t in opperiods)))
 
     end =#
 
@@ -907,7 +908,7 @@ function cem(system::MarketClearingProblem{Z, T},
     for z in zones
         for p in invperiods
             for t in ophours
-                tb = opperiod_map[t]
+                tb = opperiod_map[p][t]
                 if nominal_energy_price[z, p, t] <= 1e-5
                     nominal_energy_price[z, p, t] = 1e-5 # replace zeros with 1e-5, to avoid no energy production by renewables when price is 0.
                 end
@@ -923,7 +924,7 @@ function cem(system::MarketClearingProblem{Z, T},
 
     for p in invperiods
         for t in ophours
-            tb = opperiod_map[t]
+            tb = opperiod_map[p][t]
             for g in storage_projects
                 p_in_inertia_detail[g, p, t] = value.(p_in_inertia[g, p, tb])
                 p_out_inertia_detail[g, p, t] = value.(p_out_inertia[g, p, tb])

@@ -94,7 +94,6 @@ function capacity_market_clearing(demand_curve::CapacityMarket,
    #   [3] - Project Capacity Bid
    #   [4] - Project Derating Factor
 
-
    demand_segmentsize, demand_segmentgrad, demand_pricepoints = make_capacity_demand(demand_curve)
 
    #Number of segments of capacity supply and demand curves

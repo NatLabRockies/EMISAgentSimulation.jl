@@ -16,7 +16,7 @@ function create_parallel_workers(case::CaseDefinition, hpc::Bool)
             num_scenarios = 1
         elseif forecast_type == "imperfect"
             if get_uncertainty(case)
-                file_name = joinpath(investor_dir, "markets_data", "scenario_multiplier_data.csv")
+                file_name = joinpath(investor_dir, "markets_data", "scenario_data.csv")
                 @assert isfile(file_name)
                 scenario_df = read_data(file_name)
                 num_scenarios = DataFrames.nrow(scenario_df)
@@ -96,6 +96,7 @@ function parallelize_only_investors(investor::Investor,
 
     for scenario in scenarios
         create_expected_marketdata(investor_dir,
+                                sys_data_dir,
                                 market_names,
                                 carbon_tax,
                                 reserve_products,
@@ -122,5 +123,63 @@ function parallelize_only_investors(investor::Investor,
                                 investor_name)
     end
 
+    return
+end
+
+"""
+This function runs the construct_ordc function in parallel for different scenarios.
+"""
+function parallelize_ordc_construction(args)
+    scenario, sys_UC, data_dir, investors, representative_periods, rep_period_interval, case, iteration_year, rolling_horizon, simulation_years = args
+    for sim_year in collect(iteration_year:min(iteration_year + rolling_horizon - 1, simulation_years))
+        construct_ordc(sys_UC, data_dir, scenario, sim_year, investors, 0, representative_periods[scenario][sim_year], rep_period_interval, get_ordc_curved(case), get_ordc_unavailability_method(case), get_reserve_penalty(case))
+    end
+end
+
+"""
+This function runs the update_delta_irm! function in parallel for different scenarios.
+"""
+function parallelize_update_delta_irm!(args)
+    scenario, sys_UC, active_projects, capacity_forward_years, resource_adequacy, peak_load, static_capacity_bool, iteration_year, simulation_years, data_dir, da_resolution, results_dir = args    
+    resource_adequacy = update_delta_irm!(
+        sys_UC,
+        active_projects,
+        capacity_forward_years,
+        resource_adequacy[scenario],
+        peak_load[scenario][min(iteration_year + capacity_forward_years - 1, simulation_years)],
+        static_capacity_bool,
+        scenario,
+        iteration_year,
+        data_dir,
+        da_resolution,
+        results_dir
+        )
+    return (scenario, resource_adequacy)
+end
+
+"""
+This function creates repeated arguments for parallel runs
+"""
+function repeat_arguments(num_scenarios::Int, args...)
+    repeated_args = []
+    for arg in args
+        push!(repeated_args, fill(arg, num_scenarios))
+    end
+    return repeated_args
+end
+
+"""
+This function runs the update_simulation_derating_data! function in parallel for different scenarios.
+"""
+function parallelize_update_derating_data(args)
+    scenario, simulation, iteration_year, derating_scale, methodology, ra_metric = args    
+    update_simulation_derating_data!(
+        simulation,
+        scenario,
+        iteration_year,
+        derating_scale,
+        methodology = methodology,
+        ra_metric = ra_metric
+        )
     return
 end

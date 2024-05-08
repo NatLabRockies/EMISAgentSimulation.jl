@@ -17,7 +17,7 @@ This struct contains all the data for the simulation to be run.
     rec_requirement: Vector of annual REC requirement
     investors: Vectors of all investors created in the simulation.
     derating_data: Derating data foe each technology type.
-    annual_growth: Annual growth rate data of different parameters.
+    resource_adequacy: Resource adequacy targets and outcomes.
 """
 
 mutable struct AgentSimulation
@@ -29,17 +29,16 @@ mutable struct AgentSimulation
     system_ED::Union{Nothing, PSY.System}
     zones::Vector{String}
     lines::Vector{ZonalLine}
-    rep_periods::Union{Dict{Int64,Int64}, OrderedCollections.OrderedDict{Int64, Int64}}
+    rep_periods::Dict{String, Dict{Int64, Union{Dict{Int64,Int64}, OrderedCollections.OrderedDict{Int64, Int64}}}}
     rep_period_interval::Int64
-    hour_weight::Vector{Float64}
-    peak_load::Float64
+    hour_weight::Dict{String, Dict{Int64, Vector{Float64}}}
+    peak_load::Dict{String, Dict{Int64, Float64}}
     markets::Dict{Symbol, Bool}
     carbon_tax::Vector{Float64}
     rec_requirement::Vector{Float64}
     investors::Vector{Investor}
-    derating_data::DataFrames.DataFrame
-    annual_growth::AxisArrays.AxisArray{Float64, 2}
-    resource_adequacy::ResourceAdequacy
+    derating_data::Dict{String, DataFrames.DataFrame}
+    resource_adequacy::Dict{String, ResourceAdequacy}
 end
 
 get_case(sim::AgentSimulation) = sim.case
@@ -59,7 +58,6 @@ get_carbon_tax(sim::AgentSimulation) = sim.carbon_tax
 get_rec_requirement(sim::AgentSimulation) = sim.rec_requirement
 get_investors(sim::AgentSimulation) = sim.investors
 get_derating_data(sim::AgentSimulation) = sim.derating_data
-get_annual_growth(sim::AgentSimulation) = sim.annual_growth
 get_resource_adequacy(sim::AgentSimulation) = sim.resource_adequacy
 
 
@@ -84,20 +82,19 @@ mutable struct AgentSimulationData
     system_ED::Union{Nothing, PSY.System}
     zones::Vector{String}
     lines::Vector{ZonalLine}
-    rep_periods::Union{Dict{Int64,Int64}, OrderedCollections.OrderedDict{Int64, Int64}}
+    rep_periods::Dict{String, Dict{Int64, Union{Dict{Int64,Int64}, OrderedCollections.OrderedDict{Int64, Int64}}}}
     rep_period_interval::Int64
-    hour_weight::Vector{Float64}
-    rep_hour_weight::Vector{Float64}
-    chron_weights::Matrix{Int64}
-    peak_load::Float64
+    hour_weight::Dict{String, Dict{Int64, Vector{Float64}}}
+    rep_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}}
+    chron_weights::Dict{String, Dict{Int64, Matrix{Int64}}}
+    peak_load::Dict{String, Dict{Int64, Float64}}
     markets::Dict{Symbol, Bool}
     carbon_tax::Vector{Float64}
     rec_requirement::Vector{Float64}
     investors::Union{Nothing, Vector{Investor}}
     queue_cost_data::DataFrames.DataFrame
-    derating_data::DataFrames.DataFrame
-    annual_growth::AxisArrays.AxisArray{Float64, 2}
-    resource_adequacy::ResourceAdequacy
+    derating_data::Dict{String, DataFrames.DataFrame}
+    resource_adequacy::Dict{String, ResourceAdequacy}
 end
 
 function AgentSimulationData(case::CaseDefinition,
@@ -107,19 +104,18 @@ function AgentSimulationData(case::CaseDefinition,
                         system_ED::Union{Nothing, PSY.System},
                         zones::Vector{String},
                         lines::Vector{ZonalLine},
-                        rep_periods::Union{Dict{Int64,Int64}, OrderedCollections.OrderedDict{Int64, Int64}},
+                        rep_periods::Dict{String, Dict{Int64, Union{Dict{Int64,Int64}, OrderedCollections.OrderedDict{Int64, Int64}}}},
                         rep_period_interval::Int64,
-                        hour_weight::Vector{Float64},
-                        rep_hour_weight::Vector{Float64},                     
-                        chron_weights::Matrix{Int64},
-                        peak_load::Float64,
+                        hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
+                        rep_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},                     
+                        chron_weights::Dict{String, Dict{Int64, Matrix{Int64}}},
+                        peak_load::Dict{String, Dict{Int64, Float64}},
                         markets::Dict{Symbol, Bool},
                         carbon_tax::Vector{Float64},
                         rec_requirement::Vector{Float64},
                         queue_cost_data::DataFrames.DataFrame,
-                        derating_data::DataFrames.DataFrame,
-                        annual_growth::AxisArrays.AxisArray{Float64, 2},
-                        resource_adequacy::ResourceAdequacy)
+                        derating_data::Dict{String, DataFrames.DataFrame},
+                        resource_adequacy::Dict{String, ResourceAdequacy})
     return AgentSimulationData(case,
                           results_dir,
                           1,
@@ -140,7 +136,6 @@ function AgentSimulationData(case::CaseDefinition,
                           nothing,
                           queue_cost_data,
                           derating_data,
-                          annual_growth,
                           resource_adequacy)
 end
 
@@ -164,7 +159,6 @@ get_rec_requirement(sim::AgentSimulationData) = sim.rec_requirement
 get_investors(sim::AgentSimulationData) = sim.investors
 get_queue_cost_data(sim::AgentSimulationData) = sim.queue_cost_data
 get_derating_data(sim::AgentSimulationData) = sim.derating_data
-get_annual_growth(sim::AgentSimulationData) = sim.annual_growth
 get_resource_adequacy(sim::AgentSimulationData) = sim.resource_adequacy
 
 function set_investors!(simulation_data::AgentSimulationData,
@@ -191,4 +185,8 @@ function get_decidedprojects(simulation::Union{AgentSimulation, AgentSimulationD
     projects = get_allprojects(simulation)
     decided_projects = filter(x -> !isa(x, Project{Option}) , projects)
     return decided_projects
+end
+
+function set_resource_adequacy!(simulation::Union{AgentSimulation, AgentSimulationData}, ra::Dict{String, ResourceAdequacy})
+    simulation.resource_adequacy = ra
 end

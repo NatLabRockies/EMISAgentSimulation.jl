@@ -116,7 +116,9 @@ function make_capacity_demand(capmarket::CapacityMarket)
     segment_grad = zeros(num_segments)
          for segment in 1:num_segments
             segment_size[segment] = break_points[segment + 1] - break_points[segment]
-            segment_grad[segment] = (price_points[segment + 1] - price_points[segment]) /  segment_size[segment]
+            if segment_size[segment] != 0
+                segment_grad[segment] = (price_points[segment + 1] - price_points[segment]) /  segment_size[segment]
+            end
          end
 
     return segment_size, segment_grad, price_points
@@ -392,7 +394,7 @@ function sum_time_blocks(
     )
     
     len = length(vector)
-    aggregated_vector = []
+    aggregated_vector = Int64[]
 
     for i in time_blocks
         push!(aggregated_vector, sum(vector[i]))
@@ -409,7 +411,7 @@ function sum_time_blocks(
     )
     vector = move_elements_to_end!(vector, start_index)
     len = length(vector)
-    aggregated_vector = []
+    aggregated_vector = Int64[]
 
     for i in 1:block_size:len
         push!(aggregated_vector, sum(vector[i:i + block_size - 1]))
@@ -499,16 +501,6 @@ function aggregate_timeseries(
     opperiods = 1:TB 
 
     if block_size > 1
-
-        rep_block_weight = sum_time_blocks(rep_hour_weight, block_size, start_index)
-        time_blocks = [collect(start_index + (i - 1) * block_size + 1:start_index + i * block_size) for i in 1:TB]
-        
-        for (idx,i) in enumerate(last(time_blocks))
-            if i > T
-                time_blocks[length(time_blocks)][idx] = i - T
-            end
-        end
-
         # Aggregated timeseries
         availability_agg = Dict(g => AxisArrays.AxisArray(zeros(length(invperiods), TB), invperiods, opperiods) for g in generator_projects)
 
@@ -522,7 +514,22 @@ function aggregate_timeseries(
         ordc_segmentgrad_agg = Dict(product => AxisArrays.AxisArray(Array{Vector{Float64}, 2}(undef, length(invperiods), TB), invperiods, opperiods) for product in ordc_products)
         ordc_pricepoints_agg = Dict(product => AxisArrays.AxisArray(Array{Vector{Float64}, 2}(undef, length(invperiods), TB), invperiods, opperiods) for product in ordc_products)
 
+        rep_block_weight = Dict(p => Vector{Int64}() for p in invperiods)   
+
+        time_blocks_dict = Dict(p => Vector{Vector{Int64}}() for p in invperiods)   
+
         for p in invperiods
+
+            rep_block_weight[p] = sum_time_blocks(rep_hour_weight[p], block_size, start_index)
+            time_blocks = [collect(start_index + (i - 1) * block_size + 1:start_index + i * block_size) for i in 1:TB]
+            
+            for (idx,i) in enumerate(last(time_blocks))
+                if i > T
+                    time_blocks[length(time_blocks)][idx] = i - T
+                end
+            end
+
+            time_blocks_dict[p] = time_blocks
 
             for g in generator_projects
                 availability_agg[g][p, :] = mean_time_blocks(availability[g][p, :], block_size, start_index)
@@ -548,17 +555,17 @@ function aggregate_timeseries(
             end
         end
 
-        return TB, opperiods, availability_agg, demand_e_agg, demand_ru_agg, demand_rd_agg, ordc_numsegments_agg, ordc_segmentsize_agg, ordc_segmentgrad_agg, ordc_pricepoints_agg, rep_block_weight, time_blocks
+        return TB, opperiods, availability_agg, demand_e_agg, demand_ru_agg, demand_rd_agg, ordc_numsegments_agg, ordc_segmentsize_agg, ordc_segmentgrad_agg, ordc_pricepoints_agg, rep_block_weight, time_blocks_dict
     else
 
-        time_blocks = [[i] for i in 1:T]
+        time_blocks = [[[i] for i in 1:T] for p in invperiods]
         return TB, opperiods, availability, demand_e, demand_ru, demand_rd, ordc_numsegments, ordc_segmentsize, ordc_segmentgrad, ordc_price_points, rep_hour_weight, time_blocks
     end
 end
 
 
 function aggregate_timeseries(
-    time_blocks::Vector{Vector{Int64}},
+    time_blocks::Dict{Int64, Vector{Vector{Int64}}},
     invperiods,
     generator_projects, availability,
     zones, demand_e, 
@@ -567,111 +574,140 @@ function aggregate_timeseries(
     ordc_products, ordc_numsegments, ordc_segmentsize, ordc_segmentgrad, ordc_price_points,
     rep_hour_weight
     )
-
-    TB = length(time_blocks)
-    opperiods = 1:TB 
-
-    rep_block_weight = sum_time_blocks(rep_hour_weight, time_blocks)
         
-    # Aggregated timeseries
-    availability_agg = Dict(g => AxisArrays.AxisArray(zeros(length(invperiods), TB), invperiods, opperiods) for g in generator_projects)
+    TB = length(first(values(time_blocks)))
+    opperiods = 1:TB
 
-    demand_e_agg = AxisArrays.AxisArray(zeros(length(zones), length(invperiods), TB), zones, invperiods, opperiods)
-    demand_ru_agg = Dict(product => AxisArrays.AxisArray(zeros(length(invperiods), TB), invperiods, opperiods) for product in reserve_up_products)
-    demand_rd_agg = Dict(product => AxisArrays.AxisArray(zeros(length(invperiods), TB), invperiods, opperiods) for product in reserve_down_products)
-    
-    ordc_numsegments_agg = Dict(product => AxisArrays.AxisArray(Array{Int64, 2}(undef, length(invperiods), TB), invperiods, opperiods) for product in ordc_products)
-    ordc_segmentsize_agg = Dict(product => AxisArrays.AxisArray(Array{Vector{Float64}, 2}(undef, length(invperiods), TB), invperiods, opperiods) for product in ordc_products)
-    ordc_segmentgrad_agg = Dict(product => AxisArrays.AxisArray(Array{Vector{Float64}, 2}(undef, length(invperiods), TB), invperiods, opperiods) for product in ordc_products)
-    ordc_pricepoints_agg = Dict(product => AxisArrays.AxisArray(Array{Vector{Float64}, 2}(undef, length(invperiods), TB), invperiods, opperiods) for product in ordc_products)
+     # Aggregated timeseries
+     availability_agg = Dict(g => AxisArrays.AxisArray(zeros(length(invperiods), TB), invperiods, opperiods) for g in generator_projects)
+
+     demand_e_agg = AxisArrays.AxisArray(zeros(length(zones), length(invperiods), TB), zones, invperiods, opperiods)
+     demand_ru_agg = Dict(product => AxisArrays.AxisArray(zeros(length(invperiods), TB), invperiods, opperiods) for product in reserve_up_products)
+     demand_rd_agg = Dict(product => AxisArrays.AxisArray(zeros(length(invperiods), TB), invperiods, opperiods) for product in reserve_down_products)
+     
+     ordc_numsegments_agg = Dict(product => AxisArrays.AxisArray(Array{Int64, 2}(undef, length(invperiods), TB), invperiods, opperiods) for product in ordc_products)
+     ordc_segmentsize_agg = Dict(product => AxisArrays.AxisArray(Array{Vector{Float64}, 2}(undef, length(invperiods), TB), invperiods, opperiods) for product in ordc_products)
+     ordc_segmentgrad_agg = Dict(product => AxisArrays.AxisArray(Array{Vector{Float64}, 2}(undef, length(invperiods), TB), invperiods, opperiods) for product in ordc_products)
+     ordc_pricepoints_agg = Dict(product => AxisArrays.AxisArray(Array{Vector{Float64}, 2}(undef, length(invperiods), TB), invperiods, opperiods) for product in ordc_products)
+
+     rep_block_weight = Dict(p => Vector{Int64}() for p in invperiods)   
 
     for p in invperiods
 
+        rep_block_weight[p] = sum_time_blocks(rep_hour_weight[p], time_blocks[p])
+
         for g in generator_projects
-            availability_agg[g][p, :] = mean_time_blocks(availability[g][p, :], time_blocks)
+            availability_agg[g][p, :] = mean_time_blocks(availability[g][p, :], time_blocks[p])
         end
 
         for z in zones
-            demand_e_agg[z, p, :] = mean_time_blocks(demand_e[z, p, :], time_blocks)
+            demand_e_agg[z, p, :] = mean_time_blocks(demand_e[z, p, :], time_blocks[p])
         end
 
         for product in reserve_up_products
-            demand_ru_agg[product][p, :] = mean_time_blocks(demand_ru[product][p, :], time_blocks)
+            demand_ru_agg[product][p, :] = mean_time_blocks(demand_ru[product][p, :], time_blocks[p])
         end
 
         for product in reserve_down_products
-            demand_rd_agg[product][p, :] = mean_time_blocks(demand_rd[product][p, :], time_blocks)
+            demand_rd_agg[product][p, :] = mean_time_blocks(demand_rd[product][p, :], time_blocks[p])
         end
 
         for product in ordc_products
-            ordc_numsegments_agg[product][p, :] = representative_time_blocks(ordc_numsegments[product][p, :], time_blocks)
-            ordc_segmentsize_agg[product][p, :] = representative_time_blocks(ordc_segmentsize[product][p, :], time_blocks)
-            ordc_segmentgrad_agg[product][p, :] = representative_time_blocks(ordc_segmentgrad[product][p, :], time_blocks)
-            ordc_pricepoints_agg[product][p, :] = representative_time_blocks(ordc_price_points[product][p, :], time_blocks)
+            ordc_numsegments_agg[product][p, :] = representative_time_blocks(ordc_numsegments[product][p, :], time_blocks[p])
+            ordc_segmentsize_agg[product][p, :] = representative_time_blocks(ordc_segmentsize[product][p, :], time_blocks[p])
+            ordc_segmentgrad_agg[product][p, :] = representative_time_blocks(ordc_segmentgrad[product][p, :], time_blocks[p])
+            ordc_pricepoints_agg[product][p, :] = representative_time_blocks(ordc_price_points[product][p, :], time_blocks[p])
         end
     end
 
-        return TB, opperiods, availability_agg, demand_e_agg, demand_ru_agg, demand_rd_agg, ordc_numsegments_agg, ordc_segmentsize_agg, ordc_segmentgrad_agg, ordc_pricepoints_agg, rep_block_weight
+    return TB, opperiods, availability_agg, demand_e_agg, demand_ru_agg, demand_rd_agg, ordc_numsegments_agg, ordc_segmentsize_agg, ordc_segmentgrad_agg, ordc_pricepoints_agg, rep_block_weight
 end
 
 function generate_variable_blocks(
     K,
     T, ophours, 
+    invperiods,
     rep_period_interval,
     zones, demand_e,
     generator_projects, tech_type, availability, max_gen)
 
-    time_blocks = Vector{Vector{Int64}}()
+    time_blocks_dict = Dict(p => Vector{Vector{Int64}}() for p in invperiods)
 
-    K_interval = Int(K * rep_period_interval / T)
+    for p in invperiods
 
-    intervals = collect(1:Int(T / rep_period_interval))
+        time_blocks = Vector{Vector{Int64}}()
 
+        K_interval = Int(K * rep_period_interval / T)
 
-    for interval in intervals
-        
-        system_load = zeros(rep_period_interval)
-        system_wind = zeros(rep_period_interval)
-        system_solar = zeros(rep_period_interval)
-        interval_range = ((interval - 1) * rep_period_interval + 1):(interval * rep_period_interval)
-        h = 0
-        for t in ophours[interval_range]
-            h += 1
-            for z in zones
-                system_load[h] += demand_e[z][1, t]
-            end
+        intervals = collect(1:Int(T / rep_period_interval))
 
-            for g in generator_projects
-                if tech_type[g] == "WT"
-                    system_wind[h] += availability[g][1, t] * max_gen[g]
-                elseif tech_type[g] == "PVe"
-                    system_solar[h] += availability[g][1, t] * max_gen[g]
+        for interval in intervals
+            
+            system_load = zeros(rep_period_interval)
+            system_wind = zeros(rep_period_interval)
+            system_solar = zeros(rep_period_interval)
+            interval_range = ((interval - 1) * rep_period_interval + 1):(interval * rep_period_interval)
+            h = 0
+            for t in ophours[interval_range]
+                h += 1
+                for z in zones
+                    system_load[h] += demand_e[z][p, t]
+                end
+
+                for g in generator_projects
+                    if tech_type[g] == "WT"
+                        system_wind[h] += availability[g][p, t] * max_gen[g]
+                    elseif tech_type[g] == "PVe"
+                        system_solar[h] += availability[g][p, t] * max_gen[g]
+                    end
                 end
             end
+
+            normalized_load = normalize_vector(system_load)
+            normalized_wind = normalize_vector(system_wind)
+            normalized_pv = normalize_vector(system_solar)
+
+            xi = hcat(normalized_load, normalized_wind, normalized_pv)
+            #xi = hcat(system_load, system_wind, system_solar)
+
+            time_block_hours = chronological_clustering(xi, K_interval)
+            sorted_time_blocks = sort(time_block_hours)
+
+            for k in keys(sorted_time_blocks)
+                sorted_time_blocks[k] = sorted_time_blocks[k] .+ (interval - 1) * rep_period_interval
+            end
+
+            time_blocks = vcat(time_blocks, collect(values(sorted_time_blocks)))
         end
-
-        normalized_load = normalize_vector(system_load)
-        normalized_wind = normalize_vector(system_wind)
-        normalized_pv = normalize_vector(system_solar)
-
-        xi = hcat(normalized_load, normalized_wind, normalized_pv)
-        #xi = hcat(system_load, system_wind, system_solar)
-
-        time_block_hours = chronological_clustering(xi, K_interval)
-        sorted_time_blocks = sort(time_block_hours)
-
-        for k in keys(sorted_time_blocks)
-            sorted_time_blocks[k] = sorted_time_blocks[k] .+ (interval - 1) * rep_period_interval
-        end
-
-        time_blocks = vcat(time_blocks, collect(values(sorted_time_blocks)))
+        time_blocks_dict[p] = time_blocks
     end
     
-    return time_blocks
+    return time_blocks_dict
 end
 
 # Function to find the index of a given integer in the vector of vectors
 function find_index(value, vector_of_vectors)
     index_found = findfirst(subvector -> value in subvector, vector_of_vectors)
     return index_found === nothing ? 0 : index_found
+end
+
+function get_all_scenario_names(data_dir)
+
+    investor_dir_name = joinpath(data_dir, "investors")
+    investor_names = readdir(investor_dir_name)
+
+    scenarios = []
+
+    for investor in investor_names
+        scenario_filename = joinpath(investor_dir_name, investor, "markets_data", "scenario_data.csv")
+        scenario_names = String.(read_data(scenario_filename).scenario)
+        for scenario in scenario_names
+            if !(scenario in scenarios)
+                push!(scenarios, scenario)
+            end
+        end
+    end
+
+    return scenarios
+
 end

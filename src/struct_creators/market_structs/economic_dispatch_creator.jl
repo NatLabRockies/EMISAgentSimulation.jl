@@ -5,14 +5,14 @@ function create_economic_dispatch_problem(simulation::AgentSimulation,
                                           sys_UC::PSY.System,
                                           market_names::Vector{Symbol},
                                           num_invperiods::Int64,
-                                          load_growth::AxisArrays.AxisArray{Float64, 1},
                                           existing_projects::Vector{<: Project{<: BuildPhase}},
+                                          pcm_scenario::String,
                                           iteration_year::Int64)
 
     simulation_dir = get_data_dir(get_case(simulation))
-    delta_irm = get_delta_irm(get_resource_adequacy(simulation), iteration_year)
+    delta_irm = get_delta_irm(get_resource_adequacy(simulation)[pcm_scenario], iteration_year)
     irm_scalar = get_irm_scalar(get_case(simulation))
-    load_data = read_data(joinpath(simulation_dir, "timeseries_data_files", "Load", "load_$(iteration_year - 1).csv"))
+    load_data = read_data(joinpath(simulation_dir, "timeseries_data_files", pcm_scenario, "sim_year_$(iteration_year)", "Load", "load.csv"))
     num_hours = DataFrames.nrow(load_data)
     zones = get_zones(simulation)
     zonal_load = AxisArrays.AxisArray(zeros(length(zones), num_hours), zones, (1:num_hours))
@@ -49,8 +49,8 @@ function create_economic_dispatch_problem(simulation::AgentSimulation,
         end
 
         # Gather markets data-------------------------------------------------------------------------------
-        reserve_up_demand_data = read_data(joinpath(simulation_dir,  "timeseries_data_files", "Reserves", "reserve_up_$(iteration_year - 1).csv"))
-        reserve_down_demand_data = read_data(joinpath(simulation_dir,  "timeseries_data_files", "Reserves", "reserve_down_$(iteration_year - 1).csv"))
+        reserve_up_demand_data = read_data(joinpath(simulation_dir,  "timeseries_data_files", pcm_scenario, "sim_year_$(iteration_year)", "Reserves", "reserve_up_.csv"))
+        reserve_down_demand_data = read_data(joinpath(simulation_dir,  "timeseries_data_files", pcm_scenario, "sim_year_$(iteration_year)", "Reserves", "reserve_down.csv"))
 
         energy_mkt_params = read_data(joinpath(simulation_dir, "markets_data", "energy_mkt_param.csv"))
         price_cap_energy = AxisArrays.AxisArray(energy_mkt_params.price_cap * 1.0, zones)
@@ -87,13 +87,13 @@ function create_economic_dispatch_problem(simulation::AgentSimulation,
             end
         end
 
-        energy_annual_increment = load_growth
+        #= energy_annual_increment = load_growth
         reserveup_annual_increment = load_growth
-        reservedown_annual_increment = load_growth
+        reservedown_annual_increment = load_growth =#
 
         capacity_mkt_param_file = joinpath(simulation_dir, "markets_data", "capacity_mkt_param.csv")
-        peak_load = get_peak_load(simulation)
-        capacity_annual_increment = load_growth
+        peak_load = get_peak_load(simulation)[pcm_scenario][iteration_year]
+        #capacity_annual_increment = load_growth
 
         REC_mkt_params = read_data(joinpath(simulation_dir, "markets_data", "REC_mkt_param.csv"))
         price_cap_rec = REC_mkt_params.price_cap[1]
@@ -106,11 +106,11 @@ function create_economic_dispatch_problem(simulation::AgentSimulation,
         reserve_down_markets = Vector{ReserveDownMarket}(undef, num_invperiods)
         rec_markets = Vector{RECMarket}(undef, num_invperiods)
 
-        average_capacity_growth = Statistics.mean(capacity_annual_increment)
+        #average_capacity_growth = Statistics.mean(capacity_annual_increment)
 
         # Create market products data for the horizon
         for p in 1:num_invperiods
-            system_peak_load = (1 + average_capacity_growth) ^ (p) * peak_load
+            system_peak_load = peak_load
             capacity_markets[p] = create_capacity_demand_curve(capacity_mkt_param_file, system_peak_load, irms_scalar, delta_irm, capacity_market_bool)
 
             energy_markets[p] = EnergyMarket(AxisArrays.AxisArray(zonal_load .* ((1 .+ energy_annual_increment) .^ p), zones, (1:num_hours)),
@@ -135,7 +135,7 @@ function create_economic_dispatch_problem(simulation::AgentSimulation,
                                     rec_markets)
         #--------------------------------------------------------------------------------------------------------------
 
-        availability_df = read_data(joinpath(simulation_dir, "timeseries_data_files", "Availability", "DAY_AHEAD_availability.csv"))
+        availability_df = read_data(joinpath(simulation_dir, "timeseries_data_files", pcm_scenario, "sim_year_$(iteration_year)", "Availability", "DAY_AHEAD_availability.csv"))
 
         ed_projects = MarketProject[]
 

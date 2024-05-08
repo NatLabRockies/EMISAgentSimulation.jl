@@ -3,11 +3,18 @@ This function finds the hourly availability data for projects
 to be passed to expected and actual market clearing modules.
 """
 function find_project_availability_data(project::P,
-                                     availability_df::DataFrames.DataFrame,
+                                     availability_df_vec::Vector{DataFrames.DataFrame},
                                      num_invperiods::Int64,
                                      num_hours::Int64) where P <: Project{<:BuildPhase}
-    type = get_type(get_tech(project))
-    zone = get_zone(get_tech(project))
+                                     
+    availability_input = zeros(num_invperiods, num_hours)
+    # Fill raw availability data into yearly and hourly values
+    for y in 1:num_invperiods
+        type = get_type(get_tech(project))
+        zone = get_zone(get_tech(project))
+
+        availability_df = availability_df_vec[y]
+    
         if in(get_name(project), names(availability_df))
             availability_raw = availability_df[:, Symbol(get_name(project))]
         elseif in("$(type)_$(zone)", names(availability_df))
@@ -21,15 +28,10 @@ function find_project_availability_data(project::P,
         data_hours = count(i -> i == data_years[1], availability_df.Year)
 
         @assert data_hours == num_hours
+        availability_input[y, 1:data_hours] = availability_raw[1:data_hours]
+    end
 
-        availability_input = zeros(num_invperiods, data_hours)
-
-        # Fill raw availability data into yearly and hourly values
-        for y in 1:num_invperiods
-            availability_input[y, 1:data_hours] = availability_raw[1:data_hours]
-        end
-
-        return availability_input
+    return availability_input
 end
 
 """
@@ -332,7 +334,7 @@ function create_market_project(project::P,
                               iteration_year::Int64,
                               num_hours::Int64,
                               num_invperiods::Int64,
-                              availability_df::DataFrames.DataFrame) where P <: Project{Existing}
+                              availability_df_vec::Vector{DataFrames.DataFrame}) where P <: Project{Existing}
 
     finance_data = get_finance_data(project)
 
@@ -348,7 +350,7 @@ function create_market_project(project::P,
     max_storage,
     init_storage = get_technical_details(project)
 
-    availability_input = find_project_availability_data(project, availability_df, num_invperiods, num_hours)
+    availability_input = find_project_availability_data(project, availability_df_vec, num_invperiods, num_hours)
 
     # Calculate remaining life_time
     remaining_life_time = min(get_life_time(finance_data), get_end_life_year(project) - iteration_year + 1)
@@ -392,7 +394,7 @@ function create_market_project(project::P,
                               iteration_year::Int64,
                               num_hours::Int64,
                               num_invperiods::Int64,
-                              availability_df::DataFrames.DataFrame) where P <: Project{Option}
+                              availability_df_vec::Vector{DataFrames.DataFrame}) where P <: Project{Option}
 
     # Get technical characteristics based on project type
     project_type,
@@ -404,7 +406,7 @@ function create_market_project(project::P,
     max_storage,
     init_storage = get_technical_details(project)
 
-    availability_input = find_project_availability_data(project, availability_df, num_invperiods, num_hours)
+    availability_input = find_project_availability_data(project, availability_df_vec, num_invperiods, num_hours)
 
     finance_data = get_finance_data(project)
 
@@ -458,7 +460,7 @@ function create_market_project(project::P,
                               iteration_year::Int64,
                               num_hours::Int64,
                               num_invperiods::Int64,
-                              availability_df::DataFrames.DataFrame) where P <: Project{Planned}
+                              availability_df_vec::Vector{DataFrames.DataFrame}) where P <: Project{Planned}
 
     # Get technical characteristics based on project type
     project_type,
@@ -470,7 +472,7 @@ function create_market_project(project::P,
     max_storage,
     init_storage = get_technical_details(project)
 
-    availability_input = find_project_availability_data(project, availability_df, num_invperiods, num_hours)
+    availability_input = find_project_availability_data(project, availability_df_vec, num_invperiods, num_hours)
 
     finance_data = get_finance_data(project)
 
@@ -519,7 +521,7 @@ function create_market_project(project::P,
                               iteration_year::Int64,
                               num_hours::Int64,
                               num_invperiods::Int64,
-                              availability_df::DataFrames.DataFrame) where P <: Project{Queue}
+                              availability_df_vec::Vector{DataFrames.DataFrame}) where P <: Project{Queue}
 
     # Get technical characteristics based on project type
     project_type,
@@ -531,7 +533,7 @@ function create_market_project(project::P,
     max_storage,
     init_storage = get_technical_details(project)
 
-    availability_input = find_project_availability_data(project, availability_df, num_invperiods, num_hours)
+    availability_input = find_project_availability_data(project, availability_df_vec, num_invperiods, num_hours)
 
     finance_data = get_finance_data(project)
 

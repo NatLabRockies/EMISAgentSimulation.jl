@@ -67,11 +67,12 @@ function create_investors(simulation_data::AgentSimulationData)
                 # If user has provided parameter values for each scenario
 
             if get_uncertainty(get_case(simulation_data))
+                
                 # Assert that user has provided parameter multiplier values for each scenario
                 if get_info_symmetry(get_case(simulation_data))
-                    scenario_file_name = joinpath(simulation_data_dir, "markets_data", "symmetric_scenario_multiplier_data.csv")
+                    scenario_file_name = joinpath(simulation_data_dir, "markets_data", "symmetric_scenario_data.csv")
                 else
-                    scenario_file_name = joinpath(investor_dir, "markets_data", "scenario_multiplier_data.csv")
+                    scenario_file_name = joinpath(investor_dir, "markets_data", "scenario_data.csv")
                 end
 
                 @assert isfile(scenario_file_name)
@@ -114,6 +115,9 @@ function create_investors(simulation_data::AgentSimulationData)
             forecast = Imperfect(kf, scenario_data)
 
         end
+
+        scenario_names = get_name.(scenario_data)
+        
         #Empty vector of projects.
         projects = Project{<:BuildPhase}[]
 
@@ -136,7 +140,14 @@ function create_investors(simulation_data::AgentSimulationData)
                                                       investor_dir,
                                                       get_name.(scenario_data)))
 
-        add_investor_project_availability!(simulation_data_dir, projects, sys_UC)
+                                                      
+        for scenario in scenario_names
+            for sim_year in collect(1:horizon)
+                println(scenario)
+                println(sim_year)          
+                add_investor_project_availability!(simulation_data_dir, scenario, sim_year, projects, sys_UC)
+            end
+        end
 
         option_leaftypes = leaftypes(Project{Option})
 

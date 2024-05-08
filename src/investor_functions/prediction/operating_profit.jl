@@ -156,10 +156,11 @@ function calculate_operating_profit(gen::P,
                                     carbon_tax::Vector{Float64},
                                     start_year::Int64,
                                     end_year::Int64,
-                                    rep_hour_weight::Vector{Float64},
+                                    rep_hour_weight_dict::Dict{String, Dict{Int64, Vector{Float64}}},
                                     solver::JuMP.MOI.OptimizerWithAttributes) where P <: GeneratorEMIS{<: BuildPhase}
 
-    num_hours = length(rep_hour_weight)
+    rep_hour_weight = rep_hour_weight_dict[scenario_name]
+    num_hours = length(first(values(rep_hour_weight)))
 
     all_products = get_products(gen)
 
@@ -208,11 +209,11 @@ function calculate_operating_profit(gen::P,
         for h in 1:num_hours
             for (i, product) in enumerate(products)
 
-                hourly_profit = rep_hour_weight[h] *
+                hourly_profit = rep_hour_weight[y][h] * 
                          (calculate_revenue(product,market_prices[get_name(product)][y, h], inertia_constant, Q[get_name(product), y, h]) -
                           calculate_cost(product, get_marginal_cost(product), carbon_tax[y], emission_intensity, inertia_constant, Q[get_name(product), y, h]))
 
-                JuMP.add_to_expression!(profit[i, y], hourly_profit)
+                          JuMP.add_to_expression!(profit[i, y], hourly_profit)
 
                 add_to_generationlimits!(min_gen[y, h],
                                         max_gen[y, h],
@@ -252,7 +253,7 @@ function calculate_operating_profit(gen::P,
                    AxisArrays.Axis{:prod}(get_name.(products)),
                    AxisArrays.Axis{:year}(start_year:end_year))
 
-    energy_production = AxisArrays.AxisArray([sum(value(Q[:Energy, y, h]) * rep_hour_weight[h] for h in 1:num_hours) for y in start_year:end_year],
+    energy_production = AxisArrays.AxisArray([sum(value(Q[:Energy, y, h]) * rep_hour_weight[y][h] for h in 1:num_hours) for y in start_year:end_year],
                         AxisArrays.Axis{:year}(start_year:end_year))
 
 
@@ -342,10 +343,11 @@ function calculate_operating_profit(storage::P,
                                     carbon_tax::Vector{Float64},
                                     start_year::Int64,
                                     end_year::Int64,
-                                    rep_hour_weight::Vector{Float64},
+                                    rep_hour_weight_dict::Dict{String, Dict{Int64, Vector{Float64}}},
                                     solver::JuMP.MOI.OptimizerWithAttributes ) where P <: StorageEMIS{<: BuildPhase}
 
-    num_hours = length(rep_hour_weight)
+    rep_hour_weight = rep_hour_weight_dict[scenario_name]                                
+    num_hours = length(first(values(rep_hour_weight)))
     tech = get_tech(storage)
 
     products = find_operating_products(get_products(storage))
@@ -451,7 +453,7 @@ function calculate_operating_profit(storage::P,
                                                 p_inertia[p, t])
                 end
 
-                hourly_profit = rep_hour_weight[t] *
+                hourly_profit = rep_hour_weight[p][t] *
                                      (calculate_revenue(product, market_prices[get_name(product)][p, t], inertia_constant, Q[get_name(product), p, t]))
 
                             JuMP.add_to_expression!(profit[i, p], hourly_profit)
@@ -510,7 +512,7 @@ function calculate_operating_profit(storage::P,
 
     energy_consumption = AxisArrays.AxisArray(zeros(end_year - start_year + 1), AxisArrays.Axis{:year}(start_year:end_year))
 
-    energy_consumption = AxisArrays.AxisArray([sum(value(p_in[y, h]) * rep_hour_weight[h] for h in 1:num_hours) for y in start_year:end_year],
+    energy_consumption = AxisArrays.AxisArray([sum(value(p_in[y, h]) * rep_hour_weight[y][h] for h in 1:num_hours) for y in start_year:end_year],
                         AxisArrays.Axis{:year}(start_year:end_year))
 
 

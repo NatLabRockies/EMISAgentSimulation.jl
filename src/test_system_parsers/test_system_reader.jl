@@ -4,18 +4,20 @@ This function reads the test system time series and returns representative hour 
 function read_test_system(data_dir::String,
                           test_system_dir::String,
                           base_dir::String,
+                          scenario::String,
                           test_system_load_da::DataFrames.DataFrame,
                           test_system_load_rt::DataFrames.DataFrame,
                           base_year::Int64,
                           annual_growth_past::AxisArrays.AxisArray{Float64, 2},
                           start_year::Int64,
+                          sim_year::Int64,
                           rep_period_interval::Int64,
                           n_rep_periods::Int64,
                           rep_checkpoint::Int64)
 
     test_sys_hour_weight = nothing
     zones = nothing
-    representative_days = nothing
+    representative_periods = nothing
     chron_weights = nothing
     rep_hour_weight = nothing
     system_peak_load = nothing
@@ -32,11 +34,13 @@ function read_test_system(data_dir::String,
         zonal_lines = read_rts(data_dir,
                                test_system_dir,
                                base_dir,
+                               scenario,
                                test_system_load_da,
                                test_system_load_rt,
                                base_year,
                                annual_growth_past,
                                start_year,
+                               sim_year,
                                rep_period_interval,
                                n_rep_periods,
                                rep_checkpoint)
