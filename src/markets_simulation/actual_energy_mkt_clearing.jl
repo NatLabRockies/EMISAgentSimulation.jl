@@ -58,7 +58,7 @@ function energy_mkt_clearing(sys_MD::PSY.System,
     update_PSY_timeseries!(sys_ED, rec_requirement, simulation_dir, "ED", pcm_scenario, iteration_year, da_resolution, rt_resolution) 
     update_PSY_timeseries!(sys_MD, rec_requirement, simulation_dir, "MD", pcm_scenario, iteration_year, da_resolution, rt_resolution)=#
     # TODO: need to update outage timeseries for MD as well
-    # update_PSY_outage_timeseries!(sys_UC, sys_ED,get_results_dir(simulation),base_dir,iteration_year)
+    update_PSY_outage_timeseries!(sys_UC, sys_ED,get_results_dir(simulation),base_dir,iteration_year)
 
     energy_price_ed,
     energy_price_uc,
