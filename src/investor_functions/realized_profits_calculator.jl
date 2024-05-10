@@ -9,7 +9,7 @@ function calculate_realized_operating_profit(
         output_md::Array{Float64, 2},
         output_uc::Array{Float64, 2},
         output_ed::Array{Float64, 2},
-        realized_hour_weight::Vector{Float64})
+        realized_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}})
 
     replace!(prices_md, NaN => 0.0)
     replace!(prices_uc, NaN => 0.0)
@@ -29,7 +29,7 @@ end
 function calculate_realized_operating_profit(prices::AxisArrays.AxisArray{Float64, 2},
                                             marginal_cost::Float64,
                                             output::Array{Float64, 2},
-                                            realized_hour_weight::Vector{Float64})
+                                            realized_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}})
 
     replace!(prices, NaN => 0.0)
     replace!(output, NaN => 0.0)
@@ -54,7 +54,7 @@ function calculate_realized_operating_profit(
                                             output_ed::Array{Float64, 2},
                                             carbon_emissions::Vector{Float64},
                                             carbon_tax::Float64,
-                                            realized_hour_weight::Vector{Float64},
+                                            realized_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
                                             resolution::Int64)
 
     replace!(prices_md, NaN => 0.0)
@@ -82,7 +82,7 @@ This function calculates the operating market profits.
 function calculate_realized_operating_profit(prices::Array{Float64, 2},
                                             marginal_cost::Float64,
                                             output::Array{Float64, 2},
-                                            realized_hour_weight::Vector{Float64})
+                                            realized_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}})
 
 
     replace!(prices, NaN => 0.0)
@@ -160,7 +160,7 @@ function calculate_realized_profit(project::Project,
                                    inertia_perc::Dict{String, Array{Float64, 2}},
                                    capacity_accepted_bids::Dict{String, Float64},
                                    rec_accepted_bids::Dict{String, Float64},
-                                   realized_hour_weight::Vector{Float64},
+                                   realized_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
                                    iteration_year::Int64,
                                    capacity_forward_years::Int64,
                                    carbon_tax::Float64,
@@ -186,7 +186,7 @@ function calculate_realized_profit(project::Project,
                                    inertia_perc::Dict{String, Array{Float64, 2}},
                                    capacity_accepted_bids::Dict{String, Float64},
                                    rec_accepted_bids::Dict{String, Float64},
-                                   realized_hour_weight::Vector{Float64},
+                                   realized_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
                                    iteration_year::Int64,
                                    capacity_forward_years::Int64,
                                    carbon_tax::Float64,
@@ -246,7 +246,7 @@ function calculate_realized_profit(project::Project,
                                   inertia_perc::Dict{String, Array{Float64, 2}},
                                   capacity_accepted_bids::Dict{String, Float64},
                                   rec_accepted_bids::Dict{String, Float64},
-                                  realized_hour_weight::Vector{Float64},
+                                  realized_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
                                   iteration_year::Int64,
                                   capacity_forward_years::Int64,
                                   carbon_tax::Float64,
@@ -301,7 +301,7 @@ function calculate_realized_profit(project::Project,
                                   inertia_perc::Dict{String, Array{Float64, 2}},
                                   capacity_accepted_bids::Dict{String, Float64},
                                   rec_accepted_bids::Dict{String, Float64},
-                                  realized_hour_weight::Vector{Float64},
+                                  realized_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
                                   iteration_year::Int64,
                                   capacity_forward_years::Int64,
                                   carbon_tax::Float64,
@@ -340,7 +340,7 @@ function calculate_realized_profit(project::Project,
                                   inertia_perc::Dict{String, Array{Float64, 2}},
                                   capacity_accepted_bids::Dict{String, Float64},
                                   rec_accepted_bids::Dict{String, Float64},
-                                  realized_hour_weight::Vector{Float64},
+                                  realized_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
                                   iteration_year::Int64,
                                   capacity_forward_years::Int64,
                                   carbon_tax::Float64,
@@ -375,7 +375,7 @@ function calculate_realized_profit(project::Project,
                                   inertia_perc::Dict{String, Array{Float64, 2}},
                                   capacity_accepted_bids::Dict{String, Float64},
                                   rec_accepted_bids::Dict{String, Float64},
-                                  realized_hour_weight::Vector{Float64},
+                                  realized_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
                                   iteration_year::Int64,
                                   capacity_forward_years::Int64,
                                   carbon_tax::Float64,
