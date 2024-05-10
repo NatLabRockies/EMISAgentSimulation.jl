@@ -191,7 +191,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
             end
         end
 
-        ra_metrics, shortfall = calculate_RA_metrics(deepcopy(sys_ED),true,get_results_dir(simulation),iteration_year)
+        ra_metrics, shortfall = calculate_RA_metrics(deepcopy(sys_ED),false,get_results_dir(simulation),iteration_year) # the second argument should set to true here when outage ts is functioning.
         println(ra_metrics)
         set_metrics!(get_resource_adequacy(simulation)[get_pcm_scenario(case)], iteration_year, ra_metrics)
 
