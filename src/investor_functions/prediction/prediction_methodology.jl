@@ -84,10 +84,10 @@ function create_investor_predictions(investors::Vector{Investor},
             resource_adequacy_pmap = Vector{Dict{String, ResourceAdequacy}}()
             irm_scalar_pmap = Float64[]
             rep_period_interval_pmap = Int64[]
-            rep_hour_weight_pmap = Vector{Float64}[]
-            avg_block_size_pmap = Vector{Int64}[]
-            fixed_block_size_pmap = Vector{Bool}[]    
-            chron_weights_pmap = Matrix{Int64}[]
+            rep_hour_weight_pmap = Vector{Dict{String, Dict{Int64, Vector{Float64}}}}()
+            avg_block_size_pmap = Vector{Int64}()
+            fixed_block_size_pmap = Vector{Bool}()    
+            chron_weights_pmap = Vector{Dict{String, Dict{Int64, Matrix{Int64}}}}()
             expected_portfolio_pmap = Vector{Project}[]
 
             for investor in investors
