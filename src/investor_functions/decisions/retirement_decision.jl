@@ -54,7 +54,7 @@ This function removes the PSY System timeseries data for Existing RenewableGen p
                                      )
 
         for scenario in scenario_names
-            for year in iteration_year:total_horizon
+            for year in 1:total_horizon
                 load_n_vg_df =  read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(year)", "Net Load Data", "load_n_vg_data.csv"))
                 DataFrames.select!(load_n_vg_df, DataFrames.Not(get_name(project)))
                 write_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(year)", "Net Load Data"), "load_n_vg_data.csv", load_n_vg_df)
@@ -93,9 +93,10 @@ function take_retirement_decision(project::P,
                                   market_prices::MarketPrices,
                                   carbon_tax_data::Vector{Float64},
                                   risk_preference::R,
-                                  sys_MD::Union{Nothing, PSY.System},
-                                  sys_UC::Union{Nothing, PSY.System},
-                                  sys_ED::Union{Nothing, PSY.System},
+                                  sys_MDs::Union{Nothing, Vector{PSY.System}},
+                                  sys_UCs::Union{Nothing, Vector{PSY.System}},
+                                  sys_EDs::Union{Nothing, Vector{PSY.System}},
+                                  sys_PRAS::Dict{String, PSY.System},
                                   simulation_dir::String,
                                   iteration_year::Int64,
                                   yearly_horizon::Int64,
@@ -119,9 +120,10 @@ function take_retirement_decision(project::P,
                                   market_prices::MarketPrices,
                                   carbon_tax_data::Vector{Float64},
                                   risk_preference::R,
-                                  sys_MD::Union{Nothing, PSY.System},
-                                  sys_UC::Union{Nothing, PSY.System},
-                                  sys_ED::Union{Nothing, PSY.System},
+                                  sys_MDs::Union{Nothing, Vector{PSY.System}},
+                                  sys_UCs::Union{Nothing, Vector{PSY.System}},
+                                  sys_EDs::Union{Nothing, Vector{PSY.System}},
+                                  sys_PRAS::Dict{String, PSY.System},
                                   simulation_dir::String,
                                   iteration_year::Int64,
                                   yearly_horizon::Int64,
@@ -167,9 +169,14 @@ function take_retirement_decision(project::P,
                 println(get_name(project))
                 set_retirement_year!(projects[index], iteration_year)
                 projects[index] = retire_project!(project)
-                remove_system_component!(sys_MD, project)
-                remove_system_component!(sys_UC, project)
-                remove_system_component!(sys_ED, project)
+                for y in iteration_year:simulation_years
+                    remove_system_component!(sys_MDs[y], project)
+                    remove_system_component!(sys_UCs[y], project)
+                    remove_system_component!(sys_EDs[y], project)
+                end
+                for scenario in keys(sys_PRAS)
+                    remove_system_component!(sys_PRAS[scenario], project)
+                end
                 remove_renewable_gen_data!(project, simulation_dir, iteration_year, simulation_years, scenario_names)
                 remove_future_profits!(project, iteration_year)
             end
@@ -191,9 +198,10 @@ function take_retirement_decision(project::P,
                                   market_prices::MarketPrices,
                                   carbon_tax_data::Vector{Float64},
                                   risk_preference::R,
-                                  sys_MD::Union{Nothing, PSY.System},
-                                  sys_UC::Union{Nothing, PSY.System},
-                                  sys_ED::Union{Nothing, PSY.System},
+                                  sys_MDs::Union{Nothing, Vector{PSY.System}},
+                                  sys_UCs::Union{Nothing, Vector{PSY.System}},
+                                  sys_EDs::Union{Nothing, Vector{PSY.System}},
+                                  sys_PRAS::Dict{String, PSY.System},
                                   simulation_dir::String,
                                   iteration_year::Int64,
                                   yearly_horizon::Int64,
@@ -236,9 +244,10 @@ function take_retirement_decision(project::P,
                                   market_prices::MarketPrices,
                                   carbon_tax_data::Vector{Float64},
                                   risk_preference::R,
-                                  sys_MD::Union{Nothing, PSY.System},
-                                  sys_UC::Union{Nothing, PSY.System},
-                                  sys_ED::Union{Nothing, PSY.System},
+                                  sys_MDs::Union{Nothing, Vector{PSY.System}},
+                                  sys_UCs::Union{Nothing, Vector{PSY.System}},
+                                  sys_EDs::Union{Nothing, Vector{PSY.System}},
+                                  sys_PRAS::Dict{String, PSY.System},
                                   simulation_dir::String,
                                   iteration_year::Int64,
                                   yearly_horizon::Int64,
@@ -285,9 +294,10 @@ This function makes the retirement decisions each year.
 Returns nothing.
 """
 function retire_unprofitable!(investor::Investor,
-                              sys_MD::Union{Nothing, PSY.System},
-                              sys_UC::Union{Nothing, PSY.System},
-                              sys_ED::Union{Nothing, PSY.System},
+                              sys_MDs::Union{Nothing, Vector{PSY.System}},
+                              sys_UCs::Union{Nothing, Vector{PSY.System}},
+                              sys_EDs::Union{Nothing, Vector{PSY.System}},
+                              sys_PRAS::Dict{String, PSY.System},
                               simulation_dir::String,
                               iteration_year::Int64,
                               yearly_horizon::Int64,
@@ -309,9 +319,10 @@ function retire_unprofitable!(investor::Investor,
                                     market_prices,
                                     carbon_tax_data,
                                     risk_preference,
-                                    sys_MD,
-                                    sys_UC,
-                                    sys_ED,
+                                    sys_MDs,
+                                    sys_UCs,
+                                    sys_EDs,
+                                    sys_PRAS,
                                     simulation_dir,
                                     iteration_year,
                                     yearly_horizon,

@@ -140,9 +140,9 @@ end
 This function runs the update_delta_irm! function in parallel for different scenarios.
 """
 function parallelize_update_delta_irm!(args)
-    scenario, sys_UC, active_projects, capacity_forward_years, resource_adequacy, peak_load, static_capacity_bool, iteration_year, simulation_years, data_dir, da_resolution, results_dir = args    
+    scenario, sys_PRAS, active_projects, capacity_forward_years, resource_adequacy, peak_load, static_capacity_bool, iteration_year, simulation_years, data_dir, da_resolution, results_dir, outage_dir = args    
     resource_adequacy = update_delta_irm!(
-        sys_UC,
+        sys_PRAS[scenario],
         active_projects,
         capacity_forward_years,
         resource_adequacy[scenario],
@@ -152,7 +152,8 @@ function parallelize_update_delta_irm!(args)
         iteration_year,
         data_dir,
         da_resolution,
-        results_dir
+        results_dir,
+        outage_dir
         )
     return (scenario, resource_adequacy)
 end

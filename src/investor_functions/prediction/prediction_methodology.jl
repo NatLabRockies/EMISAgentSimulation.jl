@@ -81,7 +81,7 @@ function create_investor_predictions(investors::Vector{Investor},
             ordc_products_pmap = Vector{String}[]
             rps_target_pmap = String[]
             reserve_penalty_pmap = String[]
-            resource_adequacy_pmap = ResourceAdequacy[]
+            resource_adequacy_pmap = Vector{Dict{String, ResourceAdequacy}}()
             irm_scalar_pmap = Float64[]
             rep_period_interval_pmap = Int64[]
             rep_hour_weight_pmap = Vector{Float64}[]

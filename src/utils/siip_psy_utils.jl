@@ -87,8 +87,7 @@ end
 """
 This function does nothing if Device is not of RenewableGen type.
 """
-function add_device_forecast!(simulation_dir::String,
-                              sys_MD::PSY.System,
+function add_device_forecast!(sys_MD::PSY.System,
                               sys_UC::PSY.System,
                               sys_ED::PSY.System,
                               device_MD::D,
@@ -96,9 +95,6 @@ function add_device_forecast!(simulation_dir::String,
                               device_ED::D,
                               availability_df::Vector{Float64},
                               availability_raw_rt::Vector{Float64},
-                              iteration_year::Int64,
-                              simulation_years::Int64,
-                              scenario_names::Vector{String},
                               da_resolution::Int64,
                               rt_resolution::Int64
                               ) where D <: Union{PSY.ThermalGen, PSY.HydroGen, PSY.Storage}
@@ -108,8 +104,7 @@ end
 """
 This function adds forecast timeseries if Device is of RenewableGen type.
 """
-function add_device_forecast!(simulation_dir::String,
-                              sys_MD::PSY.System,
+function add_device_forecast!(sys_MD::PSY.System,
                               sys_UC::PSY.System,
                               sys_ED::PSY.System,
                               device_MD::D,
@@ -117,9 +112,6 @@ function add_device_forecast!(simulation_dir::String,
                               device_ED::D,
                               availability_raw::Vector{Float64},
                               availability_raw_rt::Vector{Float64},
-                              iteration_year::Int64,
-                              simulation_years::Int64,
-                              scenario_names::Vector{String},
                               da_resolution::Int64,
                               rt_resolution::Int64) where D <: PSY.RenewableGen
 
@@ -211,22 +203,90 @@ function add_device_forecast!(simulation_dir::String,
     forecast = PSY.Deterministic("max_active_power", data, Dates.Minute(rt_resolution))
     PSY.add_time_series!(sys_ED, device_ED, forecast)
 
-    ########## Adding to Net Load Data ##############
-    for scenario in scenario_names
-        for year in iteration_year:simulation_years
-            load_n_vg_df =  read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(year)", "Net Load Data", "load_n_vg_data.csv"))
-            load_n_vg_df[:, get_name(device_UC)] = availability_raw[1:DataFrames.nrow(load_n_vg_df)] * get_device_size(device_UC) * PSY.get_base_power(sys_UC)
-            load_n_vg_df_rt =  read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(year)", "Net Load Data", "load_n_vg_data_rt.csv"))
-            load_n_vg_df_rt[:, get_name(device_ED)] = availability_raw_rt[1:DataFrames.nrow(load_n_vg_df_rt)] * get_device_size(device_ED) * PSY.get_base_power(sys_ED)
+    return
+end
 
-            write_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(year)", "Net Load Data"), "load_n_vg_data.csv", load_n_vg_df)
-            write_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(year)", "Net Load Data"), "load_n_vg_data_rt.csv", load_n_vg_df_rt)
-        end
-    end
+"""
+This function does nothing if Device is not of RenewableGen type.
+"""
+function add_device_forecast_PRAS!(sys::PSY.System,
+                                   device::D,
+                                   availability_raw_rt::Vector{Float64},
+                                   rt_resolution::Int64) where D <: Union{PSY.ThermalGen, PSY.HydroGen, PSY.Storage}
 
     return
 end
 
+
+"""
+This function adds forecast timeseries to PRAS System if Device is of RenewableGen type.
+"""
+function add_device_forecast_PRAS!(sys::PSY.System,
+                                   device::D,
+                                   availability_raw_rt::Vector{Float64},
+                                   rt_resolution::Int64
+                                    ) where D <: PSY.RenewableGen
+
+    ######### Adding to PRAS##########
+    sys_interval = sys.data.time_series_params.forecast_params.interval
+    sys_horizon = sys.data.time_series_params.forecast_params.horizon
+    forecast_count = sys.data.time_series_params.forecast_params.count
+    sys_resolution = sys.data.time_series_params.resolution
+    start_datetime = sys.data.time_series_params.forecast_params.initial_timestamp
+    finish_datetime = start_datetime + Dates.Hour((forecast_count * sys_interval/sys_resolution + (sys_horizon - sys_interval/sys_resolution) - 1))
+    time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
+
+    append!(availability_raw_rt, availability_raw_rt[1:sys_horizon - 1])
+
+    data = Dict(time_stamps[i] => availability_raw_rt[i:(i + sys_horizon - 1)] for i in 1:Int(sys_interval/sys_resolution):(length(time_stamps)-sys_horizon + 1))
+    forecast = PSY.Deterministic("max_active_power", data, Dates.Minute(rt_resolution))
+    PSY.add_time_series!(sys, device, forecast)
+    return
+end
+
+"""
+This function does nothing if Device is not of RenewableGen type.
+"""
+function write_vg_data(sys::PSY.System,    
+                    sys_ED::PSY.System,         
+                    device_UC::D,       
+                    device_ED::D,
+                    simulation_dir::String,
+                    availability_raw::Vector{Float64},
+                    availability_raw_rt::Vector{Float64},
+                    scenario_names::Vector{String},
+                    year::Int64
+                ) where D <: Union{PSY.ThermalGen, PSY.HydroGen, PSY.Storage}
+
+end
+
+"""
+This function adds forecast timeseries to load_n_vg data files if Device is of RenewableGen type.
+"""
+function write_vg_data(sys_UC::PSY.System,   
+                    sys_ED::PSY.System,             
+                    device_UC::D,         
+                    device_ED::D,
+                    simulation_dir::String,
+                    availability_raw::Vector{Float64},
+                    availability_raw_rt::Vector{Float64},
+                    scenario_names::Vector{String},
+                    year::Int64
+                    ) where D <: PSY.RenewableGen
+
+    ########## Adding to Net Load Data File ##############
+    for scenario in scenario_names
+        load_n_vg_df =  read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(year)", "Net Load Data", "load_n_vg_data.csv"))
+        load_n_vg_df[:, get_name(device_UC)] = availability_raw[1:DataFrames.nrow(load_n_vg_df)] * get_device_size(device_UC) * PSY.get_base_power(sys_UC)
+        load_n_vg_df_rt =  read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(year)", "Net Load Data", "load_n_vg_data_rt.csv"))
+        load_n_vg_df_rt[:, get_name(device_ED)] = availability_raw_rt[1:DataFrames.nrow(load_n_vg_df_rt)] * get_device_size(device_ED) * PSY.get_base_power(sys_ED)
+
+        write_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(year)", "Net Load Data"), "load_n_vg_data.csv", load_n_vg_df)
+        write_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(year)", "Net Load Data"), "load_n_vg_data_rt.csv", load_n_vg_df_rt)
+    end
+
+    return
+end
 
 """
 This function does nothing if PSY System is not defined.
@@ -254,30 +314,7 @@ function update_PSY_timeseries!(sys::PSY.System,
                                da_resolution::Int64,
                                rt_resolution::Int64)
 
-    println(pcm_scenario)
-
     total_active_power = 0.0
-
-    # update load timeseries.
-    nodal_loads = PSY.get_components(PSY.PowerLoad, sys)
-
-
-    @warn "UPDATE PSY TIMESERIES!"
-    for load in nodal_loads
-        zone = "zone_$(PSY.get_name(PSY.get_area(PSY.get_bus(load))))"
-        #scaled_active_power = deepcopy(PSY.get_max_active_power(load)) * (1 + load_growth[zone])
-        scaled_active_power = deepcopy(PSY.get_max_active_power(load))
-        #= println(PSY.get_name(load))
-        println(scaled_active_power) =#
-
-        PSY.set_max_active_power!(load, scaled_active_power)
-
-        total_active_power += scaled_active_power
-    end
-
-    println(total_active_power)
-
-    #average_load_growth = Statistics.mean(load_growth)
 
     sys_interval = sys.data.time_series_params.forecast_params.interval
     sys_horizon = sys.data.time_series_params.forecast_params.horizon
@@ -289,7 +326,7 @@ function update_PSY_timeseries!(sys::PSY.System,
 
     additional_timestep = length(time_stamps) - 8760
 
-    # update service requirement timeseries.
+    # Only update ORDC product time series.
     services = get_system_services(sys)
     ordc_products = split(read_data(joinpath(simulation_dir, "markets_data", "reserve_products.csv"))[1,"ordc_products"], "; ")
     for service in services
@@ -319,15 +356,6 @@ function update_PSY_timeseries!(sys::PSY.System,
             data = Dict(time_stamps[i] => product_data_ts[i:(i + sys_horizon - 1)] for i in 1:Int(sys_interval/sys_resolution):(length(time_stamps)-sys_horizon + 1))
             forecast = PSY.Deterministic("variable_cost", data, Dates.Minute(da_resolution))
             PSY.add_time_series!(sys, service, forecast)
-        elseif service_name == "Clean_Energy"
-            clean_energy_requirement = total_active_power * rec_requirement * 1.0
-            #= println(rec_requirement)
-            println(clean_energy_requirement) =#
-            PSY.set_requirement!(service, clean_energy_requirement)
-        else
-            #scaled_requirement = deepcopy(PSY.get_requirement(service)) * (1 + average_load_growth)
-            scaled_requirement = deepcopy(PSY.get_requirement(service))
-            PSY.set_requirement!(service, scaled_requirement)
         end
 
     end
@@ -525,18 +553,21 @@ function add_psy_inertia!(simulation_dir::String,
     #                 first(PSY.get_components(PSY.ElectricLoad, sys)),
     #                 "max_active_power"
     #                 )))
-    if type == "UC"
-        time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2019-01-01T11:00:00"));
-    elseif type == "ED"
-        time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2019-01-01T00:00:00"));
-    else
-        error("Type should be UC or ED")
-    end
 
-    ts_data = ones(length(time_stamps))
-    ts = TimeSeries.TimeArray(time_stamps, ts_data);
-    forecast = PSY.SingleTimeSeries("requirement", ts)
-    PSY.add_time_series!(sys, inertia_reserve, forecast)
+    if type in ["UC", "ED"]
+        if type == "UC"
+            time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2019-01-01T11:00:00"));
+        elseif type == "ED"
+            time_stamps = StepRange(Dates.DateTime("2018-01-01T00:00:00"), Dates.Hour(1), Dates.DateTime("2019-01-01T00:00:00"));
+        else
+            error("Type should be UC or ED")
+        end
+
+        ts_data = ones(length(time_stamps))
+        ts = TimeSeries.TimeArray(time_stamps, ts_data);
+        forecast = PSY.SingleTimeSeries("requirement", ts)
+        PSY.add_time_series!(sys, inertia_reserve, forecast)
+    end
 
 end
 

@@ -14,12 +14,13 @@ end
 function calculate_RA_metrics(sys::PSY.System,
                               exportoutage::Bool,
                               base_dir::String,
+                              outage_dir::String,
                               iteration_year::Int64;
                               samples::Int64 = 100,
                               seed::Int64 = 42)
 
     system_period_of_interest = range(1, length = 8760);
-    correlated_outage_csv_location = "/kfs2/projects/gmlcmarkets/Phase2_EMIS_Analysis/Correlated Outages/ThermalFOR_2011.csv"
+    correlated_outage_csv_location = joinpath(outage_dir, "ThermalFOR_2011.csv")
     pras_system = make_pras_system(sys,
                                     system_model="Single-Node",
                                     aggregation="Area",
@@ -61,8 +62,8 @@ end
 """
 This function does nothing if Device is not of RenewableGen type.
 """
-function add_capacity_market_device_forecast!(sys_UC::PSY.System,
-                                                device_UC::D,
+function add_capacity_market_device_forecast!(sys_PRAS::PSY.System,
+                                                device_PRAS::D,
                                                 availability_raw::Vector{Float64},
                                                 da_resolution::Int64) where D <: Union{PSY.ThermalGen, PSY.HydroGen, PSY.Storage}
 
@@ -72,22 +73,22 @@ end
 """
 This function adds forecast timeseries to the future capacity market system if Device is of RenewableGen type.
 """
-function add_capacity_market_device_forecast!(sys_UC::PSY.System,
-                                                device_UC::D,
+function add_capacity_market_device_forecast!(sys_PRAS::PSY.System,
+                                                device_PRAS::D,
                                                 availability_raw::Vector{Float64},
                                                 da_resolution::Int64) where D <: PSY.RenewableGen
 
-    ######### Adding to UC##########
+    ######### Adding to PRAS System##########
     # time_stamps = TS.timestamp(PSY.get_data(PSY.get_time_series(
     #                                                 PSY.SingleTimeSeries,
-    #                                                 first(PSY.get_components(PSY.ElectricLoad, sys_UC)),
+    #                                                 first(PSY.get_components(PSY.ElectricLoad, sys_PRAS)),
     #                                                 "max_active_power"
     #                                                 )))
-    sys_interval = sys_UC.data.time_series_params.forecast_params.interval
-    sys_horizon = sys_UC.data.time_series_params.forecast_params.horizon
-    forecast_count = sys_UC.data.time_series_params.forecast_params.count
-    sys_resolution = sys_UC.data.time_series_params.resolution
-    start_datetime = sys_UC.data.time_series_params.forecast_params.initial_timestamp
+    sys_interval = sys_PRAS.data.time_series_params.forecast_params.interval
+    sys_horizon = sys_PRAS.data.time_series_params.forecast_params.horizon
+    forecast_count = sys_PRAS.data.time_series_params.forecast_params.count
+    sys_resolution = sys_PRAS.data.time_series_params.resolution
+    start_datetime = sys_PRAS.data.time_series_params.forecast_params.initial_timestamp
     finish_datetime = start_datetime + Dates.Hour((forecast_count * sys_interval/sys_resolution + (sys_horizon - sys_interval/sys_resolution) - 1))
     time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
 
@@ -97,7 +98,7 @@ function add_capacity_market_device_forecast!(sys_UC::PSY.System,
     append!(availability_raw, availability_raw[(length(availability_raw) - additional_timestep + 1):end])
     data = Dict(time_stamps[i] => availability_raw[i:(i + sys_horizon - 1)] for i in 1:Int(sys_interval/sys_resolution):(length(time_stamps)-sys_horizon + 1))
     forecast = PSY.Deterministic("max_active_power", data, Dates.Minute(da_resolution))
-    PSY.add_time_series!(sys_UC, device_UC, forecast)
+    PSY.add_time_series!(sys_PRAS, device_PRAS, forecast)
 
     return
 end
@@ -213,7 +214,8 @@ function update_delta_irm!(initial_system::PSY.System,
                             iteration_year::Int64,
                             simulation_dir::String,
                             da_resolution::Int64,
-                            results_dir::String)
+                            results_dir::String,
+                            outage_dir::String)
 
     if !(static_capacity_market)
 
@@ -240,7 +242,7 @@ function update_delta_irm!(initial_system::PSY.System,
 
         @time begin
         if !isempty(ra_targets)
-            ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, results_dir, iteration_year)
+            ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, results_dir, outage_dir, iteration_year)
             #println(ra_metrics)
             adequacy_conditions_met, scarcity_conditions_met = check_ra_conditions(ra_targets, ra_metrics)
 
@@ -267,7 +269,7 @@ function update_delta_irm!(initial_system::PSY.System,
                         count += 1
                     end
                     
-                    ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, results_dir,iteration_year)
+                    ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, results_dir, outage_dir, iteration_year)
                     #println(ra_metrics)
                     adequacy_conditions_met, scarcity_conditions_met = check_ra_conditions(ra_targets, ra_metrics)
                 end
@@ -280,7 +282,7 @@ function update_delta_irm!(initial_system::PSY.System,
                         removed_capacity = get_device_size(removed_project) * PSY.get_base_power(removed_project)
                         total_removed_capacity += removed_capacity
                         PSY.remove_component!(capacity_market_system, removed_project)
-                        ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, results_dir,iteration_year)
+                        ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, results_dir, outage_dir, iteration_year)
                         #println(ra_metrics)
                         adequacy_conditions_met, scarcity_conditions_met = check_ra_conditions(ra_targets, ra_metrics)
                         count += 1
@@ -306,6 +308,7 @@ function create_base_system(initial_system::PSY.System,
     resource_adequacy::ResourceAdequacy,
     iteration_year::Int64,
     simulation_dir::String,
+    outage_dir::String,
     da_resolution::Int64,
     simulation::Union{AgentSimulation,AgentSimulationData})
 
@@ -332,7 +335,7 @@ function create_base_system(initial_system::PSY.System,
 
     @time begin
     if !isempty(ra_targets)
-        ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, get_results_dir(simulation),iteration_year;samples = 500)
+        ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, get_results_dir(simulation), outage_dir, iteration_year;samples = 500)
 
         println(ra_metrics)
         adequacy_conditions_met, scarcity_conditions_met = check_ra_conditions(ra_targets, ra_metrics)
@@ -359,7 +362,7 @@ function create_base_system(initial_system::PSY.System,
                     count += 1
                 end
                 
-                ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false,get_results_dir(simulation),iteration_year;samples = 500)
+                ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false,get_results_dir(simulation), outage_dir, iteration_year;samples = 500)
                 println("Added Capacity")
                 println(ra_metrics)
                 adequacy_conditions_met, scarcity_conditions_met = check_ra_conditions(ra_targets, ra_metrics)
@@ -374,7 +377,7 @@ function create_base_system(initial_system::PSY.System,
                     removed_capacity = get_device_size(removed_project) * PSY.get_base_power(removed_project)
                     total_removed_capacity += removed_capacity
                     PSY.remove_component!(capacity_market_system, removed_project)
-                    ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false,get_results_dir(simulation),iteration_year;samples = 500)
+                    ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false,get_results_dir(simulation), outage_dir, iteration_year;samples = 500)
                     println("Removed Capacity")
                     println(ra_metrics)
                     adequacy_conditions_met, scarcity_conditions_met = check_ra_conditions(ra_targets, ra_metrics)

@@ -23,9 +23,10 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
         end
     end
 
-    sys_MD = get_system_MD(simulation)
-    sys_UC = get_system_UC(simulation)
-    sys_ED = get_system_ED(simulation)
+    sys_MDs = get_system_MDs(simulation)
+    sys_UCs = get_system_UCs(simulation)
+    sys_EDs = get_system_EDs(simulation)
+    sys_PRAS = get_system_PRAS(simulation)
 
     investors = get_investors(simulation)
 
@@ -58,10 +59,10 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
         end
 
         num_scenarios = length(scenario_names)
-        sys_UCs, active_projects_list, capacity_forward_years_list, resource_adequacies, peak_loads, static_capacity_bools, iteration_years, simulation_years_list, data_dirs, da_resolutions, results_dirs = repeat_arguments(num_scenarios, sys_UC, active_projects, capacity_forward_years, get_resource_adequacy(simulation), get_peak_load(simulation), get_static_capacity_market(case), iteration_year, simulation_years, get_data_dir(case), get_da_resolution(case), get_results_dir(simulation))
+        sys_PRAS_list, active_projects_list, capacity_forward_years_list, resource_adequacies, peak_loads, static_capacity_bools, iteration_years, simulation_years_list, data_dirs, da_resolutions, results_dirs, outage_dirs = repeat_arguments(num_scenarios, sys_PRAS, active_projects, capacity_forward_years, get_resource_adequacy(simulation), get_peak_load(simulation), get_static_capacity_market(case), iteration_year, simulation_years, get_data_dir(case), get_da_resolution(case), get_results_dir(simulation), get_outage_dir(case))
 
         # Parallelize the processing of scenarios using Distributed.pmap
-        @time resource_adequacy_tuples = Distributed.pmap(parallelize_update_delta_irm!, zip(scenario_names, sys_UCs, active_projects_list, capacity_forward_years_list, resource_adequacies, peak_loads, static_capacity_bools, iteration_years, simulation_years_list, data_dirs, da_resolutions, results_dirs))
+        @time resource_adequacy_tuples = Distributed.pmap(parallelize_update_delta_irm!, zip(scenario_names, sys_PRAS_list, active_projects_list, capacity_forward_years_list, resource_adequacies, peak_loads, static_capacity_bools, iteration_years, simulation_years_list, data_dirs, da_resolutions, results_dirs, outage_dirs))
         set_resource_adequacy!(simulation, Dict(key => value for (key, value) in resource_adequacy_tuples))
 
         create_investor_predictions(investors,
@@ -90,18 +91,15 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
                                     yearly_horizon,
                                     simulation_years,
                                     capacity_forward_years,
-                                    sys_MD,
-                                    sys_UC,
-                                    sys_ED,
+                                    sys_MDs,
+                                    sys_UCs,
+                                    sys_EDs,
+                                    sys_PRAS,
                                     case,
                                     scenario_names
                                     )
 
         end
-
-        simulations, iteration_years, derating_scales, methodologies, ra_metric_list =  repeat_arguments(num_scenarios, simulation, iteration_year, get_derating_scale(case), get_accreditation_methodology(case), get_accreditation_metric(case))
-   
-        @time Distributed.pmap(parallelize_update_derating_data, zip(scenario_names, simulations, iteration_years, derating_scales, methodologies, ra_metric_list))
 
         #Get all existing projects to calculate realized profits for energy and REC markets.
         all_existing_projects = vcat(get_existing.(get_investors(simulation))...)
@@ -118,8 +116,12 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
             end
 
             # Update variable operation cost based on annual carbon tax for SIIP market clearing
-            update_operation_cost!(project, sys_UC, (get_carbon_tax(simulation)), iteration_year)
-            update_operation_cost!(project, sys_ED, (get_carbon_tax(simulation)), iteration_year)
+            update_operation_cost!(project, sys_MDs[iteration_year], (get_carbon_tax(simulation)), iteration_year)
+            update_operation_cost!(project, sys_UCs[iteration_year], (get_carbon_tax(simulation)), iteration_year)
+            update_operation_cost!(project, sys_EDs[iteration_year], (get_carbon_tax(simulation)), iteration_year)      
+            for scenario in keys(sys_PRAS)
+                update_operation_cost!(project, sys_PRAS[scenario], (get_carbon_tax(simulation)), iteration_year)
+            end
 
         end
         installed_capacity = update_installed_cap!(installed_capacity,
@@ -132,10 +134,10 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
         #Find which markets to simulate.
         markets = union(hcat(get_markets.(get_investors(simulation))...))
 
-        # for d in PSY.get_components(PSYE.ThermalCleanEnergy,sys_UC)
+        # for d in PSY.get_components(PSYE.ThermalCleanEnergy,sys_UCs[iteration_year])
         #     if "CleanEnergyConstraint" ∉ PSY.get_name.(d.services)
         #         println("$(PSY.get_name(d))")
-        #         add_clean_energy_contribution!(sys_UC, d)
+        #         add_clean_energy_contribution!(sys_UCs[iteration_year], d)
         #     end
         # end
 
@@ -152,9 +154,9 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
         rec_accepted_bids,
         clean_energy_percentage_vector[iteration_year],
         cet_achieved_ratio = create_realized_marketdata(simulation,
-                            sys_MD,
-                            sys_UC,
-                            sys_ED,
+                            sys_MDs[iteration_year],
+                            sys_UCs[iteration_year],
+                            sys_EDs[iteration_year],
                             markets,
                             get_rps_target(case),
                             get_reserve_penalty(case),
@@ -191,10 +193,12 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
             end
         end
 
-        ra_metrics, shortfall = calculate_RA_metrics(deepcopy(sys_ED),true,get_results_dir(simulation),iteration_year)
-        println(ra_metrics)
-        set_metrics!(get_resource_adequacy(simulation)[get_pcm_scenario(case)], iteration_year, ra_metrics)
-
+        for scenario in keys(sys_PRAS)
+            ra_metrics, shortfall = calculate_RA_metrics(deepcopy(sys_PRAS[scenario]),false,get_results_dir(simulation), get_outage_dir(case), iteration_year)
+            println(ra_metrics)
+            set_metrics!(get_resource_adequacy(simulation)[scenario], iteration_year, ra_metrics)
+        end
+        
         #Update forecasts and realized profits of all existing projects for each investor.
 
         for investor in get_investors(simulation)
@@ -230,9 +234,10 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
                 retire_old!(projects,
                             i,
                             project,
-                            sys_MD,
-                            sys_UC,
-                            sys_ED,
+                            sys_MDs,
+                            sys_UCs,
+                            sys_EDs,
+                            sys_PRAS,
                             get_data_dir(case),
                             iteration_year,
                             scenario_names,
@@ -244,6 +249,8 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
 
         end
 
+        simulations, iteration_years, derating_scales, methodologies, ra_metric_list =  repeat_arguments(num_scenarios, simulation, iteration_year, get_derating_scale(case), get_accreditation_methodology(case), get_accreditation_metric(case))
+        @time Distributed.pmap(parallelize_update_derating_data, zip(scenario_names, simulations, iteration_years, derating_scales, methodologies, ra_metric_list))
 
         println("COMPLETED YEAR $(iteration_year)")
         FileIO.save(joinpath(get_results_dir(simulation), "simulation_data_year$(iteration_year).jld2"), "simulation_data", simulation)

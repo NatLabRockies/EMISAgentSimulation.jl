@@ -124,7 +124,7 @@ function create_investors(simulation_data::AgentSimulationData)
         projectdata_existing = extract_projectdata(investor_dir, "projectexisting.csv")
         projectdata_options = extract_projectdata(investor_dir, "projectoptions.csv")
 
-        sys_UC = get_system_UC(simulation_data)
+        sys_UC = first(get_system_UCs(simulation_data))
 
         #Append existing and option projects.
         append!(projects, create_project_existing(projectdata_existing,

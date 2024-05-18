@@ -101,6 +101,7 @@ export economicdispatch
 export energy_mkt_clearing
 export finish_construction!
 export make_investments!
+export optimizer_with_attributes
 export rec_market_clearing
 export retire_old!
 export retire_unprofitable!
@@ -282,7 +283,6 @@ import Distributions
 import FileIO
 import InteractiveUtils
 import JuMP
-export optimizer_with_attributes
 import JLD2
 import LinearAlgebra
 import PooledArrays
