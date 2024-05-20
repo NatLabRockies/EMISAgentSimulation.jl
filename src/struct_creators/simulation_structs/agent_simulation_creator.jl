@@ -25,7 +25,7 @@ function gather_data(case::CaseDefinition)
 
     annual_growth_past_first = []
 
-    scenarios = get_all_scenario_names(data_dir)
+    scenarios = string.(get_all_scenario_names(data_dir))
 
     representative_periods = Dict(scenario => Dict{Int64, Union{Dict{Int64,Int64}, OrderedCollections.OrderedDict{Int64, Int64}}}() for scenario in scenarios)
     test_sys_hour_weight = Dict(scenario => Dict{Int64, Vector{Float64}}() for scenario in scenarios)
