@@ -214,7 +214,7 @@ function gather_data(case::CaseDefinition)
             add_psy_inertia!(data_dir, sys_PRAS[scenario], "PRAS", get_reserve_penalty(case), system_peak_load)
         end
 
-        PSY.transform_single_time_series!(sys_PRAS[scenario], Int(rt_horizon * 60 / rt_resolution), Dates.Hour(rt_interval))   
+        PSY.transform_single_time_series!(sys_PRAS[scenario], Int(ED_horizon * 60 / get_rt_resolution(case)), Dates.Hour(ED_interval))   
     end
  
     # Adding representative days availability data

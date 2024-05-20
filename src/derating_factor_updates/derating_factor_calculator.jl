@@ -36,7 +36,7 @@ function calculate_derating_data(simulation_dir::String,
     load_n_vg_data = DataFrames.DataFrame()
     availability_data = DataFrames.DataFrame()
 
-    for sim_year in 1:simulation_years
+    for sim_year in simulation_years
         load_n_vg_data = vcat(load_n_vg_data, read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Net Load Data", "load_n_vg_data_rt.csv")))
         availability_data = vcat(availability_data, read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Availability", "REAL_TIME_availability.csv")))
     end
