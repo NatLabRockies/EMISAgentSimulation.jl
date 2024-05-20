@@ -198,7 +198,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
             println(ra_metrics)
             set_metrics!(get_resource_adequacy(simulation)[scenario], iteration_year, ra_metrics)
         end
-        
+       
         #Update forecasts and realized profits of all existing projects for each investor.
 
         for investor in get_investors(simulation)

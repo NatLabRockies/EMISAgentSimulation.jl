@@ -42,3 +42,12 @@ TimeZones = "f269a46b-ccf7-5d73-abea-4c690281aa53"
 UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 XLSX = "fdbf4ff8-1666-58a4-91e7-1b58723a45e0"
 Xpress = "9e70acf3-d6c9-5be6-b5bd-4e2c73e3e054"
+
+[compat]
+PowerSystems = "3.3.0"
+PowerSimulations = "0.27.8"
+InfrastructureSystems = "1.22.2"
+HydroPowerSimulations = "0.8.0"
+StorageSystemsSimulations = "0.9.0"
+MinCostFlows = "0.1.2"
+PRAS = "0.6.0"

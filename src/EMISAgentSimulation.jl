@@ -111,6 +111,7 @@ export start_construction!
 # Export Utility functions
 export calculate_operating_profit
 export calculate_required_processes
+export chronological_clustering
 export create_parallel_workers
 export dir_exists
 export leaftypes
@@ -128,6 +129,7 @@ export write_data
 export parsebool
 export parseint
 export parsefloat
+export normalize_vector
 
 # Export Getter Functions
 export get_accepted_perc
@@ -458,6 +460,7 @@ include("derating_factor_updates/derating_factor_calculator.jl")  # Derating fac
 
 #Include k-medoids clustering for representative days selection.
 include("representative_days/clustering.jl")
+include("representative_days/chronological_clustering.jl")
 
 #Include main investment simulation function.
 include("investment_simulation.jl")

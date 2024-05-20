@@ -85,7 +85,7 @@ function create_realized_marketdata(simulation::AgentSimulation,
     day = 0
     get_rt_resolution(get_case(simulation))
     # for time in 1:Int(24*60/get_rt_resolution(get_case(simulation))):(Int(24*60/get_rt_resolution(get_case(simulation))) * 365)
-    for time in 1:Int(24*60/get_rt_resolution(get_case(simulation))):(Int(24*60/get_rt_resolution(get_case(simulation))) * 7)
+    for time in 1:Int(24*60/get_rt_resolution(get_case(simulation))):(Int(24*60/get_rt_resolution(get_case(simulation))) * 365)
         day += 1
         daily_total_production = 0.0
         daily_cec_production = 0.0
@@ -334,6 +334,7 @@ function create_realized_marketdata(simulation::AgentSimulation,
  =#
 
     num_scenarios = length(all_scenarios)
+
     sys_UC_list, data_dirs, investors_list, representative_periods_list, rep_period_intervals, cases, iteration_years, rolling_horizons, simulation_years_list = repeat_arguments(num_scenarios, deepcopy(sys_UC), simulation_dir, get_investors(simulation), get_rep_periods(simulation), get_rep_period_interval(simulation), case, iteration_year, get_rolling_horizon(case), get_total_horizon(case))
     @time Distributed.pmap(parallelize_ordc_construction, zip(all_scenarios, sys_UC_list, data_dirs, investors_list, representative_periods_list, rep_period_intervals, cases, iteration_years + 1, rolling_horizons, simulation_years_list))
     
