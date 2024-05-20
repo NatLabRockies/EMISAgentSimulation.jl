@@ -625,7 +625,7 @@ function update_derating_factor!(project::BatteryEMIS{Existing},
                                )
     tech = get_tech(project)
     duration = Int(round(get_storage_capacity(tech)[:max] / get_maxcap(project)))
-    project_type = "existing_$(get_type(tech))_$(duration)"
+    project_type = "existing_STOR_$(duration)"
 
     derating_data = read_data(joinpath(simulation_dir, "markets_data", "derating_data", scenario, "derating_dict.csv"))
     derating_factor = derating_data[1, project_type]
