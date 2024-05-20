@@ -72,8 +72,8 @@ function find_representative_periods(simulation_dir::String,
                                   interval::Int64,
                                   n_clusters::Int64)
 
-    representative_periods_file = joinpath(base_dir, "representative_periods_$(interval)h_interval_$(n_clusters)_clusters.csv")
-    cluster_indices_file = joinpath(base_dir, "cluster_indices_$(interval)h_interval_$(n_clusters)_clusters.csv")
+    representative_periods_file = joinpath(base_dir, "rep_periods_$(scenario)_y$(sim_year)_$(interval)h_$(n_clusters)c.csv")
+    cluster_indices_file = joinpath(base_dir, "cluster_indices_$(scenario)_y$(sim_year)_$(interval)h_$(n_clusters)c.csv")
 
     # Use the same representative periods if file already exists, otherwise create new clusters
     if isfile(representative_periods_file) && isfile(cluster_indices_file)

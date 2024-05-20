@@ -334,8 +334,9 @@ function create_realized_marketdata(simulation::AgentSimulation,
  =#
 
     num_scenarios = length(all_scenarios)
-    sys_UCs, data_dirs, investors_list, representative_periods_list, rep_period_intervals, cases, iteration_years, rolling_horizons, simulation_years_list = repeat_arguments(num_scenarios, deepcopy(sys_UC), simulation_dir, get_investors(simulation), get_rep_periods(simulation), get_rep_period_interval(simulation), case, iteration_year, get_rolling_horizon(case), get_total_horizon(case))
-    @time Distributed.pmap(parallelize_ordc_construction, zip(all_scenarios, sys_UCs, data_dirs, investors_list, representative_periods_list, rep_period_intervals, cases, iteration_years .+ 1, rolling_horizons, simulation_years_list))
+
+    sys_UC_list, data_dirs, investors_list, representative_periods_list, rep_period_intervals, cases, iteration_years, rolling_horizons, simulation_years_list = repeat_arguments(num_scenarios, deepcopy(sys_UC), simulation_dir, get_investors(simulation), get_rep_periods(simulation), get_rep_period_interval(simulation), case, iteration_year, get_rolling_horizon(case), get_total_horizon(case))
+    @time Distributed.pmap(parallelize_ordc_construction, zip(all_scenarios, sys_UC_list, data_dirs, investors_list, representative_periods_list, rep_period_intervals, cases, iteration_years + 1, rolling_horizons, simulation_years_list))
     
     # DEPRECATED: No need to update peak load with the new timeseries implementation.
     #peak_load_new = (1 + average_load_growth) * peak_load

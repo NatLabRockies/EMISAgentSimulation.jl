@@ -3,9 +3,10 @@ This struct contains all the data for the simulation to be run.
     case: CaseDefinition for creating and running the simulation.
     results_dir: Path to the directory where results are stored.
     iteration_year: Index of current iteration year.
-    system_MD: SIIP PSY System for Multi-Day Commitment.
-    system_UC: SIIP PSY System for Unit Commitment.
-    system_ED: SIIP PSY System for Economic Dispatch.
+    system_MDs: Vector of Sienna PSY Systems for Multi-Day Commitment.
+    system_UCs: Vector of Sienna PSY Systems for Unit Commitment.
+    system_EDs: Vector of Sienna PSY Systems for Economic Dispatch.
+    system_PRAS: Dictionary of Sienna PSY Systems for PRAS runs.
     zones: Names of modeled zones.
     lines: Inter-zonal ransmission lines modeled.
     hour_weight: Weight allocated to each hour of actual market clearing.
@@ -24,9 +25,10 @@ mutable struct AgentSimulation
     case::CaseDefinition
     results_dir::String
     iteration_year::Int64
-    system_MD::Union{Nothing, PSY.System}
-    system_UC::Union{Nothing, PSY.System}
-    system_ED::Union{Nothing, PSY.System}
+    system_MDs::Union{Nothing, Vector{PSY.System}}
+    system_UCs::Union{Nothing, Vector{PSY.System}}
+    system_EDs::Union{Nothing, Vector{PSY.System}}
+    system_PRAS::Dict{String, PSY.System}
     zones::Vector{String}
     lines::Vector{ZonalLine}
     rep_periods::Dict{String, Dict{Int64, Union{Dict{Int64,Int64}, OrderedCollections.OrderedDict{Int64, Int64}}}}
@@ -44,9 +46,10 @@ end
 get_case(sim::AgentSimulation) = sim.case
 get_results_dir(sim::AgentSimulation) = sim.results_dir
 get_iteration_year(sim::AgentSimulation) = sim.iteration_year
-get_system_MD(sim::AgentSimulation) = sim.system_MD
-get_system_UC(sim::AgentSimulation) = sim.system_UC
-get_system_ED(sim::AgentSimulation) = sim.system_ED
+get_system_MDs(sim::AgentSimulation) = sim.system_MDs
+get_system_UCs(sim::AgentSimulation) = sim.system_UCs
+get_system_EDs(sim::AgentSimulation) = sim.system_EDs
+get_system_PRAS(sim::AgentSimulation) = sim.system_PRAS
 get_zones(sim::AgentSimulation) = sim.zones
 get_lines(sim::AgentSimulation) = sim.lines
 get_rep_periods(sim::AgentSimulation) = sim.rep_periods
@@ -77,9 +80,10 @@ mutable struct AgentSimulationData
     case::CaseDefinition
     results_dir::String
     iteration_year::Int64
-    system_MD::Union{Nothing, PSY.System}
-    system_UC::Union{Nothing, PSY.System}
-    system_ED::Union{Nothing, PSY.System}
+    system_MDs::Union{Nothing, Vector{PSY.System}}
+    system_UCs::Union{Nothing, Vector{PSY.System}}
+    system_EDs::Union{Nothing, Vector{PSY.System}}
+    system_PRAS::Dict{String, PSY.System}
     zones::Vector{String}
     lines::Vector{ZonalLine}
     rep_periods::Dict{String, Dict{Int64, Union{Dict{Int64,Int64}, OrderedCollections.OrderedDict{Int64, Int64}}}}
@@ -99,9 +103,10 @@ end
 
 function AgentSimulationData(case::CaseDefinition,
                         results_dir::String,
-                        system_MD::Union{Nothing, PSY.System},
-                        system_UC::Union{Nothing, PSY.System},
-                        system_ED::Union{Nothing, PSY.System},
+                        system_MDs::Union{Nothing, Vector{PSY.System}},
+                        system_UCs::Union{Nothing, Vector{PSY.System}},
+                        system_EDs::Union{Nothing, Vector{PSY.System}},
+                        system_PRAS::Dict{String, PSY.System},
                         zones::Vector{String},
                         lines::Vector{ZonalLine},
                         rep_periods::Dict{String, Dict{Int64, Union{Dict{Int64,Int64}, OrderedCollections.OrderedDict{Int64, Int64}}}},
@@ -119,9 +124,10 @@ function AgentSimulationData(case::CaseDefinition,
     return AgentSimulationData(case,
                           results_dir,
                           1,
-                          system_MD,
-                          system_UC,
-                          system_ED,
+                          system_MDs,
+                          system_UCs,
+                          system_EDs,
+                          system_PRAS,
                           zones,
                           lines,
                           rep_periods,
@@ -142,9 +148,10 @@ end
 get_case(sim::AgentSimulationData) = sim.case
 get_results_dir(sim::AgentSimulationData) = sim.results_dir
 get_iteration_year(sim::AgentSimulationData) = sim.iteration_year
-get_system_MD(sim::AgentSimulationData) = sim.system_MD
-get_system_UC(sim::AgentSimulationData) = sim.system_UC
-get_system_ED(sim::AgentSimulationData) = sim.system_ED
+get_system_MDs(sim::AgentSimulationData) = sim.system_MDs
+get_system_UCs(sim::AgentSimulationData) = sim.system_UCs
+get_system_EDs(sim::AgentSimulationData) = sim.system_EDs
+get_system_PRAS(sim::AgentSimulationData) = sim.system_PRAS
 get_zones(sim::AgentSimulationData) = sim.zones
 get_lines(sim::AgentSimulationData) = sim.lines
 get_rep_periods(sim::AgentSimulationData) = sim.rep_periods

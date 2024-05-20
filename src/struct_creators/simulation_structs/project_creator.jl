@@ -794,7 +794,7 @@ function create_project(projectdata::DataFrames.DataFrameRow,
     end_life_year,
     finance_data = create_investment_data(size, projectdata, investor_dir, simulation_data, products, investor_name, scenario_names, lag_bool)
 
-    sys_UC = get_system_UC(simulation_data)
+    sys_UC = first(get_system_UCs(simulation_data))
 
     project = create_tech_type(name, projectdata, size, base_power, decision_year, construction_year, retirement_year, end_life_year, products, finance_data, sys_UC, carbon_tax)
 

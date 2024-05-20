@@ -4,6 +4,8 @@
         name: Case name
         base_dir: Directory where Simulation input data for markets and investors are stored.
         sys_dir: Test system directory.
+        scratch_dir: Temporary directory to save Sienna runtime data.
+        outage_dir: Location of correlated outages data.
         cem_solver: Solvers used for optimization problems. (The solver should be able to solve QP for price prediction and MILP for SIIP production cost model)
         siip_solver: Solvers used for optimization problems. (The solver should be able to solve QP for price prediction and MILP for SIIP production cost model)
         siip_market_clearing: Whether SIIP production cost model is to be used for energy market clearing. If false, the endogenous Economic Dispatch model will be used for market clearing.
@@ -48,6 +50,8 @@ struct CaseDefinition
     name::String
     base_dir::String
     sys_dir::String
+    scratch_dir::String
+    outage_dir::String
     solver::JuMP.MOI.OptimizerWithAttributes
     siip_market_clearing::Bool
     pcm_scenario::String
@@ -95,6 +99,8 @@ struct CaseDefinition
     function CaseDefinition(name,
                             base_dir,
                             sys_dir,
+                            scratch_dir,
+                            outage_dir,
                             solver,
                             siip_market_clearing,
                             pcm_scenario,
@@ -165,6 +171,8 @@ struct CaseDefinition
         case = new(name,
                    base_dir,
                    sys_dir,
+                   scratch_dir,
+                   outage_dir,
                    solver,
                    siip_market_clearing,
                    pcm_scenario,
@@ -217,6 +225,8 @@ end
 function CaseDefinition(name::String,
                         base_dir::String,
                         sys_dir::String,
+                        scratch_dir::String,
+                        outage_dir::String,
                         solver::JuMP.MOI.OptimizerWithAttributes;
                         siip_market_clearing::Bool = true,
                         pcm_scenario::String = "scenario_1",
@@ -264,6 +274,8 @@ function CaseDefinition(name::String,
     CaseDefinition(name,
                    base_dir,
                    sys_dir,
+                   scratch_dir,
+                   outage_dir,
                    solver,
                    siip_market_clearing,
                    pcm_scenario,
@@ -311,6 +323,8 @@ end
 
 get_base_dir(case::CaseDefinition) = case.base_dir
 get_sys_dir(case::CaseDefinition) = case.sys_dir
+get_scratch_dir(case::CaseDefinition) = case.scratch_dir
+get_outage_dir(case::CaseDefinition) = case.outage_dir
 get_solver(case::CaseDefinition) = case.solver
 get_siip_market_clearing(case::CaseDefinition) = case.siip_market_clearing
 get_pcm_scenario(case::CaseDefinition) = case.pcm_scenario

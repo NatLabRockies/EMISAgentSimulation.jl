@@ -331,15 +331,18 @@ function add_psy_ordc!(simulation_dir::String,
                 # time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
                 if type == "ED"
                     product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year)", "Reserves", "$(product)_REAL_TIME.csv"))[:, product]
-                else
+                elseif type in ["UC", "MD"]
                     product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year)", "Reserves", "$(product).csv"))[:, product]
                 end
-                product_data_ts = process_ordc_data_for_siip(product_ts_raw)
-                product_data_ts = [product_data_ts;product_data_ts[1:additional_timestep]]
-                forecast = PSY.SingleTimeSeries("variable_cost", TimeSeries.TimeArray(time_stamps, product_data_ts))
-                PSY.add_time_series!(sys, reserve, forecast)
-                key = IS.TimeSeriesKey(forecast)
-                PSY.set_variable!(reserve, key)
+
+                if type in ["MD", "UC", "ED"]
+                    product_data_ts = process_ordc_data_for_siip(product_ts_raw)
+                    product_data_ts = [product_data_ts;product_data_ts[1:additional_timestep]]
+                    forecast = PSY.SingleTimeSeries("variable_cost", TimeSeries.TimeArray(time_stamps, product_data_ts))
+                    PSY.add_time_series!(sys, reserve, forecast)
+                    key = IS.TimeSeriesKey(forecast)
+                    PSY.set_variable!(reserve, key)
+                end
         end
     end
 

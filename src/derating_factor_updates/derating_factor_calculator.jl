@@ -16,6 +16,7 @@ based on top 100 net-load hour methodology.
 """
 function calculate_derating_data(simulation_dir::String,
                                 scenario::String,
+                                iteration_year::Int64,
                                 active_projects::Vector{Project},
                                 derating_scale::Float64,
                                 marginal_cc::Bool)
@@ -28,14 +29,16 @@ function calculate_derating_data(simulation_dir::String,
     zones = unique(get_zone.(get_tech.(renewable_existing)))
     types = unique(get_type.(get_tech.(renewable_existing)))
 
-    simulation_years = readdir(joinpath(simulation_dir, "timeseries_data_files", scenario))
+    extract_year(str) = parse(Int, split(str, "_")[end])
+
+    simulation_years = extract_year.(readdir(joinpath(simulation_dir, "timeseries_data_files", scenario)))
 
     load_n_vg_data = DataFrames.DataFrame()
     availability_data = DataFrames.DataFrame()
 
-    for sim_year in simulation_years
-        load_n_vg_data = vcat(load_n_vg_data, read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, sim_year, "Net Load Data", "load_n_vg_data.csv")))
-        availability_data = vcat(availability_data, read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, sim_year, "Availability", "DAY_AHEAD_availability.csv")))
+    for sim_year in 1:simulation_years
+        load_n_vg_data = vcat(load_n_vg_data, read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Net Load Data", "load_n_vg_data_rt.csv")))
+        availability_data = vcat(availability_data, read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Availability", "REAL_TIME_availability.csv")))
     end
 
     num_hours = DataFrames.nrow(load_n_vg_data)
@@ -127,7 +130,7 @@ function calculate_derating_data(simulation_dir::String,
     end
 
     peak_reductions_existing = Dict(sd => sum(get_maxcap.(existing_storage_duration_dict[sd])) for sd in keys(existing_storage_duration_dict))  
-    init_CC = Dict(sd => derating_factors[1, "BA_$sd"] for sd in keys(existing_storage_duration_dict))  
+    init_CC = Dict(sd => derating_factors[1, "STOR_$sd"] for sd in keys(existing_storage_duration_dict))  
 
     
     function calculate_average_storage_cc(
@@ -234,7 +237,7 @@ function calculate_derating_data(simulation_dir::String,
 
         stor_CC = calculate_average_storage_cc(stor_duration, peak_reductions_existing, init_CC, average_efficiency, net_load_df, num_hours, stor_buffer_minutes)
         
-        derating_factors[:, "existing_BA_$(stor_duration)"] .= stor_CC 
+        derating_factors[:, "existing_STOR_$(stor_duration)"] .= stor_CC 
     end
 
     if marginal_cc
@@ -243,14 +246,14 @@ function calculate_derating_data(simulation_dir::String,
             average_efficiency = (mean([eff.in for eff in efficiencies]) + mean([eff.out for eff in efficiencies])) / 2
             peak_reduction_new = sum(get_maxcap.(battery_option))
             stor_CC = calculate_marginal_storage_cc(stor_duration, peak_reductions_existing, peak_reduction_new, init_CC, average_efficiency, net_load_df, num_hours, stor_buffer_minutes)
-            derating_factors[:, "new_BA_$(stor_duration)"] .= stor_CC  
+            derating_factors[:, "new_STOR_$(stor_duration)"] .= stor_CC  
         end
     else
         for (stor_duration, battery_option) in option_storage_duration_dict
-            if "existing_BA_$(stor_duration)" in names(derating_factors)
-                derating_factors[:, "new_BA_$(stor_duration)"] .=  derating_factors[:, "existing_BA_$(stor_duration)"]
+            if "existing_STOR_$(stor_duration)" in names(derating_factors)
+                derating_factors[:, "new_STOR_$(stor_duration)"] .=  derating_factors[:, "existing_STOR_$(stor_duration)"]
             else
-                derating_factors[:, "new_BA_$(stor_duration)"] .=  derating_factors[:, "BA_$(stor_duration)"]
+                derating_factors[:, "new_STOR_$(stor_duration)"] .=  derating_factors[:, "STOR_$(stor_duration)"]
             end
         end
     end
@@ -291,6 +294,7 @@ function calculate_derating_factors(
 
 
     simulation_dir = get_data_dir(get_case(simulation))
+    outage_dir = get_outage_dir(get_case(simulation))
     da_resolution = get_da_resolution(get_case(simulation))
     zones = get_zones(simulation)
 
@@ -310,9 +314,9 @@ function calculate_derating_factors(
 
     resource_adequacy = get_resource_adequacy(simulation)
 
-    sys_UC = get_system_UC(simulation)
+    sys_PRAS = get_system_PRAS(simulation)[scenario]
 
-    base_sys = deepcopy(sys_UC)
+    base_sys = deepcopy(sys_PRAS)
 
     # create adjusted base system (by iteratively adding or removing generators) such that it meets the RA targets
     adjusted_base_system = create_base_system(base_sys,
@@ -322,11 +326,12 @@ function calculate_derating_factors(
         resource_adequacy[scenario],
         iteration_year,
         simulation_dir,
+        outage_dir,
         da_resolution,
         simulation)
 
     system_period_of_interest = range(1, length = 8760)
-    correlated_outage_csv_location = "/kfs2/projects/gmlcmarkets/Phase2_EMIS_Analysis/Correlated Outages/ThermalFOR_2011.csv"
+    correlated_outage_csv_location = joinpath(outage_dir, "ThermalFOR_2011.csv")
 
     # create "Base" PRAS system to be used for calculation of ELCC or EFC.
     base_pras_system = make_pras_system(adjusted_base_system,
@@ -466,7 +471,7 @@ function calculate_derating_factors(
         cc_result  =  PRAS.assess(pruned_base_pras_system, augmented_pras_system, PRAS.ELCC{ra_matric}(Int(ceil(total_capacity)), "Region"), PRAS.SequentialMonteCarlo(samples = 10, seed = 42))
         cc_lower,  cc_upper  =  extrema(cc_result) 
         cc_final = (cc_lower + cc_upper) * derating_scale / (2 * total_capacity)
-        derating_factors[!, "existing_BA_$(stor_duration)"] .= cc_final
+        derating_factors[!, "existing_STOR_$(stor_duration)"] .= cc_final
     end
 
     if marginal_cc
@@ -497,15 +502,15 @@ function calculate_derating_factors(
             cc_result  =  PRAS.assess(base_pras_system,  augmented_pras_system,  methodology{ra_matric}(Int(ceil(max_cap)), "Region"), PRAS.SequentialMonteCarlo(samples = 10, seed = 42))
             cc_lower,  cc_upper  =  extrema(cc_result) 
             cc_final = (cc_lower + cc_upper) * derating_scale / (2 * max_cap)
-            derating_factors[!, "new_BA_$(stor_duration)"] .= cc_final
+            derating_factors[!, "new_STOR_$(stor_duration)"] .= cc_final
         end
         
     else
         for (stor_duration, battery_options) in option_storage_duration_dict
-            if "existing_BA_$(stor_duration)" in names(derating_factors)
-                derating_factors[:, "new_BA_$(stor_duration)"] .=  derating_factors[:, "existing_BA_$(stor_duration)"]
+            if "existing_STOR_$(stor_duration)" in names(derating_factors)
+                derating_factors[:, "new_STOR_$(stor_duration)"] .=  derating_factors[:, "existing_STOR_$(stor_duration)"]
             else
-                derating_factors[:, "new_BA_$(stor_duration)"] .=  derating_factors[:, "BA_$(stor_duration)"]
+                derating_factors[:, "new_STOR_$(stor_duration)"] .=  derating_factors[:, "STOR_$(stor_duration)"]
             end
         end
     end
@@ -644,9 +649,9 @@ function update_derating_factor!(project::BatteryEMIS{<:BuildPhase},
     duration = Int(round(get_storage_capacity(tech)[:max] / get_maxcap(project)))
 
     if marginal_cc
-        project_type = "new_$(get_type(tech))_$(duration)"
+        project_type = "new_STOR_$(duration)"
     else
-        project_type = "existing_$(get_type(tech))_$(duration)"
+        project_type = "existing_STOR_$(duration)"
     end
 
     derating_data = read_data(joinpath(simulation_dir, "markets_data", "derating_data", scenario, "derating_dict.csv"))
@@ -674,7 +679,7 @@ function update_simulation_derating_data!(
     active_projects = get_activeprojects(simulation)
 
     if methodology == "TopNetLoad"
-        calculate_derating_data(data_dir, scenario, active_projects, derating_scale, marginal_cc)
+        calculate_derating_data(data_dir, scenario, iteration_year, active_projects, derating_scale, marginal_cc)
     else
         calculate_derating_factors(simulation, scenario, iteration_year, derating_scale, methodology, ra_metric, marginal_cc)
     end
