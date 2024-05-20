@@ -90,7 +90,7 @@ function create_rts_sys(rts_dir::String,
     sys_MDs = Vector{PSY.System}()
     sys_UCs = Vector{PSY.System}()
     sys_EDs = Vector{PSY.System}()
-    sys_EDs_dict = Dict(scenario => Vector{PSY.Systems}() for scenario in scenarios)
+    sys_EDs_dict = Dict(scenario => Vector{PSY.System}() for scenario in scenarios)
 
     for sim_year in 1:simulation_years
         println(sim_year)
