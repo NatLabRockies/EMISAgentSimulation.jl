@@ -214,7 +214,7 @@ function gather_data(case::CaseDefinition)
             add_psy_inertia!(data_dir, sys_PRAS[scenario], "PRAS", get_reserve_penalty(case), system_peak_load)
         end
 
-        PSY.transform_single_time_series!(sys_PRAS[scenario], Int(rt_horizon * 60 / rt_resolution), Dates.Hour(rt_interval))   
+        PSY.transform_single_time_series!(sys_PRAS[scenario], Int(ED_horizon * 60 / get_rt_resolution(case)), Dates.Hour(ED_interval))   
     end
  
     # Adding representative days availability data
@@ -278,9 +278,9 @@ function create_agent_simulation(case::CaseDefinition)
     simulation = AgentSimulation(case,
                             get_results_dir(simulation_data),
                             1,
-                            get_system_MD(simulation_data),
-                            get_system_UC(simulation_data),
-                            get_system_ED(simulation_data),
+                            get_system_MDs(simulation_data),
+                            get_system_UCs(simulation_data),
+                            get_system_EDs(simulation_data),
                             get_system_PRAS(simulation_data),
                             get_zones(simulation_data),
                             get_lines(simulation_data),

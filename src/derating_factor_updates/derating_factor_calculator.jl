@@ -36,7 +36,7 @@ function calculate_derating_data(simulation_dir::String,
     load_n_vg_data = DataFrames.DataFrame()
     availability_data = DataFrames.DataFrame()
 
-    for sim_year in 1:simulation_years
+    for sim_year in simulation_years
         load_n_vg_data = vcat(load_n_vg_data, read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Net Load Data", "load_n_vg_data_rt.csv")))
         availability_data = vcat(availability_data, read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Availability", "REAL_TIME_availability.csv")))
     end
@@ -625,7 +625,7 @@ function update_derating_factor!(project::BatteryEMIS{Existing},
                                )
     tech = get_tech(project)
     duration = Int(round(get_storage_capacity(tech)[:max] / get_maxcap(project)))
-    project_type = "existing_$(get_type(tech))_$(duration)"
+    project_type = "existing_STOR_$(duration)"
 
     derating_data = read_data(joinpath(simulation_dir, "markets_data", "derating_data", scenario, "derating_dict.csv"))
     derating_factor = derating_data[1, project_type]
