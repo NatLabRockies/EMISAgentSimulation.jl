@@ -122,7 +122,7 @@ function create_rts_sys(rts_dir::String,
         push!(sys_MDs, PSY.System(MD_sys_filename, time_series_directory = scratch_dir));
 
 
-        UC_filename = joinpath(rts_dir, "constructed_systems", pcm_scenario, "sim_year_$(sim_year)", "DA_sys_EMIS_$(UC_horizon)hor_$(UC_interval)int.json")
+        UC_filename = joinpath(rts_dir, "constructed_systems", pcm_scenario, "sim_year_$(sim_year)", "DA_sys_EMIS_$(UC_horizon)hor_$(UC_interval)int_$(MD_horizon)mdhor_$(MD_interval)mdint.json")
         if !(isfile(UC_filename))
             println("UC json file doesn't exist. Creating required json file.")  
             dir_exists(dirname(UC_filename))   
@@ -147,7 +147,7 @@ function create_rts_sys(rts_dir::String,
         push!(sys_UCs, PSY.System(UC_filename, time_series_directory = scratch_dir));
 
         for scenario in scenarios
-            ED_filename = joinpath(rts_dir, "constructed_systems", scenario, "sim_year_$(sim_year)", "RT_sys_EMIS_$(ED_horizon)hor_$(ED_interval)int.json")
+            ED_filename = joinpath(rts_dir, "constructed_systems", scenario, "sim_year_$(sim_year)", "RT_sys_EMIS_$(ED_horizon)hor_$(ED_interval)int_$(MD_horizon)mdhor_$(MD_interval)mdint.json")
             if !isfile(ED_filename)
                 println("ED json file doesn't exist. Creating required json file.")  
                 dir_exists(dirname(ED_filename))   
@@ -211,7 +211,7 @@ function create_rts_sys(rts_dir::String,
     sys_PRAS = Dict{String, PSY.System}()
 
     for scenario in scenarios
-        PRAS_filename = joinpath(rts_dir, "constructed_systems", scenario, "sim_year_1", "PRAS_sys_EMIS_$(ED_horizon)hor_$(ED_interval)int.json")
+        PRAS_filename = joinpath(rts_dir, "constructed_systems", scenario, "sim_year_1", "PRAS_sys_EMIS_$(ED_horizon)hor_$(ED_interval)int_$(MD_horizon)mdhor_$(MD_interval)mdint.json")
         if !isfile(PRAS_filename)
             println("PRAS json file doesn't exist. Creating required json file.")  
             create_PRAS_sys_json(sys_EDs_dict[scenario], PRAS_filename)

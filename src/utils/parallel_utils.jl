@@ -49,12 +49,12 @@ function create_parallel_workers(case::CaseDefinition, hpc::Bool)
     if num_workers_required > 0
         if hpc
           nodes = split(ENV["SLURM_NODELIST"], ",")
-          num_procs = min(Int(ceil(num_workers_required / length(nodes))), 4)
+          num_procs = min(Int(ceil(num_workers_required / length(nodes))), 6)
 
           node_pairs = [(n, num_procs) for n in  nodes]
           Distributed.addprocs(node_pairs)
         else
-          Distributed.addprocs(min(Int(num_workers_required), 4), lazy=false)
+          Distributed.addprocs(min(Int(num_workers_required), 6), lazy=false)
         end
     end
 
