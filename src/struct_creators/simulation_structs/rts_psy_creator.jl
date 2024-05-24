@@ -93,7 +93,6 @@ function create_rts_sys(rts_dir::String,
     sys_EDs_dict = Dict(scenario => Vector{PSY.System}() for scenario in scenarios)
 
     for sim_year in 1:simulation_years
-        println(sim_year)
 
         MD_sys_filename = joinpath(rts_dir, "constructed_systems", pcm_scenario, "sim_year_$(sim_year)", "MD_sys_EMIS_$(MD_horizon)hor_$(MD_interval)int.json")
         MD_num_forecast_filename = joinpath(rts_dir, "constructed_systems", pcm_scenario, "sim_year_$(sim_year)", "MD_num_forecast_$(MD_horizon)hor_$(MD_interval)int.txt")

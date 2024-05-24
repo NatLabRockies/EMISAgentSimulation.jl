@@ -159,7 +159,7 @@ function create_realized_marketdata(simulation::AgentSimulation,
 
     for project in capacity_market_projects
         for product in get_products(project)
-            capacity_supply_curve = update_capacity_supply_curve!(capacity_supply_curve, product, project)
+            capacity_supply_curve = update_capacity_supply_curve!(capacity_supply_curve, product, project, pcm_scenario)
         end
     end
 

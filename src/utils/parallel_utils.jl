@@ -173,14 +173,15 @@ end
 This function runs the update_simulation_derating_data! function in parallel for different scenarios.
 """
 function parallelize_update_derating_data(args)
-    scenario, simulation, iteration_year, derating_scale, methodology, ra_metric = args    
+    scenario, simulation, iteration_year, derating_scale, methodology, ra_metric, marginal_cc = args    
     update_simulation_derating_data!(
         simulation,
         scenario,
         iteration_year,
         derating_scale,
         methodology = methodology,
-        ra_metric = ra_metric
+        ra_metric = ra_metric,
+        marginal_cc = marginal_cc
         )
     return
 end

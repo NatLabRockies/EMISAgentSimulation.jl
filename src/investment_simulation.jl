@@ -16,7 +16,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
             for project in initial_existing_projects
                 if get_end_life_year(project) >= y
                     for product in get_products(project)
-                        update_initial_capacity_revenues!(project, product, initial_capacity_prices, y)
+                        update_initial_capacity_revenues!(project, product, initial_capacity_prices, y, get_pcm_scenario(case))
                     end
                 end
             end
@@ -227,7 +227,8 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
                                          get_carbon_tax(simulation)[iteration_year],
                                          get_da_resolution(case),
                                          get_rt_resolution(case),
-                                         rt_products)
+                                         rt_products,
+                                         get_pcm_scenario(case))
 
                 update_annual_cashflow!(project, iteration_year)
 
@@ -249,8 +250,17 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
 
         end
 
-        simulations, iteration_years, derating_scales, methodologies, ra_metric_list =  repeat_arguments(num_scenarios, simulation, iteration_year, get_derating_scale(case), get_accreditation_methodology(case), get_accreditation_metric(case))
-        @time Distributed.pmap(parallelize_update_derating_data, zip(scenario_names, simulations, iteration_years, derating_scales, methodologies, ra_metric_list))
+        simulations, iteration_years, derating_scales, methodologies, ra_metric_list, marginal_cc_switches =  repeat_arguments(num_scenarios, simulation, iteration_year, get_derating_scale(case), get_accreditation_methodology(case), get_accreditation_metric(case), get_marginal_cc_switch(case))
+        
+        @time Distributed.pmap(parallelize_update_derating_data, zip(scenario_names, simulations, iteration_years, derating_scales, methodologies, ra_metric_list, marginal_cc_switches))
+    
+        active_projects = get_activeprojects(simulation)
+
+        for project in active_projects
+            for scenario in scenario_names
+                update_derating_factor!(project, data_dir, scenario, get_derating_scale(case), get_marginal_cc_switch(case))
+            end
+        end
 
         println("COMPLETED YEAR $(iteration_year)")
         FileIO.save(joinpath(get_results_dir(simulation), "simulation_data_year$(iteration_year).jld2"), "simulation_data", simulation)

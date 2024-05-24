@@ -209,7 +209,8 @@ function create_cem_mkt_clr_problem(investor_dir::String,
                                           iteration_year,
                                           num_hours,
                                           num_invperiods,
-                                          availability_df_vec)
+                                          availability_df_vec,
+                                          scenario_name)
 
         if !isnothing(cem_project)
             push!(cem_projects, cem_project)
@@ -237,7 +238,8 @@ function create_cem_mkt_clr_problem(investor_dir::String,
                                           iteration_year,
                                           num_hours,
                                           num_invperiods,
-                                          availability_df_vec)
+                                          availability_df_vec,
+                                          scenario_name)
             push!(aggregated_options, aggregated_option)
 
             products =  get_products(option)

@@ -249,7 +249,8 @@ This function does nothing if the product is not of Capacity type.
 function update_initial_capacity_revenues!(project::P,
                                  product::T,
                                  initial_capacity_prices::Vector{Float64},
-                                 year::Int64) where {P <: Project{<: BuildPhase}, T <: Product}
+                                 year::Int64,
+                                 pcm_scenario::String) where {P <: Project{<: BuildPhase}, T <: Product}
     return
 end
 
@@ -259,18 +260,24 @@ This function updates the capacity market revenues of project at the start of th
 function update_initial_capacity_revenues!(project::P,
                                  product::Capacity,
                                  initial_capacity_prices::Vector{Float64},
-                                 year::Int64) where P <: Project{<: BuildPhase}
-    capacity_revenue = initial_capacity_prices[year] * get_maxcap(project) * get_project_derating(project)
+                                 year::Int64,
+                                 pcm_scenario::String) where P <: Project{<: BuildPhase}
 
     finance_data = get_finance_data(project)
-    set_realized_profit!(get_finance_data(project),
-                    get_name(product),
-                    year,
-                    capacity_revenue)
-
+    
     for scenario_name in keys(get_scenario_profit(finance_data))
-                update_forward_profit!(product, finance_data, scenario_name, year, capacity_revenue)
-            end
+        
+        capacity_revenue = initial_capacity_prices[year] * get_maxcap(project) * get_project_derating(project, scenario_name)
+
+        update_forward_profit!(product, finance_data, scenario_name, year, capacity_revenue)
+
+        if scenario_name == pcm_scenario
+            set_realized_profit!(get_finance_data(project),
+                            get_name(product),
+                            year,
+                            capacity_revenue)
+        end
+    end
 
     return
 end

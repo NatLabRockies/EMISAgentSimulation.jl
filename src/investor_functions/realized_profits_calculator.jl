@@ -166,7 +166,8 @@ function calculate_realized_profit(project::Project,
                                    carbon_tax::Float64,
                                    da_resolution::Int64,
                                    rt_resolution::Int64,
-                                   rt_products::Vector{String}) where T <: Product
+                                   rt_products::Vector{String},
+                                   pcm_scenario::String) where T <: Product
 
     return nothing, 0
 end
@@ -192,7 +193,8 @@ function calculate_realized_profit(project::Project,
                                    carbon_tax::Float64,
                                    da_resolution::Int64,
                                    rt_resolution::Int64,
-                                   rt_products::Vector{String})
+                                   rt_products::Vector{String},
+                                   pcm_scenario::String)
 
     project_name = get_name(project)
     size = get_maxcap(project)
@@ -252,7 +254,8 @@ function calculate_realized_profit(project::Project,
                                   carbon_tax::Float64,
                                   da_resolution::Int64,
                                   rt_resolution::Int64,
-                                  rt_products::Vector{String})
+                                  rt_products::Vector{String},
+                                  pcm_scenario::String)
 
     project_name = get_name(project)
     size = get_maxcap(project)
@@ -307,7 +310,8 @@ function calculate_realized_profit(project::Project,
                                   carbon_tax::Float64,
                                   da_resolution::Int64,
                                   rt_resolution::Int64,
-                                  rt_products::Vector{String})
+                                  rt_products::Vector{String},
+                                  pcm_scenario::String)
 
     project_name = get_name(project)
     size = get_maxcap(project)
@@ -315,7 +319,7 @@ function calculate_realized_profit(project::Project,
     update_year = iteration_year + capacity_forward_years - 1
     if in(project_name, keys(capacity_accepted_bids))
         profit = size *
-                get_derating(product) *
+                get_derating(product)[pcm_scenario] *
                 get_prices(market_prices, product)["realized"][1] *
                 capacity_accepted_bids[project_name]
 
@@ -346,7 +350,8 @@ function calculate_realized_profit(project::Project,
                                   carbon_tax::Float64,
                                   da_resolution::Int64,
                                   rt_resolution::Int64,
-                                  rt_products::Vector{String})
+                                  rt_products::Vector{String},
+                                  pcm_scenario::String)
 
     project_name = get_name(project)
     update_year = iteration_year
@@ -381,7 +386,8 @@ function calculate_realized_profit(project::Project,
                                   carbon_tax::Float64,
                                   da_resolution::Int64,
                                   rt_resolution::Int64,
-                                  rt_products::Vector{String})
+                                  rt_products::Vector{String},
+                                  pcm_scenario::String)
 
     project_name = get_name(project)
     size = get_maxcap(project)

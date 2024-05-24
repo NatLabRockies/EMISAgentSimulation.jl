@@ -25,7 +25,7 @@ function update_capacity_revenues!(product::Capacity,
     capacity_revenues += capacity_prices[scenario_name][price_years[:start_year]:price_years[:end_year]] .*
                          get_accepted_perc(product)[scenario_name][price_years[:start_year]:price_years[:end_year]] *
                          max_cap *
-                         get_derating(product)
+                         get_derating(product)[scenario_name]
     return capacity_revenues
 end
 

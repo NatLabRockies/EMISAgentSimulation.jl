@@ -56,7 +56,7 @@ function create_products(simulation_data::AgentSimulationData,
 
     if markets[:Capacity] && capacity_eligible
         push!(products, Capacity(:Capacity,
-                                 0.0,
+                                 Dict{String, Float64}(),
                                  Dict{String, Array{Float64, 1}}(),
                                  0.0))
     end

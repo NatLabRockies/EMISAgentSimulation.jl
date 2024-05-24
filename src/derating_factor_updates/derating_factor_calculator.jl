@@ -545,7 +545,7 @@ function update_derating_factor!(project::Union{ThermalGenEMIS{<:BuildPhase}, Hy
     derating_data = read_data(joinpath(simulation_dir, "markets_data", "derating_data", scenario, "derating_dict.csv"))
     derating_factor = derating_data[1, get_type(get_tech(project))]
     for product in get_products(project)
-        set_derating!(product, derating_factor)
+        set_derating!(product, scenario, derating_factor)
     end
     return
 end
@@ -572,7 +572,7 @@ function update_derating_factor!(project::RenewableGenEMIS{Existing},
     end
 
     for product in get_products(project)
-        set_derating!(product, derating_factor)
+        set_derating!(product, scenario, derating_factor)
     end
 
     return
@@ -608,7 +608,7 @@ function update_derating_factor!(project::RenewableGenEMIS{<:BuildPhase},
     end
 
     for product in get_products(project)
-        set_derating!(product, derating_factor)
+        set_derating!(product, scenario, derating_factor)
     end
 
     return
@@ -631,7 +631,7 @@ function update_derating_factor!(project::BatteryEMIS{Existing},
     derating_factor = derating_data[1, project_type]
     derating_factor = min(derating_factor * derating_scale, 1.0)
     for product in get_products(project)
-        set_derating!(product, derating_factor)
+        set_derating!(product, scenario, derating_factor)
     end
     return
 end
@@ -658,7 +658,7 @@ function update_derating_factor!(project::BatteryEMIS{<:BuildPhase},
     derating_factor = derating_data[1, project_type]
     derating_factor = min(derating_factor * derating_scale, 1.0)
     for product in get_products(project)
-        set_derating!(product, derating_factor)
+        set_derating!(product, scenario, derating_factor)
     end
     return
 end
@@ -683,9 +683,7 @@ function update_simulation_derating_data!(
     else
         calculate_derating_factors(simulation, scenario, iteration_year, derating_scale, methodology, ra_metric, marginal_cc)
     end
-    for project in active_projects
-        update_derating_factor!(project, data_dir, scenario, derating_scale, marginal_cc)
-    end
+    
     return
 end
 

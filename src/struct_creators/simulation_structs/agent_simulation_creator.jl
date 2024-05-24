@@ -231,9 +231,17 @@ function gather_data(case::CaseDefinition)
         end
     end
 
-    simulations, iteration_years, derating_scales, methodologies, ra_metric_list =  repeat_arguments(num_scenarios, simulation_data, iteration_year, get_derating_scale(case), get_accreditation_methodology(case), get_accreditation_metric(case))
+    simulations, iteration_years, derating_scales, methodologies, ra_metric_list, marginal_cc_switches =  repeat_arguments(num_scenarios, simulation_data, iteration_year, get_derating_scale(case), get_accreditation_methodology(case), get_accreditation_metric(case), get_marginal_cc_switch(case))
    
-    @time Distributed.pmap(parallelize_update_derating_data, zip(scenarios, simulations, iteration_years, derating_scales, methodologies, ra_metric_list))
+    @time Distributed.pmap(parallelize_update_derating_data, zip(scenarios, simulations, iteration_years, derating_scales, methodologies, ra_metric_list, marginal_cc_switches))
+    
+    active_projects = get_activeprojects(simulation_data)
+
+    for project in active_projects
+        for scenario in scenarios
+            update_derating_factor!(project, data_dir, scenario, get_derating_scale(case), get_marginal_cc_switch(case))
+        end
+    end
 
     return simulation_data
 end

@@ -47,7 +47,8 @@ function update_realized_profits!(project::P,
                                   carbon_tax::Float64,
                                   da_resolution::Int64,
                                   rt_resolution::Int64,
-                                  rt_products::Vector{String}) where P <: Project{Retired}
+                                  rt_products::Vector{String},
+                                  pcm_scenario::String) where P <: Project{Retired}
     
 end
 =#
@@ -72,7 +73,8 @@ function update_realized_profits!(project::P,
                                   carbon_tax::Float64,
                                   da_resolution::Int64,
                                   rt_resolution::Int64,
-                                  rt_products::Vector{String}) where P <: Project{<: BuildPhase}
+                                  rt_products::Vector{String},
+                                  pcm_scenario::String) where P <: Project{<: BuildPhase}
 
     for product in get_products(project)
         profit, update_year = calculate_realized_profit(project,
@@ -93,7 +95,8 @@ function update_realized_profits!(project::P,
                                            carbon_tax,
                                            da_resolution,
                                            rt_resolution,
-                                           rt_products)
+                                           rt_products,
+                                           pcm_scenario)
 
         finance_data =  get_finance_data(project)
         profit_array_length =  size(get_realized_profit(finance_data), 2)

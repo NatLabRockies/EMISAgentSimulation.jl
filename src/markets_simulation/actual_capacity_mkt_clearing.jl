@@ -6,7 +6,8 @@ This function does nothing if the product is not Capacity
 """
 function update_capacity_supply_curve!(capacity_supply_curve::Vector{Vector{Union{String, Float64}}},
                                        product::T,
-                                       project::P) where {T <: Product, P <: Project{<: BuildPhase}}
+                                       project::P,
+                                       scenario::String) where {T <: Product, P <: Project{<: BuildPhase}}
 
    return capacity_supply_curve
 end
@@ -16,7 +17,8 @@ This function pushes project bids in the capacity supply curve
 """
 function update_capacity_supply_curve!(capacity_supply_curve::Vector{Vector{Union{String, Float64}}},
                                        product::Capacity,
-                                       project::P) where P <: Project{<: BuildPhase}
+                                       project::P,
+                                       scenario::String) where P <: Project{<: BuildPhase}
 
    # Each Element of the Supply Curve:
    #   [1] - Project Name
@@ -27,7 +29,7 @@ function update_capacity_supply_curve!(capacity_supply_curve::Vector{Vector{Unio
    push!(capacity_supply_curve, [get_name(project),
                                  get_maxcap(project),
                                  get_project_capacity_market_bid(project),
-                                 get_project_derating(project)])
+                                 get_project_derating(project, scenario)])
    return capacity_supply_curve
 end
 

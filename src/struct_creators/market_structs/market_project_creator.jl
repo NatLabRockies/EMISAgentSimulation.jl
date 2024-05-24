@@ -131,12 +131,12 @@ end
 This function returns the project's derating factor to be passed to CEM and capacity market clearing module.
 Returns 0 if there is no capacity market participation.
 """
-function get_project_derating(project::P) where P <: Project{<: BuildPhase}
+function get_project_derating(project::P, scenario::String) where P <: Project{<: BuildPhase}
     derating_factor = 0.
     for product in get_products(project)
         derating_temp = get_derating(product)
         if !isnothing(derating_temp)
-            derating_factor = derating_temp
+            derating_factor = derating_temp[scenario]
         end
     end
     return derating_factor
@@ -259,7 +259,8 @@ function populate_market_project(project::P,
                                 remaining_lag_time::Int64,
                                 remaining_life_time::Int64,
                                 iteration_year::Int64,
-                                num_invperiods::Int64) where P <: Project{<: BuildPhase}
+                                num_invperiods::Int64,
+                                scenario::String) where P <: Project{<: BuildPhase}
 
     finance_data = get_finance_data(project)
 
@@ -301,7 +302,7 @@ function populate_market_project(project::P,
         max_storage,                                                                             # maximum storage capacity
         init_storage,                                                                            # initial storage level
         availability_input,                                                                      # Hourly availability
-        get_project_derating(project),                                                           # de-rating factor
+        get_project_derating(project, scenario),                                                           # de-rating factor
         get_ramp_limits(get_tech(project)),                                                       # ramp limits
         project_reserve_limit,                                                                    # reserve participation limits
         existing_units,                                                                          # existing units
@@ -334,7 +335,8 @@ function create_market_project(project::P,
                               iteration_year::Int64,
                               num_hours::Int64,
                               num_invperiods::Int64,
-                              availability_df_vec::Vector{DataFrames.DataFrame}) where P <: Project{Existing}
+                              availability_df_vec::Vector{DataFrames.DataFrame},
+                              scenario::String) where P <: Project{Existing}
 
     finance_data = get_finance_data(project)
 
@@ -379,7 +381,8 @@ function create_market_project(project::P,
                                              remaining_lag_time,
                                              remaining_life_time,
                                              iteration_year,
-                                             num_invperiods)
+                                             num_invperiods,
+                                             scenario)
     return market_project
 
 end
@@ -394,7 +397,8 @@ function create_market_project(project::P,
                               iteration_year::Int64,
                               num_hours::Int64,
                               num_invperiods::Int64,
-                              availability_df_vec::Vector{DataFrames.DataFrame}) where P <: Project{Option}
+                              availability_df_vec::Vector{DataFrames.DataFrame},
+                              scenario::String) where P <: Project{Option}
 
     # Get technical characteristics based on project type
     project_type,
@@ -433,7 +437,8 @@ function create_market_project(project::P,
                                              remaining_lag_time,
                                              remaining_life_time,
                                              iteration_year,
-                                             num_invperiods)
+                                             num_invperiods,
+                                             scenario)
 
     market_project.name = "option_$(market_project.tech_type)_$(market_project.zone)"
 
@@ -460,7 +465,8 @@ function create_market_project(project::P,
                               iteration_year::Int64,
                               num_hours::Int64,
                               num_invperiods::Int64,
-                              availability_df_vec::Vector{DataFrames.DataFrame}) where P <: Project{Planned}
+                              availability_df_vec::Vector{DataFrames.DataFrame},
+                              scenario::String) where P <: Project{Planned}
 
     # Get technical characteristics based on project type
     project_type,
@@ -506,7 +512,8 @@ function create_market_project(project::P,
                                              remaining_lag_time,
                                              remaining_life_time,
                                              iteration_year,
-                                             num_invperiods)
+                                             num_invperiods,
+                                             scenario)
     return market_project
 
 end
@@ -521,7 +528,8 @@ function create_market_project(project::P,
                               iteration_year::Int64,
                               num_hours::Int64,
                               num_invperiods::Int64,
-                              availability_df_vec::Vector{DataFrames.DataFrame}) where P <: Project{Queue}
+                              availability_df_vec::Vector{DataFrames.DataFrame},
+                              scenario::String) where P <: Project{Queue}
 
     # Get technical characteristics based on project type
     project_type,
@@ -570,7 +578,8 @@ function create_market_project(project::P,
                                              remaining_lag_time,
                                              remaining_life_time,
                                              iteration_year,
-                                             num_invperiods)
+                                             num_invperiods,
+                                             scenario)
     return market_project
 
 end
