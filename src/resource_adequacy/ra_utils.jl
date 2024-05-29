@@ -65,7 +65,7 @@ This function does nothing if Device is not of RenewableGen type.
 function add_capacity_market_device_forecast!(sys_PRAS::PSY.System,
                                                 device_PRAS::D,
                                                 availability_raw::Vector{Float64},
-                                                da_resolution::Int64) where D <: Union{PSY.ThermalGen, PSY.HydroGen, PSY.Storage}
+                                                rt_resolution::Int64) where D <: Union{PSY.ThermalGen, PSY.HydroGen, PSY.Storage}
 
     return
 end
@@ -76,7 +76,7 @@ This function adds forecast timeseries to the future capacity market system if D
 function add_capacity_market_device_forecast!(sys_PRAS::PSY.System,
                                                 device_PRAS::D,
                                                 availability_raw::Vector{Float64},
-                                                da_resolution::Int64) where D <: PSY.RenewableGen
+                                                rt_resolution::Int64) where D <: PSY.RenewableGen
 
     ######### Adding to PRAS System##########
     # time_stamps = TS.timestamp(PSY.get_data(PSY.get_time_series(
@@ -94,10 +94,10 @@ function add_capacity_market_device_forecast!(sys_PRAS::PSY.System,
 
     additional_timestep = length(time_stamps) - 8760
 
-    # intervals = Int(36 * 60 / da_resolution)
+    # intervals = Int(36 * 60 / rt_resolution)
     append!(availability_raw, availability_raw[(length(availability_raw) - additional_timestep + 1):end])
     data = Dict(time_stamps[i] => availability_raw[i:(i + sys_horizon - 1)] for i in 1:Int(sys_interval/sys_resolution):(length(time_stamps)-sys_horizon + 1))
-    forecast = PSY.Deterministic("max_active_power", data, Dates.Minute(da_resolution))
+    forecast = PSY.Deterministic("max_active_power", data, Dates.Minute(rt_resolution))
     PSY.add_time_series!(sys_PRAS, device_PRAS, forecast)
 
     return
@@ -108,7 +108,8 @@ function add_capacity_market_project!(capacity_market_system::PSY.System,
                                     simulation_dir::String,
                                     scenario::String,
                                     target_year::Int64,
-                                    da_resolution::Int64)
+                                    rt_resolution::Int64,
+                                    simulation_years::Int64)
     PSY_project = create_PSY_generator(project, capacity_market_system)
 
     PSY.add_component!(capacity_market_system, PSY_project)
@@ -120,17 +121,23 @@ function add_capacity_market_project!(capacity_market_system::PSY.System,
     type = get_type(get_tech(project))
     zone = get_zone(get_tech(project))
 
-    max_year = maximum(map(s -> parse(Int, filter(x -> !isempty(x) && all(isdigit, x), split(s, "_"))[end]), readdir(joinpath(simulation_dir, "timeseries_data_files", scenario))))
+    #max_year = maximum(map(s -> parse(Int, filter(x -> !isempty(x) && all(isdigit, x), split(s, "_"))[end]), readdir(joinpath(simulation_dir, "timeseries_data_files", scenario))))
 
-    availability_df = read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(min(max_year, target_year))", "Availability", "DAY_AHEAD_availability.csv"))
+    availability_df_rt = DataFrames.DataFrame()
 
-    if in(get_name(project), names(availability_df))
-        availability_raw = availability_df[:, Symbol(get_name(project))]
-    elseif in("$(type)_$(zone)", names(availability_df))
-            availability_raw = availability_df[:, Symbol("$(type)_$(zone)")]
+    for sim_year in 1:simulation_years
+        availability_df_rt = vcat(availability_df_rt, read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Availability", "REAL_TIME_availability.csv")))
     end
 
-    add_capacity_market_device_forecast!(capacity_market_system, PSY_project, availability_raw, da_resolution)
+    if in(get_name(project), names(availability_df_rt))
+        availability_raw_rt = availability_df_rt[:, Symbol(get_name(project))]
+    elseif in("$(type)_$(zone)", names(availability_df_rt))
+        availability_raw_rt = availability_df_rt[:, Symbol("$(type)_$(zone)")]
+    end
+
+    add_device_forecast_PRAS!(capacity_market_system, PSY_project, availability_raw_rt, rt_resolution)
+
+    return
 end
 
 function create_capacity_mkt_system(initial_system::PSY.System,
@@ -139,7 +146,8 @@ function create_capacity_mkt_system(initial_system::PSY.System,
                                     scenario::String,
                                     iteration_year::Int64,
                                     simulation_dir::String,
-                                    da_resolution::Int64)
+                                    rt_resolution::Int64,
+                                    simulation_years::Int64)
 
     println("Creating Forward Capacity Market System")
     capacity_market_system = deepcopy(initial_system)
@@ -155,7 +163,7 @@ function create_capacity_mkt_system(initial_system::PSY.System,
         if end_life_year >= capacity_market_year && construction_year <= capacity_market_year
             push!(capacity_market_projects, project)
             if !(get_name(project) in PSY.get_name.(get_all_techs(capacity_market_system)))
-                add_capacity_market_project!(capacity_market_system, project, simulation_dir, scenario, capacity_market_year, da_resolution)
+                add_capacity_market_project!(capacity_market_system, project, simulation_dir, scenario, capacity_market_year, rt_resolution, simulation_years)
             end
         end
 
@@ -213,9 +221,10 @@ function update_delta_irm!(initial_system::PSY.System,
                             scenario::String,
                             iteration_year::Int64,
                             simulation_dir::String,
-                            da_resolution::Int64,
+                            rt_resolution::Int64,
                             results_dir::String,
-                            outage_dir::String)
+                            outage_dir::String,
+                            simulation_years::Int64)
 
     if !(static_capacity_market)
 
@@ -227,7 +236,8 @@ function update_delta_irm!(initial_system::PSY.System,
                                                             scenario,
                                                             iteration_year,
                                                             simulation_dir,
-                                                            da_resolution)
+                                                            rt_resolution,
+                                                            simulation_years)
 
         ra_targets = get_targets(resource_adequacy)
         delta_irm = 0.0
@@ -265,7 +275,7 @@ function update_delta_irm!(initial_system::PSY.System,
                         incremental_project = deepcopy(first(filter(p -> occursin("new_CT", get_name(p)), active_projects)))
                         set_name!(incremental_project, "addition_CT_project_$(count)")
                         total_added_capacity += get_maxcap(incremental_project)
-                        add_capacity_market_project!(capacity_market_system, incremental_project, simulation_dir, scenario, capacity_market_year, da_resolution)
+                        add_capacity_market_project!(capacity_market_system, incremental_project, simulation_dir, scenario, capacity_market_year, rt_resolution, simulation_years)
                         count += 1
                     end
                     
@@ -309,7 +319,7 @@ function create_base_system(initial_system::PSY.System,
     iteration_year::Int64,
     simulation_dir::String,
     outage_dir::String,
-    da_resolution::Int64,
+    rt_resolution::Int64,
     simulation::Union{AgentSimulation,AgentSimulationData})
 
     capacity_market_year = iteration_year + capacity_forward_years - 1
@@ -320,7 +330,8 @@ function create_base_system(initial_system::PSY.System,
                                                         scenario,
                                                         iteration_year,
                                                         simulation_dir,
-                                                        da_resolution)
+                                                        rt_resolution,
+                                                        get_total_horizon(get_case(simulation)))
 
     ra_targets = get_targets(resource_adequacy)
     println(ra_targets)
@@ -358,7 +369,7 @@ function create_base_system(initial_system::PSY.System,
                     incremental_project = deepcopy(first(filter(p -> occursin("new_CT", get_name(p)), active_projects)))
                     set_name!(incremental_project, "addition_CT_project_$(count)")
                     total_added_capacity += get_maxcap(incremental_project)
-                    add_capacity_market_project!(capacity_market_system, incremental_project, simulation_dir, scenario, capacity_market_year, da_resolution)
+                    add_capacity_market_project!(capacity_market_system, incremental_project, simulation_dir, scenario, capacity_market_year, rt_resolution, get_total_horizon(get_case(simulation)))
                     count += 1
                 end
                 

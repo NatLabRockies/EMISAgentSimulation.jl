@@ -229,7 +229,7 @@ function create_realized_marketdata(simulation::AgentSimulation,
 
             sort!(rec_supply_curve, by = x -> x[3])      # Sort REC supply curve by REC bid
 
-            rec_energy_requirment = min(total_clean_production, rec_energy_requirment)
+            #rec_energy_requirment = min(total_clean_production, rec_energy_requirment)
             rec_price, rec_accepted_bids = rec_market_clearing_non_binding(rec_energy_requirment, pricecap_rec, rec_supply_curve, solver)
 
             # if iteration_year <= rec_non_binding_years

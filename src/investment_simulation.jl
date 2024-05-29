@@ -59,10 +59,10 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
         end
 
         num_scenarios = length(scenario_names)
-        sys_PRAS_list, active_projects_list, capacity_forward_years_list, resource_adequacies, peak_loads, static_capacity_bools, iteration_years, simulation_years_list, data_dirs, da_resolutions, results_dirs, outage_dirs = repeat_arguments(num_scenarios, sys_PRAS, active_projects, capacity_forward_years, get_resource_adequacy(simulation), get_peak_load(simulation), get_static_capacity_market(case), iteration_year, simulation_years, get_data_dir(case), get_da_resolution(case), get_results_dir(simulation), get_outage_dir(case))
+        sys_PRAS_list, active_projects_list, capacity_forward_years_list, resource_adequacies, peak_loads, static_capacity_bools, iteration_years, simulation_years_list, data_dirs, rt_resolutions, results_dirs, outage_dirs = repeat_arguments(num_scenarios, sys_PRAS, active_projects, capacity_forward_years, get_resource_adequacy(simulation), get_peak_load(simulation), get_static_capacity_market(case), iteration_year, simulation_years, get_data_dir(case), get_rt_resolution(case), get_results_dir(simulation), get_outage_dir(case))
 
         # Parallelize the processing of scenarios using Distributed.pmap
-        @time resource_adequacy_tuples = Distributed.pmap(parallelize_update_delta_irm!, zip(scenario_names, sys_PRAS_list, active_projects_list, capacity_forward_years_list, resource_adequacies, peak_loads, static_capacity_bools, iteration_years, simulation_years_list, data_dirs, da_resolutions, results_dirs, outage_dirs))
+        @time resource_adequacy_tuples = Distributed.pmap(parallelize_update_delta_irm!, zip(scenario_names, sys_PRAS_list, active_projects_list, capacity_forward_years_list, resource_adequacies, peak_loads, static_capacity_bools, iteration_years, simulation_years_list, data_dirs, rt_resolutions, results_dirs, outage_dirs))
         set_resource_adequacy!(simulation, Dict(key => value for (key, value) in resource_adequacy_tuples))
 
         create_investor_predictions(investors,
@@ -258,13 +258,13 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
 
         for project in active_projects
             for scenario in scenario_names
-                update_derating_factor!(project, data_dir, scenario, get_derating_scale(case), get_marginal_cc_switch(case))
+                update_derating_factor!(project, get_data_dir(case), scenario, get_derating_scale(case), get_marginal_cc_switch(case))
             end
         end
 
         println("COMPLETED YEAR $(iteration_year)")
         FileIO.save(joinpath(get_results_dir(simulation), "simulation_data_year$(iteration_year).jld2"), "simulation_data", simulation)
-        FileIO.save(joinpath(get_results_dir(simulation), "shortfall_data_year$(iteration_year).jld2"), "shortfall_data", shortfall)
+        #FileIO.save(joinpath(get_results_dir(simulation), "shortfall_data_year$(iteration_year).jld2"), "shortfall_data", shortfall)
     end
 
     final_portfolio = vcat(get_existing.(get_investors(simulation))...)

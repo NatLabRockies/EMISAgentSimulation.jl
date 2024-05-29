@@ -200,7 +200,7 @@ function finish_construction!(projects::Vector{<: Project{<: BuildPhase}},
 
             if in(get_name(project), names(availability_df_rt))
                 availability_raw_rt = availability_df_rt[:, Symbol(get_name(project))]
-            elseif in("$(type)_$(zone)", names(availability_df))
+            elseif in("$(type)_$(zone)", names(availability_df_rt))
                 availability_raw_rt = availability_df_rt[:, Symbol("$(type)_$(zone)")]
             end
 

@@ -14,7 +14,8 @@ end
 This function calculates the derating data for existing and new renewable generation
 based on top 100 net-load hour methodology.
 """
-function calculate_derating_data(simulation_dir::String,
+function calculate_derating_data(simulation::Union{AgentSimulation, AgentSimulationData},
+                                simulation_dir::String,
                                 scenario::String,
                                 iteration_year::Int64,
                                 active_projects::Vector{Project},
@@ -31,7 +32,7 @@ function calculate_derating_data(simulation_dir::String,
 
     extract_year(str) = parse(Int, split(str, "_")[end])
 
-    simulation_years = extract_year.(readdir(joinpath(simulation_dir, "timeseries_data_files", scenario)))
+    simulation_years = get_total_horizon(get_case(simulation))
 
     load_n_vg_data = DataFrames.DataFrame()
     availability_data = DataFrames.DataFrame()
@@ -294,8 +295,9 @@ function calculate_derating_factors(
 
 
     simulation_dir = get_data_dir(get_case(simulation))
+    simulation_years = get_total_horizon(get_case(simulation))
     outage_dir = get_outage_dir(get_case(simulation))
-    da_resolution = get_da_resolution(get_case(simulation))
+    rt_resolution = get_rt_resolution(get_case(simulation))
     zones = get_zones(simulation)
 
     derating_factors = read_data(joinpath(simulation_dir, "markets_data", "derating_data", scenario, "derating_dict.csv"))
@@ -327,7 +329,7 @@ function calculate_derating_factors(
         iteration_year,
         simulation_dir,
         outage_dir,
-        da_resolution,
+        rt_resolution,
         simulation)
 
     system_period_of_interest = range(1, length = 8760)
@@ -358,7 +360,7 @@ function calculate_derating_factors(
                     for i in 1:build_size
                         new_project = deepcopy(options[idx])
                         set_name!(new_project, "$(get_name(new_project))_$i")
-                        add_capacity_market_project!(augmented_sys, new_project, simulation_dir, scenario, capacity_market_year, da_resolution)
+                        add_capacity_market_project!(augmented_sys, new_project, simulation_dir, scenario, capacity_market_year, rt_resolution, simulation_years)
                     end
                     
                     augmented_pras_system = make_pras_system(augmented_sys,
@@ -485,7 +487,7 @@ function calculate_derating_factors(
                 if !(project_name in new_project_names)
                     push!(new_project_names, project_name)
                     max_cap += get_maxcap(project)
-                    add_capacity_market_project!(augmented_sys, new_project, simulation_dir, scenario, capacity_market_year,  da_resolution)
+                    add_capacity_market_project!(augmented_sys, new_project, simulation_dir, scenario, capacity_market_year,  rt_resolution, simulation_years)
                 end
             end
             
@@ -679,7 +681,7 @@ function update_simulation_derating_data!(
     active_projects = get_activeprojects(simulation)
 
     if methodology == "TopNetLoad"
-        calculate_derating_data(data_dir, scenario, iteration_year, active_projects, derating_scale, marginal_cc)
+        calculate_derating_data(simulation, data_dir, scenario, iteration_year, active_projects, derating_scale, marginal_cc)
     else
         calculate_derating_factors(simulation, scenario, iteration_year, derating_scale, methodology, ra_metric, marginal_cc)
     end
