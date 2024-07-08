@@ -1120,8 +1120,10 @@ function create_simulation( sys_MD::PSY.System,
     current_siip_sim[1] = sim
 
     execute_out = PSI.execute!(sim; enable_progress_bar = true)
+    println("finish sienna run")
 
     sim_results = PSI.SimulationResults(sim)
+    println("get sienna results")
 
     base_power = PSY.get_base_power(sys_UC)
 
@@ -1184,6 +1186,8 @@ function create_simulation( sys_MD::PSY.System,
             energy_voll[zone, 1, :] += abs.(round.(result_variables_ed["SystemBalanceSlackDown__ACBus"][:, string(PSY.get_number(bus))], digits = 5)) / base_power
         end
     end
+
+    println("recorded sienna energy prices")
 
     #println(any(isnan, energy_price))
     replace!(energy_price_ed, NaN => 0.0)
@@ -1288,6 +1292,8 @@ function create_simulation( sys_MD::PSY.System,
         end
     end
 
+    println("recorded sienna service prices")
+
     sys_techs = get_all_techs(sys_ED)
 
     tech_names = get_name.(sys_techs)
@@ -1344,5 +1350,6 @@ function create_simulation( sys_MD::PSY.System,
     for g in keys(inertia_perc)
         inertia_perc[g] = inertia_perc[g] / PSY.get_base_power(sys_UC)
     end
+    println("recorded all sienna results")
     return energy_price_ed, energy_price_uc, energy_price_md, reserve_price_ed, reserve_price_uc, reserve_price_md, inertia_price, capacity_factors_md, capacity_factors_uc, capacity_factors_ed, reserve_perc_md, reserve_perc_uc, reserve_perc_ed, inertia_perc, start_up_costs, shut_down_costs, energy_voll, reserve_voll, inertia_voll;
 end

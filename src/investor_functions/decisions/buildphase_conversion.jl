@@ -128,27 +128,36 @@ function finish_construction!(projects::Vector{<: Project{<: BuildPhase}},
                              rt_resolution::Int64) where P <: Project{Planned}
      if get_construction_year(project) == iteration_year
         projects[index] = convert(Project{Existing}, project)
-        PSY_project_MD = create_PSY_generator(project, sys_MD[iteration_year])
-        PSY_project_UC = create_PSY_generator(project, sys_UC[iteration_year])
-        PSY_project_ED = create_PSY_generator(project, sys_ED[iteration_year])
+        PSY_project_MD = create_PSY_generator(project, sys_MDs[iteration_year])
+        # println("iteration year is $(iteration_year)")
+        # println(PSY.get_name(PSY_project_MD))
+        # println(PSY_project_MD)
+        PSY_project_UC = create_PSY_generator(project, sys_UCs[iteration_year])
+        PSY_project_ED = create_PSY_generator(project, sys_EDs[iteration_year])
         PSY_project_PRAS = create_PSY_generator(project, sys_PRAS[pcm_scenario])
 
         for y in iteration_year:simulation_years
-            PSY.add_component!(sys_MDs[y], PSY_project_MD)
-            PSY.add_component!(sys_UCs[y], PSY_project_UC)
-            PSY.add_component!(sys_EDs[y], PSY_project_ED)
+            # println("adding component to year $y")
+            PSY.add_component!(sys_MDs[y], deepcopy(PSY_project_MD))
+            PSY.add_component!(sys_UCs[y], deepcopy(PSY_project_UC))
+            PSY.add_component!(sys_EDs[y], deepcopy(PSY_project_ED))
+        end
 
+        for y in iteration_year:simulation_years
             for product in get_products(project)
-                add_device_services!(sys_MDs[y], PSY_project_MD, product)
-                add_device_services!(sys_UCs[y], PSY_project_UC, product)
-                add_device_services!(sys_EDs[y], PSY_project_ED, product)
+                add_device_services!(sys_MDs[y], PSY.get_component(typeof(PSY_project_MD), sys_MDs[y], PSY.get_name(PSY_project_MD)), product)
+                add_device_services!(sys_UCs[y], PSY.get_component(typeof(PSY_project_UC), sys_UCs[y], PSY.get_name(PSY_project_UC)), product)
+                add_device_services!(sys_EDs[y], PSY.get_component(typeof(PSY_project_ED), sys_EDs[y], PSY.get_name(PSY_project_ED)), product)
             end
         end
 
         for scenario in keys(sys_PRAS)        
-            PSY.add_component!(sys_PRAS[scenario], PSY_project_PRAS)
+            PSY.add_component!(sys_PRAS[scenario], deepcopy(PSY_project_PRAS))
+        end
+
+        for scenario in keys(sys_PRAS)
             for product in get_products(project)
-                add_device_services!(sys_PRAS[scenario], PSY_project_PRAS, product)
+                add_device_services!(sys_PRAS[scenario], PSY.get_component(typeof(PSY_project_PRAS), sys_PRAS[scenario], PSY.get_name(PSY_project_PRAS)), product)
             end
         end
 
@@ -168,21 +177,23 @@ function finish_construction!(projects::Vector{<: Project{<: BuildPhase}},
             end
 
             if y >= iteration_year
-                add_device_forecast!(sys_MDs[y], sys_UCs[y], sys_EDs[y], PSY_project_MD, PSY_project_UC, PSY_project_ED, availability_raw, availability_raw_rt, da_resolution, rt_resolution)
+                add_device_forecast!(sys_MDs[y], sys_UCs[y], sys_EDs[y], PSY.get_component(typeof(PSY_project_MD), sys_MDs[y], PSY.get_name(PSY_project_MD)), PSY.get_component(typeof(PSY_project_UC), sys_UCs[y], PSY.get_name(PSY_project_UC)), PSY.get_component(typeof(PSY_project_ED), sys_EDs[y], PSY.get_name(PSY_project_ED)), availability_raw, availability_raw_rt, da_resolution, rt_resolution)
                 
                 if type == "NU_ST" || type == "RE_CT" || typeof(PSY_project_UC) == PSY.RenewableDispatch || typeof(PSY_project_UC) == PSY.HydroEnergyReservoir || typeof(PSY_project_UC) == PSY.HydroDispatch
                     # convert_to_thermal_clean_energy!(PSY_project_UC, sys_UCs[y])
                     # convert_to_thermal_clean_energy!(PSY_project_ED, sys_EDs[y])
-                    add_clean_energy_contribution!(sys_UC, PSY_project_UCs[y])
+                    add_clean_energy_contribution!(sys_MDs[y], PSY.get_component(typeof(PSY_project_MD), sys_MDs[y], PSY.get_name(PSY_project_MD)))
+                    add_clean_energy_contribution!(sys_UCs[y], PSY.get_component(typeof(PSY_project_UC), sys_UCs[y], PSY.get_name(PSY_project_UC)))
+                    add_clean_energy_contribution!(sys_EDs[y], PSY.get_component(typeof(PSY_project_ED), sys_EDs[y], PSY.get_name(PSY_project_ED)))
                     if type == "RE_CT"
-                        convert_to_thermal_fast_start!(PSY_project_MD, sys_MDs[y])
-                        convert_to_thermal_fast_start!(PSY_project_UC, sys_UCs[y])
-                        convert_to_thermal_fast_start!(PSY_project_ED, sys_EDs[y])
+                        convert_to_thermal_fast_start!(PSY.get_component(typeof(PSY_project_MD), sys_MDs[y], PSY.get_name(PSY_project_MD)), sys_MDs[y])
+                        convert_to_thermal_fast_start!(PSY.get_component(typeof(PSY_project_UC), sys_UCs[y], PSY.get_name(PSY_project_UC)), sys_UCs[y])
+                        convert_to_thermal_fast_start!(PSY.get_component(typeof(PSY_project_ED), sys_EDs[y], PSY.get_name(PSY_project_ED)), sys_EDs[y])
                     end
                 elseif type == "CT"
-                    convert_to_thermal_fast_start!(PSY_project_MD, sys_MDs[y])
-                    convert_to_thermal_fast_start!(PSY_project_UC, sys_UCs[y])
-                    convert_to_thermal_fast_start!(PSY_project_ED, sys_EDs[y])
+                    convert_to_thermal_fast_start!(PSY.get_component(typeof(PSY_project_MD), sys_MDs[y], PSY.get_name(PSY_project_MD)), sys_MDs[y])
+                    convert_to_thermal_fast_start!(PSY.get_component(typeof(PSY_project_UC), sys_UCs[y], PSY.get_name(PSY_project_UC)), sys_UCs[y])
+                    convert_to_thermal_fast_start!(PSY.get_component(typeof(PSY_project_ED), sys_EDs[y], PSY.get_name(PSY_project_ED)), sys_EDs[y])
                 end   
             end     
 
@@ -204,14 +215,14 @@ function finish_construction!(projects::Vector{<: Project{<: BuildPhase}},
                 availability_raw_rt = availability_df_rt[:, Symbol("$(type)_$(zone)")]
             end
 
-            add_device_forecast_PRAS!(sys_PRAS[scenario], PSY_project_PRAS, availability_raw_rt, rt_resolution)
+            add_device_forecast_PRAS!(sys_PRAS[scenario], PSY.get_component(typeof(PSY_project_PRAS), sys_PRAS[scenario], PSY.get_name(PSY_project_PRAS)), availability_raw_rt, rt_resolution)
 
             if type == "NU_ST" || type == "RE_CT" || typeof(PSY_project_PRAS) == PSY.RenewableDispatch || typeof(PSY_project_PRAS) == PSY.HydroEnergyReservoir || typeof(PSY_project_PRAS) == PSY.HydroDispatch
                 if type == "RE_CT"
-                    convert_to_thermal_fast_start!(PSY_project_PRAS, sys_PRAS[scenario])
+                    convert_to_thermal_fast_start!(PSY.get_component(typeof(PSY_project_PRAS), sys_PRAS[scenario], PSY.get_name(PSY_project_PRAS)), sys_PRAS[scenario])
                 end
             elseif type == "CT"
-                convert_to_thermal_fast_start!(PSY_project_PRAS, sys_PRAS[scenario])
+                convert_to_thermal_fast_start!(PSY.get_component(typeof(PSY_project_PRAS), sys_PRAS[scenario], PSY.get_name(PSY_project_PRAS)), sys_PRAS[scenario])
             end
         end
 
