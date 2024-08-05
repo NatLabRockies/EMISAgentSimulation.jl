@@ -374,7 +374,7 @@ function add_psy_clean_energy_constraint!(sys::PSY.System,
                                                     "CleanEnergyConstraint",
                                                     true,
                                                     3600.0,
-                                                    total_active_power * requirement)
+                                                    total_active_power * requirement * 0.0)
 
     contri_devices =
         vcat(collect(PSY.get_components(PSYE.ThermalCleanEnergy, sys)),
