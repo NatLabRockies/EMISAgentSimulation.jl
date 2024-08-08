@@ -49,7 +49,7 @@ function create_products(simulation_data::AgentSimulationData,
     end
 
     if !(bat_cap)
-        if projectdata["Category"] == "Battery"
+        if projectdata["Category"] == "Battery" || projectdata["Category"] == "Long Duration Energy Storage"
             capacity_eligible = false
         end
     end

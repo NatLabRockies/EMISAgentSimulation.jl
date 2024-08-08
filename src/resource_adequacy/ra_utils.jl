@@ -19,8 +19,8 @@ function calculate_RA_metrics(sys::PSY.System,
                               samples::Int64 = 100,
                               seed::Int64 = 42)
 
-    system_period_of_interest = range(1, length = 8760);
-    correlated_outage_csv_location = joinpath(outage_dir, "ThermalFOR_2011.csv")
+    system_period_of_interest = range(1, length = 8760 * 15);
+    correlated_outage_csv_location = joinpath(outage_dir, "ThermalFOR_scenario_1.csv")
     pras_system = make_pras_system(sys,
                                     system_model="Single-Node",
                                     aggregation="Area",

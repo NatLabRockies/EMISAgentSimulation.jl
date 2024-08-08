@@ -95,6 +95,7 @@ struct CaseDefinition
     uc_interval::Int64
     ed_horizon::Int64
     ed_interval::Int64
+    md_market::Bool
 
     function CaseDefinition(name,
                             base_dir,
@@ -143,7 +144,8 @@ struct CaseDefinition
                             uc_horizon,
                             uc_interval,
                             ed_horizon,
-                            ed_interval,)
+                            ed_interval,
+                            md_market,)
 
         @assert total_horizon >= simulation_years
 
@@ -215,7 +217,8 @@ struct CaseDefinition
                    uc_horizon,
                    uc_interval,
                    ed_horizon,
-                   ed_interval,)
+                   ed_interval,
+                   md_market,)
 
         make_case_data_dir(case)
         return case
@@ -269,7 +272,8 @@ function CaseDefinition(name::String,
                         uc_horizon::Int64 = 36,
                         uc_interval::Int64 = 24,
                         ed_horizon::Int64 = 2,
-                        ed_interval::Int64 = 1,)
+                        ed_interval::Int64 = 1,
+                        md_market::Bool = false,)
 
     CaseDefinition(name,
                    base_dir,
@@ -318,7 +322,8 @@ function CaseDefinition(name::String,
                    uc_horizon,
                    uc_interval,
                    ed_horizon,
-                   ed_interval,)
+                   ed_interval,
+                   md_market,)
 end
 
 get_base_dir(case::CaseDefinition) = case.base_dir
@@ -368,6 +373,7 @@ get_uc_horizon(case::CaseDefinition) = case.uc_horizon
 get_uc_interval(case::CaseDefinition) = case.uc_interval
 get_ed_horizon(case::CaseDefinition) = case.ed_horizon
 get_ed_interval(case::CaseDefinition) = case.ed_interval
+get_md_market(case::CaseDefinition) = case.md_market
 
 function get_name(case::CaseDefinition)
     #=

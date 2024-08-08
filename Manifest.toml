@@ -2,7 +2,7 @@
 
 julia_version = "1.10.0"
 manifest_format = "2.0"
-project_hash = "dff612b448af85dacecfec95f30e37276e7fac22"
+project_hash = "bd558f13cf4f8ecaeb1fc4ecdb4d4c034612ba85"
 
 [[deps.ASL_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -938,7 +938,9 @@ version = "0.10.2"
 
 [[deps.PowerSimulations]]
 deps = ["CSV", "DataFrames", "DataStructures", "Dates", "Distributed", "DocStringExtensions", "HDF5", "InfrastructureSystems", "InteractiveUtils", "JSON", "JSON3", "JuMP", "LinearAlgebra", "Logging", "MathOptInterface", "PowerModels", "PowerNetworkMatrices", "PowerSystems", "PrettyTables", "ProgressMeter", "SHA", "Serialization", "TimeSeries", "TimerOutputs"]
-git-tree-sha1 = "f6c9778af50d5a4a4c5f2c3348cdcede3421400a"
+git-tree-sha1 = "a6cb7c938b9c45814881bfbd3d855f5b31eb040e"
+repo-rev = "jd/old_assert_test"
+repo-url = "https://github.com/NREL-Sienna/PowerSimulations.jl.git"
 uuid = "e690365d-45e2-57bb-ac84-44ba829e73c4"
 version = "0.27.8"
 

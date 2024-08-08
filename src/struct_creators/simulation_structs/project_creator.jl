@@ -473,7 +473,7 @@ function create_tech_type(name::String,
                                  products,
                                  finance_data)
 
-    elseif type == "BA"
+    elseif type == "BA" || type == "LDES"
         storage_capacity = parse(Float64, projectdata["Duration Hr"]) * size
         tech = BatteryTech(type,
                         (min = 0.0, max = parse(Float64, projectdata["Input Power Rating pu"]) * size),
