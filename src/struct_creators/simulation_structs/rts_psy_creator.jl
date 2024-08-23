@@ -247,12 +247,12 @@ function create_sys_w_updated_ts(
     first_stage_horizon::Union{Nothing, Integer}=nothing, # hour (only need input if first_stage is false)
     first_stage_interval::Union{Nothing, Integer}=nothing, # hour (only need input if first_stage is false)
     first_stage_number_of_forecast_filename::Union{Nothing, String}=nothing, # (only need input if first_stage is false)
-)
+    )
 
     #--------------------------------------------
     # Calculate load scaling factor: scale 2021 load to 75 GW
     #--------------------------------------------
-    loadscaler_profile=DataFrame(CSV.File(joinpath(data_dir, "Load_Actuals_tzcorrect", "20221010_ercot_regional_load_$(scenario)_e2021_w$(weatheryear)_cst.csv"))) #in GW
+    loadscaler_profile=DataFrame(CSV.File(joinpath(data_dir, "load_actuals_processed", "sup3rcc_ecearth3_load_gwh_ercot_$(scenario)_e$(loadyear)_w$(weatheryear)_cst.csv"))) #in GW
     loadscaler_peak=maximum(sum(eachcol(select(loadscaler_profile, Not([:year, :timestamp])))))
     loadscaler = loadscaler_peak/loadscaler_base
 
@@ -276,16 +276,15 @@ function create_sys_w_updated_ts(
     sys_MD_res = PSY.get_time_series_resolution(sys_MD)
     sys_MD_initial_interval = Int(sys_MD.data.time_series_params.forecast_params.interval / sys_MD_res)
 
-    # if not the first stage, i think finish_datetime_MD needs to be first stage's number_of_forecast * interval + (horizon - interval) -- all from first stage (need to pass down these parameters)
+    # if not the first stage, I think finish_datetime_MD needs to be first stage's number_of_forecast * interval + (horizon - interval) -- all from first stage (need to pass down these parameters)
     if first_stage == true
         finish_datetime_MD = start_datetime_MD + Dates.Hour(8759*sys_MD_res)
     else
         first_stage_number_of_forecast = 0
-        open(first_stage_number_of_forecast_filename, "r") do file
-            first_stage_number_of_forecast = parse(Int, readline(file))
-        end
+        first_stage_number_of_forecast = Int.(first(readdlm(first_stage_number_of_forecast_filename)))
         finish_datetime_MD = start_datetime_MD + Dates.Hour((first_stage_number_of_forecast * first_stage_interval + (first_stage_horizon - first_stage_interval) - 1) *sys_MD_res)
     end
+    
     # timestep here indicate how many MD periods are being constructed
     timestep = StepRange(start_datetime_MD, sys_MD_res*interval, finish_datetime_MD);
     first_stage_total = Int((finish_datetime_MD - start_datetime_MD) / sys_MD_res + 1)
@@ -301,6 +300,8 @@ function create_sys_w_updated_ts(
         append!(reconstruct_single_ts, reconstruct_single_ts[1:additional_timestep])
 
         dates = range(DateTime("2018-01-01T00:00:00"), step = sys_MD_res, length = 8760 + additional_timestep)
+        # using Timeseries
+        # const TS = TimeSeries
         data = TS.TimeArray(dates, reconstruct_single_ts)
         single_time_series = SingleTimeSeries("max_active_power", data)
 
@@ -367,12 +368,12 @@ function create_sys_w_updated_ts(
         end
 
         if get_prime_mover_type(d) == PrimeMovers.WT
-            technology = "wind" 
+            technology = "lbw"  # land-based wind 
         else
-            technology = "pv" 
+            technology = "upv"  # utility pv 
         end
-
-        profile = DataFrame(CSV.File(joinpath(data_dir, "Wind_PV_Profiles_tzcorrected", "$(tstype)/ercot_$(technology)_build-$(weatheryear)_cst.csv")))
+        
+        profile = DataFrame(CSV.File(joinpath(data_dir, "plant_profiles_processed", "$(tstype)/ercot_$(technology)_build-$(weatheryear)_cst.csv")))
         newtsdata = profile[!, namemapping[in([PSY.get_name(d)]).(namemapping.jsonname), :csvname][1]]
         basepower = get_rating(d)
         newtsdata = newtsdata ./ basepower
@@ -410,9 +411,10 @@ function create_sys_w_updated_ts(
     # Load Forecasts !!!!!!!!!!!!! CHECK SYSTEM BASE !!!!!!!!!
     #--------------------------------------------
     if market_stage == "dayahead"
-        profile=DataFrame(CSV.File(joinpath(data_dir, "Load_Forecast_from_Local", "$(scenario)", "$(loadyear)", "preds_$(weatheryear)0101_365days.csv"))) #in GW
+        profile=DataFrame(CSV.File(joinpath(data_dir, "load_forecasts_processed","preds_$(loadyear)0101_$(scenario)_365days.csv"))) #in GW; original command: profile=DataFrame(CSV.File(joinpath(data_dir, "Load_Forecast_from_Local", "$(scenario)", "$(loadyear)", "preds_$(weatheryear)0101_365days.csv"))) #in GW
+        
     elseif market_stage == "realtime"
-        profile=DataFrame(CSV.File(joinpath(data_dir, "Load_Actuals_tzcorrect", "20221010_ercot_regional_load_$(scenario)_e$(loadyear)_w$(weatheryear)_cst.csv"))) #in GW
+        profile=DataFrame(CSV.File(joinpath(data_dir, "load_actuals_processed", "sup3rcc_ecearth3_load_gwh_ercot_$(scenario)_e$(loadyear)_w$(weatheryear)_cst.csv"))) #in GW
     end
 
     for d in get_components(PowerLoad, sys_MD)
@@ -459,8 +461,14 @@ function create_sys_w_updated_ts(
     #-----------------------------------------------------------------
     # Regulation time series update
     #-----------------------------------------------------------------
-    regdown_ts = DataFrame(CSV.File(joinpath(data_dir, "TS_for_Regulation_Req_Calc", "RegulationTS_Bethany", "DA_regDown_baseline_gmlc$(weatheryear).csv"))) #in MW
-    regup_ts = DataFrame(CSV.File(joinpath(data_dir, "TS_for_Regulation_Req_Calc", "RegulationTS_Bethany", "DA_regUp_baseline_gmlc$(weatheryear).csv"))) #in MW
+    if market_stage == "dayahead"
+        regdown_ts = DataFrame(CSV.File(joinpath(data_dir,"regulation_reserves",scenario, "DA_regDown_$(scenario)_gmlc$(loadyear).csv"))) #in MW; previous command: regdown_ts = DataFrame(CSV.File(joinpath(data_dir, "TS_for_Regulation_Req_Calc", "RegulationTS_Bethany", "DA_regDown_baseline_gmlc$(weatheryear).csv")))
+        regup_ts = DataFrame(CSV.File(joinpath(data_dir,"regulation_reserves",scenario, "DA_regUp_$(scenario)_gmlc$(loadyear).csv"))) #in MW; previous command: regup_ts = DataFrame(CSV.File(joinpath(data_dir, "TS_for_Regulation_Req_Calc", "RegulationTS_Bethany", "DA_regUp_baseline_gmlc$(weatheryear).csv")))
+    else
+        regdown_ts = DataFrame(CSV.File(joinpath(data_dir,"regulation_reserves",scenario, "RT_regDown_$(scenario)_gmlc$(loadyear).csv"))) #in MW; previous command: regdown_ts = DataFrame(CSV.File(joinpath(data_dir, "TS_for_Regulation_Req_Calc", "RegulationTS_Bethany", "DA_regDown_baseline_gmlc$(weatheryear).csv")))
+        regup_ts = DataFrame(CSV.File(joinpath(data_dir,"regulation_reserves",scenario, "RT_regUp_$(scenario)_gmlc$(loadyear).csv"))) #in MW; previous command: regup_ts = DataFrame(CSV.File(joinpath(data_dir, "TS_for_Regulation_Req_Calc", "RegulationTS_Bethany", "DA_regUp_baseline_gmlc$(weatheryear).csv")))
+    end
+
     regdown_ts= select!(regdown_ts, Not(:DATETIME))
     regup_ts= select!(regup_ts, Not(:DATETIME))
     regdown_ts[!,"RegDown"] = sum(eachcol(regdown_ts))
