@@ -291,7 +291,7 @@ import PooledArrays
 import PowerSystems
 import PowerSimulations
 
-using EMISExtensions
+# using EMISExtensions
 using PRAS
 using HiGHS
 using OrderedCollections
@@ -303,7 +303,7 @@ using StorageSystemsSimulations
 
 const PSY = PowerSystems
 const PSI = PowerSimulations
-const EMISEx = EMISExtensions
+# const EMISEx = EMISExtensions
 const IS = InfrastructureSystems
 # const RPSI = ReliablePowerSimulations
 const HSI = HydroPowerSimulations

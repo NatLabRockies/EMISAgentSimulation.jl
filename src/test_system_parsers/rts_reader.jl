@@ -67,12 +67,14 @@ function read_rts(data_dir::String,
 
     for y in 1:(start_year - base_year)
         for zone in zone_numbers
-            scaled_test_sys_load[:, "$(zone)"] =  scaled_test_sys_load[:, "$(zone)"] .* (1 + annual_growth_past["load_zone_$(zone)",y])
-            scaled_test_sys_load_rt[:, "$(zone)"] =  scaled_test_sys_load_rt[:, "$(zone)"] .* (1 + annual_growth_past["load_zone_$(zone)",y])
+            # scaled_test_sys_load[:, "$(zone)"] =  scaled_test_sys_load[:, "$(zone)"] .* (1 + annual_growth_past["load_zone_$(zone)",y])
+            # scaled_test_sys_load_rt[:, "$(zone)"] =  scaled_test_sys_load_rt[:, "$(zone)"] .* (1 + annual_growth_past["load_zone_$(zone)",y])
+            scaled_test_sys_load[:, "$(zone)"] =  scaled_test_sys_load[:, "$(zone)"]
+            scaled_test_sys_load_rt[:, "$(zone)"] =  scaled_test_sys_load_rt[:, "$(zone)"]
         end
         for product in reserve_products
-            scaled_test_system_reserves_data[product][:, product] = scaled_test_system_reserves_data[product][:, product] * (1 + average_annual_growth_past[1][y])
-
+            # scaled_test_system_reserves_data[product][:, product] = scaled_test_system_reserves_data[product][:, product] * (1 + average_annual_growth_past[1][y])
+            scaled_test_system_reserves_data[product][:, product] = scaled_test_system_reserves_data[product][:, product]
         end
     end
 

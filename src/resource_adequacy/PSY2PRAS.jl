@@ -472,7 +472,7 @@ function make_pras_system(sys::PSY.System;
 
     for (idx,g) in enumerate(gen)
         # Nominal outage and recovery rate
-        (λ,μ) = (0.0,1.0)
+        (λ,μ) = (0.04, 1.0)
         
         if (lump_pv_wind_gens && (PSY.get_prime_mover_type(g) == PSY.PrimeMovers.WT || PSY.get_prime_mover_type(g) == PSY.PrimeMovers.PVe))
             reg_gens_DA = PSY.get_ext(g)["region_gens"];
@@ -957,7 +957,7 @@ function generate_csv_outage_profile(pras_system::PRAS.SystemModel;
     end
 
     if (num_runs === nothing)
-        num_runs = 10000
+        num_runs = 100
         @warn  "Number of samples of PRAS Assess not specified. Using 10,000 samples."
     end
 

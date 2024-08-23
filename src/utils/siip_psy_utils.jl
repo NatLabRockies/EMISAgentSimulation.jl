@@ -305,7 +305,9 @@ end
 """
 This function updates the PSY load and reserve requirment timeseries each year.
 """
-function update_PSY_timeseries!(sys::PSY.System,
+function update_PSY_timeseries!(
+                               simulation::AgentSimulation,
+                               sys::PSY.System,
                                rec_requirement::Float64,
                                simulation_dir::String,
                                type::String,
@@ -356,6 +358,13 @@ function update_PSY_timeseries!(sys::PSY.System,
             data = Dict(time_stamps[i] => product_data_ts[i:(i + sys_horizon - 1)] for i in 1:Int(sys_interval/sys_resolution):(length(time_stamps)-sys_horizon + 1))
             forecast = PSY.Deterministic("variable_cost", data, Dates.Minute(da_resolution))
             PSY.add_time_series!(sys, service, forecast)
+        elseif service_name == "Clean_Energy"
+            @warn "Service is clean energy"
+        else
+            @warn "Update service timeseries (other than ORDC)"
+            reserve_scaling_factor = calculate_reserve_scaling_factor(simulation)
+            scaled_requirement = deepcopy(PSY.get_requirement(service)) * (1 + reserve_scaling_factor)
+            PSY.set_requirement!(service, scaled_requirement)
         end
 
     end
@@ -666,7 +675,7 @@ function calculate_total_load(sys::PSY.System, time_resolution::Int64)
         for timestep in keys(loadts_raw)
             ts_data=[ts_data;loadts_raw[timestep][1:Int(sys_interval/sys_resolution)]]
         end
-        total_load += sum(TS.values(ts_data[1:8760]) * PSY.get_max_active_power(load)) * time_resolution / 60
+        total_load += sum(TS.values(ts_data[1:8760*15]) * PSY.get_max_active_power(load)) * time_resolution / 60
 
     end
     return total_load

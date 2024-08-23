@@ -50,7 +50,7 @@ function calculate_RA_metrics(sys::PSY.System,
         CSV.write(joinpath(outage_csv_location,"1/Generator_year$(iteration_year+1).csv"), df_outage,writeheader = true)
     end
 
-    ra_metrics["LOLE"] = val(lole_overall)
+    ra_metrics["LOLE"] = val(lole_overall) / 15
     ra_metrics["NEUE"] = val(eue_overall) * 1e6 / total_load
 
     PSY.set_units_base_system!(sys, PSY.IS.UnitSystem. DEVICE_BASE)
@@ -346,7 +346,7 @@ function create_base_system(initial_system::PSY.System,
 
     @time begin
     if !isempty(ra_targets)
-        ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, get_results_dir(simulation), outage_dir, iteration_year;samples = 500)
+        ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, get_results_dir(simulation), outage_dir, iteration_year;samples = 100)
 
         println(ra_metrics)
         adequacy_conditions_met, scarcity_conditions_met = check_ra_conditions(ra_targets, ra_metrics)
@@ -373,7 +373,7 @@ function create_base_system(initial_system::PSY.System,
                     count += 1
                 end
                 
-                ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false,get_results_dir(simulation), outage_dir, iteration_year;samples = 500)
+                ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false,get_results_dir(simulation), outage_dir, iteration_year;samples = 100)
                 println("Added Capacity")
                 println(ra_metrics)
                 adequacy_conditions_met, scarcity_conditions_met = check_ra_conditions(ra_targets, ra_metrics)
@@ -388,7 +388,7 @@ function create_base_system(initial_system::PSY.System,
                     removed_capacity = get_device_size(removed_project) * PSY.get_base_power(removed_project)
                     total_removed_capacity += removed_capacity
                     PSY.remove_component!(capacity_market_system, removed_project)
-                    ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false,get_results_dir(simulation), outage_dir, iteration_year;samples = 500)
+                    ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false,get_results_dir(simulation), outage_dir, iteration_year;samples = 100)
                     println("Removed Capacity")
                     println(ra_metrics)
                     adequacy_conditions_met, scarcity_conditions_met = check_ra_conditions(ra_targets, ra_metrics)

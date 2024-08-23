@@ -513,16 +513,16 @@ function create_md_template(inertia_product)
                 duals = [PSI.RequirementConstraint],
             )
         )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Primary",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Primary",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
 
         # PSI.set_service_model!(
         #     template,
@@ -598,16 +598,16 @@ function create_md_template(inertia_product)
                 duals = [PSI.RequirementConstraint],
             )
         )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Primary",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Primary",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
 
         # PSI.set_service_model!(
         #     template,
@@ -679,26 +679,26 @@ function create_uc_template(inertia_product)
                 duals = [PSI.RequirementConstraint],
             )
         )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Primary",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
         PSI.set_service_model!(
             template,
             PSI.ServiceModel(
-                PSY.VariableReserve{PSY.ReserveUp},
-                EMISEx.InertiaReserve,
-                "Inertia",
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Primary",
                 use_slacks=true,
                 duals = [PSI.RequirementConstraint],
             )
         )
+        # PSI.set_service_model!(
+        #     template,
+        #     PSI.ServiceModel(
+        #         PSY.VariableReserve{PSY.ReserveUp},
+        #         EMISEx.InertiaReserve,
+        #         "Inertia",
+        #         use_slacks=true,
+        #         duals = [PSI.RequirementConstraint],
+        #     )
+        # )
         # PSI.set_service_model!(
         #     template,
         #     PSI.ServiceModel(
@@ -761,16 +761,16 @@ function create_uc_template(inertia_product)
                 duals = [PSI.RequirementConstraint],
             )
         )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Primary",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Primary",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
         # PSI.set_service_model!(
         #     template,
         #     PSI.ServiceModel(
@@ -845,16 +845,16 @@ function create_ed_template(inertia_product)
                 duals = [PSI.RequirementConstraint],
             )
         )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Primary",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Primary",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
         # PSI.set_service_model!(
         #     template,
         #     PSI.ServiceModel(
@@ -918,16 +918,16 @@ function create_ed_template(inertia_product)
                 duals = [PSI.RequirementConstraint],
             )
         )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Primary",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Primary",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
     end
 
     return template

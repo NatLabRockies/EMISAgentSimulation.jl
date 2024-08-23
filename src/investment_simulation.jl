@@ -262,6 +262,9 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
             end
         end
 
+        reserve_ts_scaling_factor = calculate_reserve_scaling_factor(simulation)
+        reserve_ts_scaling(simulation, iteration_year, reserve_ts_scaling_factor)
+
         println("COMPLETED YEAR $(iteration_year)")
         FileIO.save(joinpath(get_results_dir(simulation), "simulation_data_year$(iteration_year).jld2"), "simulation_data", simulation)
         #FileIO.save(joinpath(get_results_dir(simulation), "shortfall_data_year$(iteration_year).jld2"), "shortfall_data", shortfall)

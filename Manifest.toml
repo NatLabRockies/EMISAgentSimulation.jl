@@ -2,7 +2,7 @@
 
 julia_version = "1.10.0"
 manifest_format = "2.0"
-project_hash = "bd558f13cf4f8ecaeb1fc4ecdb4d4c034612ba85"
+project_hash = "ac181bb5e41e997fa402fcb258ecaaa8ada7c50c"
 
 [[deps.ASL_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -317,12 +317,6 @@ deps = ["Calculus", "NaNMath", "SpecialFunctions"]
 git-tree-sha1 = "5837a837389fccf076445fce071c8ddaea35a566"
 uuid = "fa6b7ba4-c1ee-5f82-b5fc-ecf0adba8f74"
 version = "0.6.8"
-
-[[deps.EMISExtensions]]
-deps = ["DataFrames", "Dates", "InfrastructureSystems", "JuMP", "MathOptInterface", "ParameterJuMP", "PowerSimulations", "PowerSystems", "TimeSeries"]
-path = "/kfs2/projects/gmlcmarkets/MARKETS_EMIS_packages_NGUO/EMISExtension-mirror.jl"
-uuid = "ea396fd1-c9da-422a-af29-096b7307fcdf"
-version = "0.1.0"
 
 [[deps.ExprTools]]
 git-tree-sha1 = "27415f162e6028e81c72b82ef756bf321213b6ec"
@@ -883,12 +877,6 @@ repo-url = "https://github.com/Nongchao/PRAS-mirror.git"
 uuid = "05348d26-1c52-11e9-35e3-9d51842d34b9"
 version = "0.6.0"
 
-[[deps.ParameterJuMP]]
-deps = ["JuMP", "MathOptInterface", "MutableArithmetics", "SparseArrays"]
-git-tree-sha1 = "a7ea1d5263f9a3aa0670fbcc58c2cca275baa3fc"
-uuid = "774612a8-9878-5177-865a-ca53ae2495f9"
-version = "0.4.1"
-
 [[deps.Parameters]]
 deps = ["OrderedCollections", "UnPack"]
 git-tree-sha1 = "34c0e9ad262e5f7fc75b10a9952ca7692cfc5fbe"
@@ -938,9 +926,9 @@ version = "0.10.2"
 
 [[deps.PowerSimulations]]
 deps = ["CSV", "DataFrames", "DataStructures", "Dates", "Distributed", "DocStringExtensions", "HDF5", "InfrastructureSystems", "InteractiveUtils", "JSON", "JSON3", "JuMP", "LinearAlgebra", "Logging", "MathOptInterface", "PowerModels", "PowerNetworkMatrices", "PowerSystems", "PrettyTables", "ProgressMeter", "SHA", "Serialization", "TimeSeries", "TimerOutputs"]
-git-tree-sha1 = "a6cb7c938b9c45814881bfbd3d855f5b31eb040e"
-repo-rev = "jd/old_assert_test"
-repo-url = "https://github.com/NREL-Sienna/PowerSimulations.jl.git"
+git-tree-sha1 = "f2c1667da444e49bd701b6bbc50a0521ffb47abb"
+repo-rev = "rh/fix_ordc"
+repo-url = "https://github.com/NREL-Sienna/PowerSimulations.jl"
 uuid = "e690365d-45e2-57bb-ac84-44ba829e73c4"
 version = "0.27.8"
 

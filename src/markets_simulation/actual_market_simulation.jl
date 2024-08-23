@@ -345,3 +345,58 @@ function create_realized_marketdata(simulation::AgentSimulation,
 
     return market_prices, capacity_factors_md, capacity_factors_uc, capacity_factors_ed, reserve_perc_md, reserve_perc_uc, reserve_perc_ed, inertia_perc, capacity_accepted_bids, rec_accepted_bids, clean_energy_percentage, cet_achieved_ratio
 end
+
+
+
+function calculate_reserve_scaling_factor(simulation::AgentSimulation)
+
+    case = get_case(simulation)
+
+    test_system_dir = get_sys_dir(case)
+    existing_generator_data = DataFrames.DataFrame(CSV.File(joinpath(test_system_dir, "RTS_Data", "SourceData", "gen.csv")))
+    initial_pv_wind_capacity = sum(existing_generator_data[(existing_generator_data[:, "Unit Type"].=="WIND").|(existing_generator_data[:, "Unit Type"].=="PV"), "PMax MW"])
+
+    current_portfolio = vcat(get_existing.(get_investors(simulation))...)
+
+    current_pv_wind_capacity = 0.0
+
+    for project in current_portfolio
+        if get_type(get_tech(project)) == "WT" || get_type(get_tech(project)) == "PVe"
+            current_pv_wind_capacity = current_pv_wind_capacity + get_maxcap(project)
+        end
+    end
+
+    scaling_factor_non_ordc_reserves = (current_pv_wind_capacity - initial_pv_wind_capacity) / initial_pv_wind_capacity
+
+    return scaling_factor_non_ordc_reserves
+
+end
+
+
+
+function reserve_ts_scaling(simulation::AgentSimulation,
+                            iteration_year::Int64,
+                            scaling_factor::Float64)
+
+    simulation_dir = get_data_dir(get_case(simulation))
+    all_scenarios = String.(get_all_scenario_names(simulation_dir))
+
+    reserve_products = split(read_data(joinpath(simulation_dir, "markets_data", "reserve_products.csv"))[1,"all_products"], "; ")
+    ordc_products = split(read_data(joinpath(simulation_dir, "markets_data", "reserve_products.csv"))[1,"ordc_products"], "; ")
+    non_ordc_products = filter(p -> !(p in ordc_products), reserve_products)
+
+    for scenario in all_scenarios
+        reserve_timeseries_data = Dict(r => read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year + 1)", "Reserves", "$(r).csv")) for r in non_ordc_products)
+        rep_reserve_timeseries_data = Dict(r => read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year + 1)", "Reserves", "rep_$(r).csv")) for r in non_ordc_products)
+
+        for product in non_ordc_products
+            reserve_timeseries_data[product][:, product] = reserve_timeseries_data[product][:, product] * (1 + scaling_factor)
+
+            rep_reserve_timeseries_data[product][:, product] = rep_reserve_timeseries_data[product][:, product] * (1 + scaling_factor)
+
+            CSV.write(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year + 1)", "Reserves", "$(product).csv"), reserve_timeseries_data[product])
+            CSV.write(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year + 1)", "Reserves", "rep_$(product).csv"), rep_reserve_timeseries_data[product])
+        end
+    end
+
+end
