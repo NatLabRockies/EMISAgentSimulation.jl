@@ -20,7 +20,7 @@ function calculate_RA_metrics(sys::PSY.System,
                               seed::Int64 = 42)
 
     system_period_of_interest = range(1, length = 8760 * 15);
-    correlated_outage_csv_location = joinpath(outage_dir, "ThermalFOR_scenario_1.csv")
+    correlated_outage_csv_location = joinpath(outage_dir, "ThermalFOR_scenario_1_new.csv")
     pras_system = make_pras_system(sys,
                                     system_model="Single-Node",
                                     aggregation="Area",
@@ -225,6 +225,7 @@ function update_delta_irm!(initial_system::PSY.System,
                             results_dir::String,
                             outage_dir::String,
                             simulation_years::Int64)
+    
 
     if !(static_capacity_market)
 
@@ -304,9 +305,12 @@ function update_delta_irm!(initial_system::PSY.System,
             delta_irm = (total_added_capacity - total_removed_capacity) / forward_peak_load
         end
         end
-    end
 
-    set_delta_irm!(resource_adequacy, iteration_year, delta_irm)
+        @info "delta_irm is $(delta_irm)."
+
+        set_delta_irm!(resource_adequacy, iteration_year, delta_irm)
+    end
+    
 
     return resource_adequacy
 end

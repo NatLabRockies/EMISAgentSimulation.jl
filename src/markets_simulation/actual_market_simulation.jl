@@ -86,7 +86,7 @@ function create_realized_marketdata(simulation::AgentSimulation,
     day = 0
     get_rt_resolution(get_case(simulation))
     # for time in 1:Int(24*60/get_rt_resolution(get_case(simulation))):(Int(24*60/get_rt_resolution(get_case(simulation))) * 365)
-    for time in 1:Int(24*60/get_rt_resolution(get_case(simulation))):(Int(24*60/get_rt_resolution(get_case(simulation))) * 2)
+    for time in 1:Int(24*60/get_rt_resolution(get_case(simulation))):(Int(24*60/get_rt_resolution(get_case(simulation))) * 365)
         day += 1
         daily_total_production = 0.0
         daily_cec_production = 0.0
@@ -385,17 +385,19 @@ function reserve_ts_scaling(simulation::AgentSimulation,
     ordc_products = split(read_data(joinpath(simulation_dir, "markets_data", "reserve_products.csv"))[1,"ordc_products"], "; ")
     non_ordc_products = filter(p -> !(p in ordc_products), reserve_products)
 
-    for scenario in all_scenarios
-        reserve_timeseries_data = Dict(r => read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year + 1)", "Reserves", "$(r).csv")) for r in non_ordc_products)
-        rep_reserve_timeseries_data = Dict(r => read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year + 1)", "Reserves", "rep_$(r).csv")) for r in non_ordc_products)
+    if iteration_year <= get_total_horizon(get_case(simulation))-1
+        for scenario in all_scenarios
+            reserve_timeseries_data = Dict(r => read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year + 1)", "Reserves", "$(r).csv")) for r in non_ordc_products)
+            rep_reserve_timeseries_data = Dict(r => read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year + 1)", "Reserves", "rep_$(r).csv")) for r in non_ordc_products)
 
-        for product in non_ordc_products
-            reserve_timeseries_data[product][:, product] = reserve_timeseries_data[product][:, product] * (1 + scaling_factor)
+            for product in non_ordc_products
+                reserve_timeseries_data[product][:, product] = reserve_timeseries_data[product][:, product] * (1 + scaling_factor)
 
-            rep_reserve_timeseries_data[product][:, product] = rep_reserve_timeseries_data[product][:, product] * (1 + scaling_factor)
+                rep_reserve_timeseries_data[product][:, product] = rep_reserve_timeseries_data[product][:, product] * (1 + scaling_factor)
 
-            CSV.write(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year + 1)", "Reserves", "$(product).csv"), reserve_timeseries_data[product])
-            CSV.write(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year + 1)", "Reserves", "rep_$(product).csv"), rep_reserve_timeseries_data[product])
+                CSV.write(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year + 1)", "Reserves", "$(product).csv"), reserve_timeseries_data[product])
+                CSV.write(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year + 1)", "Reserves", "rep_$(product).csv"), rep_reserve_timeseries_data[product])
+            end
         end
     end
 

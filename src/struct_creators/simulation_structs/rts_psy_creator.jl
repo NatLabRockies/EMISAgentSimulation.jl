@@ -85,17 +85,31 @@ function create_rts_sys(rts_dir::String,
     # prune_system_devices!(sys_UC, pruned_unit)
     # prune_system_devices!(sys_ED, pruned_unit)
 
-    ntp_ts_data_dir = joinpath(rts_dir, "..", "NTP_TimeSeries_Data")
+    ntp_ts_data_dir = joinpath(rts_dir, "..", "..", "Feb2024_ERCOT_2011_MARKET_Test_CAVRAAM", "NTP_TimeSeries_Data", "input_processing")
 
     sys_MDs = Vector{PSY.System}()
     sys_UCs = Vector{PSY.System}()
     sys_EDs = Vector{PSY.System}()
     sys_EDs_dict = Dict(scenario => Vector{PSY.System}() for scenario in scenarios)
 
+    if pcm_scenario == "scenario_1"
+        supercc_scenario = "baseline"
+    elseif pcm_scenario == "scenario_2"
+        supercc_scenario = "central"
+    elseif pcm_scenario == "scenario_3"
+        supercc_scenario = "ira"
+    else
+        "Not a pre-defined scenario."
+    end
+
     for sim_year in 1:simulation_years
 
         MD_sys_filename = joinpath(rts_dir, "constructed_systems", pcm_scenario, "sim_year_$(sim_year)", "MD_sys_EMIS_$(MD_horizon)hor_$(MD_interval)int.json")
         MD_num_forecast_filename = joinpath(rts_dir, "constructed_systems", pcm_scenario, "sim_year_$(sim_year)", "MD_num_forecast_$(MD_horizon)hor_$(MD_interval)int.txt")
+
+        loadyear = 2020+sim_year
+        weatheryear = loadyear
+
         if !(isfile(MD_sys_filename) && isfile(MD_num_forecast_filename))
             println("MD json file doesn't exist. Creating required data.")   
             dir_exists(dirname(MD_sys_filename))         
@@ -104,10 +118,10 @@ function create_rts_sys(rts_dir::String,
             create_sys_w_updated_ts(
                 ntp_ts_data_dir,
                 sys_MD_initial,
-                2011,
-                2021,
+                weatheryear,
+                loadyear,
                 "dayahead",
-                "baseline",
+                supercc_scenario,
                 75.0, #GW
                 MD_horizon, # hours
                 MD_interval, # hours
@@ -129,10 +143,10 @@ function create_rts_sys(rts_dir::String,
             create_sys_w_updated_ts(
                 ntp_ts_data_dir,
                 sys_UC_initial,
-                2011,
-                2021,
+                weatheryear,
+                loadyear,
                 "dayahead",
-                "baseline",
+                supercc_scenario,
                 75.0, #GW
                 UC_horizon, # hours
                 UC_interval, # hours
@@ -146,6 +160,17 @@ function create_rts_sys(rts_dir::String,
         push!(sys_UCs, PSY.System(UC_filename, time_series_directory = scratch_dir));
 
         for scenario in scenarios
+
+            if scenario == "scenario_1"
+                supercc_scenario_ed = "baseline"
+            elseif scenario == "scenario_2"
+                supercc_scenario_ed = "central"
+            elseif scenario == "scenario_3"
+                supercc_scenario_ed = "ira"
+            else
+                "Not a pre-defined scenario."
+            end
+
             ED_filename = joinpath(rts_dir, "constructed_systems", scenario, "sim_year_$(sim_year)", "RT_sys_EMIS_$(ED_horizon)hor_$(ED_interval)int_$(MD_horizon)mdhor_$(MD_interval)mdint.json")
             if !isfile(ED_filename)
                 println("ED json file doesn't exist. Creating required json file.")  
@@ -154,10 +179,10 @@ function create_rts_sys(rts_dir::String,
                 create_sys_w_updated_ts(
                     ntp_ts_data_dir,
                     sys_ED_initial,
-                    2011,
-                    2021,
+                    weatheryear,
+                    loadyear,
                     "realtime",
-                    "baseline",
+                    supercc_scenario_ed,
                     75.0, #GW
                     ED_horizon, # hours
                     ED_interval, # hours
@@ -247,7 +272,7 @@ function create_sys_w_updated_ts(
     first_stage_horizon::Union{Nothing, Integer}=nothing, # hour (only need input if first_stage is false)
     first_stage_interval::Union{Nothing, Integer}=nothing, # hour (only need input if first_stage is false)
     first_stage_number_of_forecast_filename::Union{Nothing, String}=nothing, # (only need input if first_stage is false)
-    )
+)
 
     #--------------------------------------------
     # Calculate load scaling factor: scale 2021 load to 75 GW
@@ -281,7 +306,9 @@ function create_sys_w_updated_ts(
         finish_datetime_MD = start_datetime_MD + Dates.Hour(8759*sys_MD_res)
     else
         first_stage_number_of_forecast = 0
-        first_stage_number_of_forecast = Int.(first(readdlm(first_stage_number_of_forecast_filename)))
+        open(first_stage_number_of_forecast_filename, "r") do file
+            first_stage_number_of_forecast = parse(Int, readline(file))
+        end
         finish_datetime_MD = start_datetime_MD + Dates.Hour((first_stage_number_of_forecast * first_stage_interval + (first_stage_horizon - first_stage_interval) - 1) *sys_MD_res)
     end
     

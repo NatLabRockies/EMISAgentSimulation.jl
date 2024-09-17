@@ -160,6 +160,8 @@ function construct_gen_unavail_distribution(simulation_dir::String,
 end
 
 function construct_gen_unavail_distribution(simulation_dir::String,
+                                            scenario::String,
+                                            sim_year::Int64,
                                             smc_unavailability_timeseries::Nothing,
                                             conv_unavailability_mean::Float64,
                                             conv_unavailability_std::Float64,

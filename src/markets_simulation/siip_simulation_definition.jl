@@ -1055,8 +1055,8 @@ function create_simulation( sys_MD::PSY.System,
                 "UC" => [
                     SSI.EnergyLimitFeedforward(
                         component_type = PSY.GenericBattery,
-                        source = PSI.EnergyVariable,
-                        affected_values = [PSI.EnergyVariable],
+                        source = PSI.ActivePowerOutVariable,
+                        affected_values = [PSI.ActivePowerOutVariable],
                         number_of_periods = 24,
                     ),
                 ],
@@ -1087,8 +1087,8 @@ function create_simulation( sys_MD::PSY.System,
                 "UC" => [
                     SSI.EnergyLimitFeedforward(
                         component_type = PSY.GenericBattery,
-                        source = PSI.EnergyVariable,
-                        affected_values = [PSI.EnergyVariable],
+                        source = PSI.ActivePowerOutVariable,
+                        affected_values = [PSI.ActivePowerOutVariable],
                         number_of_periods = 24,
                     ),
                 ],
@@ -1197,14 +1197,25 @@ function create_simulation( sys_MD::PSY.System,
 
     sequence = create_sequence(models, feedforward_dict);
 
-    sim = PSI.Simulation(
-                    name = "emis_$(case_name)",
-                    steps = 2, # sys_MD.data.time_series_params.forecast_params.count
-                    models = models,
-                    sequence = sequence,
-                    simulation_folder = ".",
-                    # initial_time = Dates.DateTime("2018-02-28T00:00:00")
-                    );
+    if md_market_bool == true
+        sim = PSI.Simulation(
+                        name = "emis_$(case_name)",
+                        steps = sys_MD.data.time_series_params.forecast_params.count, # sys_MD.data.time_series_params.forecast_params.count
+                        models = models,
+                        sequence = sequence,
+                        simulation_folder = ".",
+                        # initial_time = Dates.DateTime("2018-02-28T00:00:00")
+                        );
+    else
+        sim = PSI.Simulation(
+                        name = "emis_$(case_name)",
+                        steps = 365, # sys_MD.data.time_series_params.forecast_params.count
+                        models = models,
+                        sequence = sequence,
+                        simulation_folder = ".",
+                        # initial_time = Dates.DateTime("2018-02-28T00:00:00")
+                        );
+    end
 
     current_siip_sim[1] = sim
 
@@ -1432,7 +1443,7 @@ function create_simulation( sys_MD::PSY.System,
             capacity_factors_md[name][1, :] = get_realized_capacity_factors(tech, result_variables_md, result_variables_uc, base_power)
         end
         capacity_factors_uc[name][1, :] = get_realized_capacity_factors(tech, result_variables_uc, result_variables_uc, base_power)
-        capacity_factors_ed[name][1, :] = get_realized_capacity_factors(tech, result_variables_ed, result_variables_uc, base_power)
+        capacity_factors_ed[name][1, :] = get_realized_capacity_factors(tech, result_variables_ed, result_variables_ed, base_power)
         start_up_costs[name][1, :] = get_start_costs(tech, result_variables_uc, data_length_uc)
         shut_down_costs[name][1, :] = get_shut_costs(tech, result_variables_uc, data_length_uc)
 

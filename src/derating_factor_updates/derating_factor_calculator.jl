@@ -131,7 +131,9 @@ function calculate_derating_data(simulation::Union{AgentSimulation, AgentSimulat
     end
 
     peak_reductions_existing = Dict(sd => sum(get_maxcap.(existing_storage_duration_dict[sd])) for sd in keys(existing_storage_duration_dict))  
-    init_CC = Dict(sd => derating_factors[1, "STOR_$sd"] for sd in keys(existing_storage_duration_dict))  
+    init_CC = Dict(sd => derating_factors[1, "STOR_$sd"] for sd in keys(existing_storage_duration_dict))
+    println("initial CC is $(init_CC)")
+    println("peak reductions is $(peak_reductions_existing)")
 
     
     function calculate_average_storage_cc(
