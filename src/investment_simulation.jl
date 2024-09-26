@@ -1,5 +1,5 @@
 
-function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int64, current_siip_sim)
+function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int64, current_siip_sim, siip_system)
     case = get_case(simulation)
     total_horizon = get_total_horizon(case)
     rolling_horizon = get_rolling_horizon(case)
@@ -168,7 +168,8 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
                             simulation_years,
                             get_solver(case),
                             get_results_dir(simulation),
-                            current_siip_sim)
+                            current_siip_sim,
+                            siip_system)
 
 
         existing_project_types = unique(get_type.(get_tech.(all_existing_projects)))

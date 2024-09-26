@@ -363,6 +363,7 @@ function update_PSY_timeseries!(
         else
             @warn "Update service timeseries (other than ORDC)"
             reserve_scaling_factor = calculate_reserve_scaling_factor(simulation)
+            @info "Reserve scaling factor is $(reserve_scaling_factor)."
             scaled_requirement = deepcopy(PSY.get_requirement(service)) * (1 + reserve_scaling_factor)
             PSY.set_requirement!(service, scaled_requirement)
         end

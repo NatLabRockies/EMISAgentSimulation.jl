@@ -510,7 +510,7 @@ function create_sys_w_updated_ts(
 
         newtsdata = reg_profile[!,PSY.get_name(d)] 
         basereq = get_requirement(d)
-        newtsdata = newtsdata./basereq
+        newtsdata = newtsdata./basereq/100
 
         for t in 1:length(timestep)
             rtseries=[]

@@ -238,7 +238,7 @@ function update_realized_reserve_perc!(device::PSY.Device,
                                         service::S,
                                         results_ed::Dict{String, DataFrames.DataFrame},
                                         results_uc::Dict{String, DataFrames.DataFrame},
-                                        results_md::Dict{String, DataFrames.DataFrame},
+                                        results_md::Union{Nothing, Dict{String, DataFrames.DataFrame}},
                                         reserve_perc_md::Dict{String, Dict{String, Array{Float64, 2}}},
                                         reserve_perc_uc::Dict{String, Dict{String, Array{Float64, 2}}},
                                         reserve_perc_ed::Dict{String, Dict{String, Array{Float64, 2}}},
@@ -258,7 +258,7 @@ function update_realized_reserve_perc!(device::PSY.Device,
                                         service::PSY.VariableReserve{PSY.ReserveUp},
                                         results_ed::Dict{String, DataFrames.DataFrame},
                                         results_uc::Dict{String, DataFrames.DataFrame},
-                                        results_md::Dict{String, DataFrames.DataFrame},
+                                        results_md::Union{Nothing, Dict{String, DataFrames.DataFrame}},
                                         reserve_perc_md::Dict{String, Dict{String, Array{Float64, 2}}},
                                         reserve_perc_uc::Dict{String, Dict{String, Array{Float64, 2}}},
                                         reserve_perc_ed::Dict{String, Dict{String, Array{Float64, 2}}},
@@ -294,7 +294,9 @@ function update_realized_reserve_perc!(device::PSY.Device,
         reserve_provision_uc = results_uc["ActivePowerReserveVariable__VariableReserve__ReserveUp__$(service_name)"][:, Symbol(get_name(device))]
         reserve_perc_value_uc = reserve_provision_uc / get_device_size(device) / base_power
         reserve_perc_uc[get_name(device)][service_name][1, :] = reserve_perc_value_uc
+    end
 
+    if md_market_bool == true
         reserve_provision_md = results_md["ActivePowerReserveVariable__VariableReserve__ReserveUp__$(service_name)"][:, Symbol(get_name(device))]
         reserve_perc_value_md = reserve_provision_md / get_device_size(device) / base_power
         reserve_perc_md[get_name(device)][service_name][1, :] = reserve_perc_value_md
@@ -310,7 +312,7 @@ function update_realized_reserve_perc!(device::PSY.Device,
                                         service::PSY.ReserveDemandCurve{PSY.ReserveUp},
                                         results_ed::Dict{String, DataFrames.DataFrame},
                                         results_uc::Dict{String, DataFrames.DataFrame},
-                                        results_md::Dict{String, DataFrames.DataFrame},
+                                        results_md::Union{Nothing, Dict{String, DataFrames.DataFrame}},
                                         reserve_perc_md::Dict{String, Dict{String, Array{Float64, 2}}},
                                         reserve_perc_uc::Dict{String, Dict{String, Array{Float64, 2}}},
                                         reserve_perc_ed::Dict{String, Dict{String, Array{Float64, 2}}},
@@ -358,7 +360,7 @@ function update_realized_reserve_perc!(device::PSY.Device,
                                         service::PSY.VariableReserve{PSY.ReserveDown},
                                         results_ed::Dict{String, DataFrames.DataFrame},
                                         results_uc::Dict{String, DataFrames.DataFrame},
-                                        results_md::Dict{String, DataFrames.DataFrame},
+                                        results_md::Union{Nothing, Dict{String, DataFrames.DataFrame}},
                                         reserve_perc_md::Dict{String, Dict{String, Array{Float64, 2}}},
                                         reserve_perc_uc::Dict{String, Dict{String, Array{Float64, 2}}},
                                         reserve_perc_ed::Dict{String, Dict{String, Array{Float64, 2}}},
@@ -407,7 +409,7 @@ function update_realized_reserve_perc!(device::PSY.GenericBattery,
     service::PSY.ReserveDemandCurve{PSY.ReserveUp},
     results_ed::Dict{String, DataFrames.DataFrame},
     results_uc::Dict{String, DataFrames.DataFrame},
-    results_md::Dict{String, DataFrames.DataFrame},
+    results_md::Union{Nothing, Dict{String, DataFrames.DataFrame}},
     reserve_perc_md::Dict{String, Dict{String, Array{Float64, 2}}},
     reserve_perc_uc::Dict{String, Dict{String, Array{Float64, 2}}},
     reserve_perc_ed::Dict{String, Dict{String, Array{Float64, 2}}},
@@ -469,8 +471,10 @@ function create_md_template(inertia_product)
         )
         # PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalStandardUnitCommitment)
         # PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalStandardUnitCommitment)
-        PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalBasicDispatch)
-        PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalBasicDispatch)
+        PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalBasicUnitCommitment)
+        PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalBasicUnitCommitment)
+        # PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalBasicDispatch)
+        # PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalBasicDispatch)
         # PSI.set_device_model!(template, PSY.ThermalStandard, RPSI.ThermalStandardUCOutages)
         # PSI.set_device_model!(template, ThermalFastStartSIIP, RPSI.ThermalStandardUCOutages)
         PSI.set_device_model!(template, PSY.RenewableDispatch, PSI.RenewableFullDispatch)
@@ -478,6 +482,8 @@ function create_md_template(inertia_product)
         PSI.set_device_model!(template, PSY.PowerLoad, PSI.StaticPowerLoad)
         PSI.set_device_model!(template, PSY.HydroEnergyReservoir, HSI.HydroCommitmentRunOfRiver)
         PSI.set_device_model!(template, PSY.HydroDispatch, HSI.HydroCommitmentRunOfRiver) # TODO: check which hydro device we have
+        # PSI.set_device_model!(template, PSY.HydroEnergyReservoir, HSI.HydroDispatchRunOfRiver)
+        # PSI.set_device_model!(template, PSY.HydroDispatch, HSI.HydroDispatchRunOfRiver) # TODO: check which hydro device we have
         PSI.set_device_model!(template, PSY.GenericBattery, SSI.StorageDispatchWithReserves)
         PSI.set_device_model!(template, PSY.Line, PSI.StaticBranch)
         PSI.set_device_model!(template, PSY.Transformer2W, PSI.StaticBranch)
@@ -554,8 +560,10 @@ function create_md_template(inertia_product)
         )
         # PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalStandardUnitCommitment)
         # PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalStandardUnitCommitment)
-        PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalBasicDispatch)
-        PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalBasicDispatch)
+        PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalBasicUnitCommitment)
+        PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalBasicUnitCommitment)
+        # PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalBasicDispatch)
+        # PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalBasicDispatch)
         # PSI.set_device_model!(template, PSY.ThermalStandard, RPSI.ThermalStandardUCOutages)
         # PSI.set_device_model!(template, ThermalFastStartSIIP, RPSI.ThermalStandardUCOutages)
         PSI.set_device_model!(template, PSY.RenewableDispatch, PSI.RenewableFullDispatch)
@@ -563,6 +571,8 @@ function create_md_template(inertia_product)
         PSI.set_device_model!(template, PSY.PowerLoad, PSI.StaticPowerLoad)
         PSI.set_device_model!(template, PSY.HydroEnergyReservoir, HSI.HydroCommitmentRunOfRiver)
         PSI.set_device_model!(template, PSY.HydroDispatch, HSI.HydroCommitmentRunOfRiver) # TODO: check which hydro device we have
+        # PSI.set_device_model!(template, PSY.HydroEnergyReservoir, HSI.HydroDispatchRunOfRiver)
+        # PSI.set_device_model!(template, PSY.HydroDispatch, HSI.HydroDispatchRunOfRiver) # TODO: check which hydro device we have
         PSI.set_device_model!(template, PSY.GenericBattery, SSI.StorageDispatchWithReserves)
         PSI.set_device_model!(template, PSY.Line, PSI.StaticBranch)
         PSI.set_device_model!(template, PSY.Transformer2W, PSI.StaticBranch)
@@ -1035,7 +1045,8 @@ function create_simulation( sys_MD::PSY.System,
                             case_name::String,
                             solver::JuMP.MOI.OptimizerWithAttributes,
                             current_siip_sim,
-                            md_market_bool::Bool;
+                            md_market_bool::Bool,
+                            siip_system;
                             kwargs...)
 
     inertia_product = collect(PSY.get_components_by_name(PSY.Service, sys_ED, "Inertia"))
@@ -1229,6 +1240,9 @@ function create_simulation( sys_MD::PSY.System,
     end
 
     current_siip_sim[1] = sim
+    push!(siip_system, sys_MD)
+    push!(siip_system, sys_UC)
+    push!(siip_system, sys_ED)
 
     execute_out = PSI.execute!(sim; enable_progress_bar = true)
     println("finish sienna run")
@@ -1256,6 +1270,7 @@ function create_simulation( sys_MD::PSY.System,
         result_variables_md = PSI.read_realized_variables(res_md)
         data_length_md = DataFrames.nrow(dual_values_md["NodalBalanceActiveConstraint__ACBus"])
     else
+        result_variables_md = nothing
         data_length_md = DataFrames.nrow(dual_values_uc["NodalBalanceActiveConstraint__ACBus"])
     end
 
@@ -1453,24 +1468,20 @@ function create_simulation( sys_MD::PSY.System,
         for service in services_UC
             # TODO: figure out if we need clean energy or not
             if PSY.get_name(service) != "Clean_Energy"
-                if md_market_bool == true
-                    update_realized_reserve_perc!(tech,
-                                                service,
-                                                result_variables_ed,
-                                                result_variables_uc,
-                                                result_variables_md,
-                                                reserve_perc_md,
-                                                reserve_perc_uc,
-                                                reserve_perc_ed,
-                                                inertia_perc,
-                                                rt_products,
-                                                da_products,
-                                                md_products,
-                                                base_power,
-                                                md_market_bool,)
-                else
-
-                end
+                update_realized_reserve_perc!(tech,
+                                            service,
+                                            result_variables_ed,
+                                            result_variables_uc,
+                                            result_variables_md,
+                                            reserve_perc_md,
+                                            reserve_perc_uc,
+                                            reserve_perc_ed,
+                                            inertia_perc,
+                                            rt_products,
+                                            da_products,
+                                            md_products,
+                                            base_power,
+                                            md_market_bool,)
             end
 
         end
