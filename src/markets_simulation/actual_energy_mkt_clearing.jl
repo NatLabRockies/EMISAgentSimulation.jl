@@ -79,8 +79,12 @@ function energy_mkt_clearing(sys_MD::PSY.System,
     start_up_costs,
     shut_down_costs,
     energy_voll,
+    energy_voll_uc,
+    energy_voll_md,
     reserve_voll,
+    reserve_voll_uc,
+    reserve_voll_md,
     inertia_voll = create_simulation(sys_MD, sys_UC, sys_ED, simulation_dir, reserve_penalty, zones, num_days, da_resolution, rt_resolution, case_name, solver, current_siip_sim, md_market_bool, siip_system)
 
-    return energy_price_ed, energy_price_uc, energy_price_md, reserve_price_ed, reserve_price_uc, reserve_price_md, inertia_price, capacity_factors_md, capacity_factors_uc, capacity_factors_ed, reserve_perc_md, reserve_perc_uc, reserve_perc_ed, inertia_perc, start_up_costs, shut_down_costs, energy_voll, reserve_voll, inertia_voll;
+    return energy_price_ed, energy_price_uc, energy_price_md, reserve_price_ed, reserve_price_uc, reserve_price_md, inertia_price, capacity_factors_md, capacity_factors_uc, capacity_factors_ed, reserve_perc_md, reserve_perc_uc, reserve_perc_ed, inertia_perc, start_up_costs, shut_down_costs, energy_voll, energy_voll_uc, energy_voll_md, reserve_voll, reserve_voll_uc, reserve_voll_md, inertia_voll;
 end

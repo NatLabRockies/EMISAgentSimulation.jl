@@ -645,8 +645,8 @@ function create_uc_template(inertia_product)
                 use_slacks = true,
             ),
         )
-        PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalStandardUnitCommitment)
-        PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalStandardUnitCommitment)
+        PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalBasicUnitCommitment)
+        PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalBasicUnitCommitment)
         # PSI.set_device_model!(template, PSY.ThermalStandard, RPSI.ThermalStandardUCOutages)
         # PSI.set_device_model!(template, ThermalFastStartSIIP, RPSI.ThermalStandardUCOutages)
         PSI.set_device_model!(template, PSY.RenewableDispatch, PSI.RenewableFullDispatch)
@@ -727,8 +727,8 @@ function create_uc_template(inertia_product)
                 use_slacks = true,
             ),
         )
-        PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalStandardUnitCommitment)
-        PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalStandardUnitCommitment)
+        PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalBasicUnitCommitment)
+        PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalBasicUnitCommitment)
         # PSI.set_device_model!(template, PSY.ThermalStandard, RPSI.ThermalStandardUCOutages)
         # PSI.set_device_model!(template, ThermalFastStartSIIP, RPSI.ThermalStandardUCOutages)
         PSI.set_device_model!(template, PSY.RenewableDispatch, PSI.RenewableFullDispatch)
@@ -811,7 +811,7 @@ function create_ed_template(inertia_product)
             ),
         )
         PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalBasicDispatch)
-        PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalStandardUnitCommitment)
+        PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalBasicUnitCommitment)
         # PSI.set_device_model!(template, PSY.ThermalStandard, RPSI.ThermalDispatchOutages)
         # PSI.set_device_model!(template, PSY.ThermalStandard, RPSI.ThermalRampLimitedOutages)
         # PSI.set_device_model!(template, ThermalFastStartSIIP, RPSI.ThermalStandardUCOutages)
@@ -884,7 +884,7 @@ function create_ed_template(inertia_product)
             ),
         )
         PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalBasicDispatch)
-        PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalStandardUnitCommitment)
+        PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalBasicUnitCommitment)
         # PSI.set_device_model!(template, PSY.ThermalStandard, RPSI.ThermalDispatchOutages)
         # PSI.set_device_model!(template, PSY.ThermalStandard, RPSI.ThermalRampLimitedOutages)
         # PSI.set_device_model!(template, ThermalFastStartSIIP, RPSI.ThermalStandardUCOutages)
@@ -1049,6 +1049,16 @@ function create_simulation( sys_MD::PSY.System,
                             siip_system;
                             kwargs...)
 
+    # to_json(sys_MD, "/kfs2/projects/gmlcmarkets/Phase2_EMIS_Analysis/Feb2024_ERCOT_2011_MARKET_Test_NGUO_LDES/HPC_Analysis_Runs/storage_ff_debug/modified_test_sys/MD_sys.json", force=true)
+    # to_json(sys_UC, "/kfs2/projects/gmlcmarkets/Phase2_EMIS_Analysis/Feb2024_ERCOT_2011_MARKET_Test_NGUO_LDES/HPC_Analysis_Runs/storage_ff_debug/modified_test_sys/UC_sys.json", force=true)
+    # to_json(sys_ED, "/kfs2/projects/gmlcmarkets/Phase2_EMIS_Analysis/Feb2024_ERCOT_2011_MARKET_Test_NGUO_LDES/HPC_Analysis_Runs/storage_ff_debug/modified_test_sys/ED_sys.json", force=true)
+
+    # hacky way to incorporate reserve voll
+    base_power = PSY.get_base_power(sys_UC)
+    reserve_data = read_data(joinpath(simulation_dir, "markets_data", "$(reserve_penalty)_reserve_penalty", "Reg_Up.csv"))
+    penalty_price = reserve_data[1, "price_cap"] * base_power
+    PSI.SERVICES_SLACK_COST = penalty_price
+
     inertia_product = collect(PSY.get_components_by_name(PSY.Service, sys_ED, "Inertia"))
 
     template_uc = create_uc_template(inertia_product)
@@ -1063,23 +1073,32 @@ function create_simulation( sys_MD::PSY.System,
 
         if isempty(inertia_product)
             feedforward_dict = Dict(
-                "UC" => [
-                    SSI.EnergyLimitFeedforward(
-                        component_type = PSY.GenericBattery,
-                        source = PSI.ActivePowerOutVariable,
-                        affected_values = [PSI.ActivePowerOutVariable],
-                        number_of_periods = 24,
-                    ),
-                ],
                 # "UC" => [
-                #     SSI.EnergyTargetFeedforward(
+                #     SSI.EnergyLimitFeedforward(
                 #         component_type = PSY.GenericBattery,
-                #         source = PSI.EnergyVariable,
-                #         affected_values = [PSI.EnergyVariable],
-                #         target_period = 24,
-                #         penalty_cost = 5000.0,
+                #         source = PSI.ActivePowerOutVariable,
+                #         affected_values = [PSI.ActivePowerOutVariable],
+                #         number_of_periods = 24,
                 #     ),
                 # ],
+                "UC" => [
+                    SSI.EnergyTargetFeedforward(
+                        component_type = PSY.GenericBattery,
+                        source = PSI.EnergyVariable,
+                        affected_values = [PSI.EnergyVariable],
+                        target_period = 24,
+                        penalty_cost = 5000.0,
+                    ),
+                ],
+                "ED" => [
+                    SSI.EnergyTargetFeedforward(
+                        component_type = PSY.GenericBattery,
+                        source = PSI.EnergyVariable,
+                        affected_values = [PSI.EnergyVariable],
+                        target_period = 2,
+                        penalty_cost = 5000.0,
+                    ),
+                ],
                 "ED" => [
                     PSI.SemiContinuousFeedforward(
                         component_type = PSY.ThermalStandard,
@@ -1087,6 +1106,14 @@ function create_simulation( sys_MD::PSY.System,
                         affected_values = [PSI.ActivePowerVariable],
                     ),
                 ]
+                # "ED" => [
+                #     SSI.EnergyLimitFeedforward(
+                #         component_type = PSY.GenericBattery,
+                #         source = PSI.ActivePowerOutVariable,
+                #         affected_values = [PSI.ActivePowerOutVariable],
+                #         number_of_periods = 1,
+                #     ),
+                # ],
                     # RPSI.SemiContinuousOutageFeedforward(
                     #     component_type = PSY.ThermalStandard,
                     #     source = PSI.OnVariable,
@@ -1095,23 +1122,32 @@ function create_simulation( sys_MD::PSY.System,
             )
         else
             feedforward_dict = Dict(
-                "UC" => [
-                    SSI.EnergyLimitFeedforward(
-                        component_type = PSY.GenericBattery,
-                        source = PSI.ActivePowerOutVariable,
-                        affected_values = [PSI.ActivePowerOutVariable],
-                        number_of_periods = 24,
-                    ),
-                ],
                 # "UC" => [
-                #     SSI.EnergyTargetFeedforward(
+                #     SSI.EnergyLimitFeedforward(
                 #         component_type = PSY.GenericBattery,
-                #         source = PSI.EnergyVariable,
-                #         affected_values = [PSI.EnergyVariable],
-                #         target_period = 24,
-                #         penalty_cost = 5000.0,
+                #         source = PSI.ActivePowerOutVariable,
+                #         affected_values = [PSI.ActivePowerOutVariable],
+                #         number_of_periods = 24,
                 #     ),
                 # ],
+                "UC" => [
+                    SSI.EnergyTargetFeedforward(
+                        component_type = PSY.GenericBattery,
+                        source = PSI.EnergyVariable,
+                        affected_values = [PSI.EnergyVariable],
+                        target_period = 24,
+                        penalty_cost = 5000.0,
+                    ),
+                ],
+                "ED" => [
+                    SSI.EnergyTargetFeedforward(
+                        component_type = PSY.GenericBattery,
+                        source = PSI.EnergyVariable,
+                        affected_values = [PSI.EnergyVariable],
+                        target_period = 2,
+                        penalty_cost = 5000.0,
+                    ),
+                ],
                 "ED" => [
                     PSI.SemiContinuousFeedforward(
                         component_type = PSY.ThermalStandard,
@@ -1119,6 +1155,14 @@ function create_simulation( sys_MD::PSY.System,
                         affected_values = [PSI.ActivePowerVariable],
                     ),
                 ]
+                # "ED" => [
+                #     SSI.EnergyLimitFeedforward(
+                #         component_type = PSY.GenericBattery,
+                #         source = PSI.ActivePowerOutVariable,
+                #         affected_values = [PSI.ActivePowerOutVariable],
+                #         number_of_periods = 1,
+                #     ),
+                # ],
                     # RPSI.SemiContinuousOutageFeedforward(
                     #     component_type = PSY.ThermalStandard,
                     #     source = PSI.OnVariable,
@@ -1148,6 +1192,15 @@ function create_simulation( sys_MD::PSY.System,
                 #     ),
                 # ],
                 "ED" => [
+                    SSI.EnergyTargetFeedforward(
+                        component_type = PSY.GenericBattery,
+                        source = PSI.EnergyVariable,
+                        affected_values = [PSI.EnergyVariable],
+                        target_period = 2,
+                        penalty_cost = 5000.0,
+                    ),
+                ],
+                "ED" => [
                     PSI.SemiContinuousFeedforward(
                         component_type = PSY.ThermalStandard,
                         source = PSI.OnVariable,
@@ -1159,6 +1212,14 @@ function create_simulation( sys_MD::PSY.System,
                     #     affected_values = [PSI.ActivePowerVariable],
                     # ),
                 ],
+                # "ED" => [
+                #     SSI.EnergyLimitFeedforward(
+                #         component_type = PSY.GenericBattery,
+                #         source = PSI.ActivePowerOutVariable,
+                #         affected_values = [PSI.ActivePowerOutVariable],
+                #         number_of_periods = 1,
+                #     ),
+                # ],
             )
         else
             feedforward_dict = Dict(
@@ -1170,6 +1231,15 @@ function create_simulation( sys_MD::PSY.System,
                 #         number_of_periods = 36,
                 #     ),
                 # ],
+                "ED" => [
+                    SSI.EnergyTargetFeedforward(
+                        component_type = PSY.GenericBattery,
+                        source = PSI.EnergyVariable,
+                        affected_values = [PSI.EnergyVariable],
+                        target_period = 2,
+                        penalty_cost = 5000.0,
+                    ),
+                ],
                 "ED" => [
                     PSI.SemiContinuousFeedforward(
                         component_type = PSY.ThermalStandard,
@@ -1228,29 +1298,29 @@ function create_simulation( sys_MD::PSY.System,
                         );
     end
 
-    current_siip_sim[1] = sim
+    # current_siip_sim[1] = sim
 
     build_out = PSI.build!(sim; serialize = false)
 
-    adjust_reserve_voll!(sys_UC, uc_problem, simulation_dir, reserve_penalty, zones, default_balance_slack_cost, default_service_slack_cost, energy_voll_cost)
-    adjust_reserve_voll!(sys_ED, ed_problem, simulation_dir, reserve_penalty, zones, default_balance_slack_cost, default_service_slack_cost, energy_voll_cost)
+    #TODO: not sure if adjust_reserve_voll! function is working.
+    # in particular, there does not seem to be additional terms added to the objective function.
+    # adjust_reserve_voll!(sys_UC, uc_problem, simulation_dir, reserve_penalty, zones, default_balance_slack_cost, default_service_slack_cost, energy_voll_cost)
+    # adjust_reserve_voll!(sys_ED, ed_problem, simulation_dir, reserve_penalty, zones, default_balance_slack_cost, default_service_slack_cost, energy_voll_cost)
 
-    if md_market_bool == true
-        adjust_reserve_voll!(sys_MD, md_problem, simulation_dir, reserve_penalty, zones, default_balance_slack_cost, default_service_slack_cost, energy_voll_cost)
-    end
+    # if md_market_bool == true
+    #     adjust_reserve_voll!(sys_MD, md_problem, simulation_dir, reserve_penalty, zones, default_balance_slack_cost, default_service_slack_cost, energy_voll_cost)
+    # end
 
-    current_siip_sim[1] = sim
-    push!(siip_system, sys_MD)
-    push!(siip_system, sys_UC)
-    push!(siip_system, sys_ED)
+    # current_siip_sim[1] = sim
+    # push!(siip_system, sys_MD)
+    # push!(siip_system, sys_UC)
+    # push!(siip_system, sys_ED)
 
     execute_out = PSI.execute!(sim; enable_progress_bar = true)
     println("finish sienna run")
 
     sim_results = PSI.SimulationResults(sim)
     println("get sienna results")
-
-    base_power = PSY.get_base_power(sys_UC)
 
     res_uc = PSI.get_decision_problem_results(sim_results, "UC")
     res_ed = PSI.get_decision_problem_results(sim_results, "ED")
@@ -1278,11 +1348,15 @@ function create_simulation( sys_MD::PSY.System,
     energy_price_uc = AxisArrays.AxisArray(zeros(length(zones), 1, data_length_uc), zones, 1:1, 1:data_length_uc)
     energy_price_md = AxisArrays.AxisArray(zeros(length(zones), 1, data_length_md), zones, 1:1, 1:data_length_md)
     energy_voll = AxisArrays.AxisArray(zeros(length(zones), 1, data_length_ed), zones, 1:1, 1:data_length_ed)
+    energy_voll_uc = AxisArrays.AxisArray(zeros(length(zones), 1, data_length_uc), zones, 1:1, 1:data_length_uc)
+    energy_voll_md = AxisArrays.AxisArray(zeros(length(zones), 1, data_length_md), zones, 1:1, 1:data_length_md)
 
     reserve_price_ed = Dict(s => zeros(1, data_length_ed) for s in String.(rt_products))
     reserve_price_uc = Dict(s => zeros(1, data_length_uc) for s in String.(da_products))
     reserve_price_md = Dict(s => zeros(1, data_length_md) for s in String.(md_products))
     reserve_voll = Dict(s => zeros(1, data_length_ed) for s in String.(rt_products))
+    reserve_voll_uc = Dict(s => zeros(1, data_length_uc) for s in String.(da_products))
+    reserve_voll_md = Dict(s => zeros(1, data_length_md) for s in String.(md_products))
 
     inertia_price = AxisArrays.AxisArray(zeros(1, data_length_ed), 1:1, 1:data_length_ed)
     inertia_voll = AxisArrays.AxisArray(zeros(1, data_length_ed), 1:1, 1:data_length_ed)
@@ -1294,7 +1368,7 @@ function create_simulation( sys_MD::PSY.System,
         if !(product in rt_products)
             push!(only_da_products, product)
             reserve_price[String(product)] = zeros(1, data_length_uc)
-            reserve_voll[String(product)] = zeros(1, data_length_uc)
+            # reserve_voll[String(product)] = zeros(1, data_length_uc)
         end
     end
 
@@ -1306,6 +1380,8 @@ function create_simulation( sys_MD::PSY.System,
             energy_price_uc[zone, 1, :] = zeros(data_length_uc)
             energy_price_md[zone, 1, :] = zeros(data_length_md)
             energy_voll[zone, 1, :] = zeros(data_length_ed)
+            energy_voll_uc[zone, 1, :] = zeros(data_length_uc)
+            energy_voll_md[zone, 1, :] = zeros(data_length_md)
         else
             energy_price_ed[zone, 1, :] =
                 abs.(round.(dual_values_ed["NodalBalanceActiveConstraint__ACBus"][:, PSY.get_name(bus)], digits = 5)) / base_power
@@ -1314,11 +1390,14 @@ function create_simulation( sys_MD::PSY.System,
             if md_market_bool == true
                 energy_price_md[zone, 1, :] =
                     abs.(round.(dual_values_md["NodalBalanceActiveConstraint__ACBus"][:, PSY.get_name(bus)], digits = 5)) / base_power
+                
+                energy_voll_md[zone, 1, :] = abs.(round.(result_variables_md["SystemBalanceSlackUp__ACBus"][:, string(PSY.get_number(bus))], digits = 5)) / base_power
             else
                 energy_price_md[zone, 1, :] = zeros(data_length_md)
             end
             energy_voll[zone, 1, :] = abs.(round.(result_variables_ed["SystemBalanceSlackUp__ACBus"][:, string(PSY.get_number(bus))], digits = 5)) / base_power
-            energy_voll[zone, 1, :] += abs.(round.(result_variables_ed["SystemBalanceSlackDown__ACBus"][:, string(PSY.get_number(bus))], digits = 5)) / base_power
+            energy_voll_uc[zone, 1, :] = abs.(round.(result_variables_uc["SystemBalanceSlackUp__ACBus"][:, string(PSY.get_number(bus))], digits = 5)) / base_power
+            # energy_voll[zone, 1, :] += abs.(round.(result_variables_ed["SystemBalanceSlackDown__ACBus"][:, string(PSY.get_number(bus))], digits = 5)) / base_power
         end
     end
 
@@ -1343,6 +1422,7 @@ function create_simulation( sys_MD::PSY.System,
                 replace!(inertia_price, NaN => 0.0)
                 scale_voll(inertia_price, rt_resolution)
                 inertia_voll[1, :] = abs.(round.(result_variables_ed["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
+            elseif name == "Clean_Energy"
             else
                 reserve_price_ed[name][1, :] = abs.(round.(dual_values_ed["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
                 replace!(reserve_price_ed[name], NaN => 0.0)
@@ -1366,66 +1446,68 @@ function create_simulation( sys_MD::PSY.System,
 
     for service in get_system_services(sys_UC)
         name = PSY.get_name(service)
-        if name in only_da_products
-            if typeof(service) == PSY.VariableReserve{PSY.ReserveUp}
-                if name == "Inertia"
-                    inertia_price[1, :] = abs.(round.(dual_values_uc["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
-                    replace!(inertia_price, NaN => 0.0)
-                    scale_voll(inertia_price, da_resolution)
-                    # inertia_voll[1, :] = abs.(round.(result_variables_uc["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
-                else
-                    reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
-                    replace!(reserve_price_uc[name], NaN => 0.0)
-                    scale_voll(reserve_price_uc[name], da_resolution)
-                    reserve_voll[name][1, :] = abs.(round.(result_variables_uc["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
-                    #println(reserve_price[name])
-                end
-            elseif typeof(service) == PSY.ReserveDemandCurve{PSY.ReserveUp}
-                reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc["RequirementConstraint__ReserveDemandCurve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
+        # if name in only_da_products
+        if typeof(service) == PSY.VariableReserve{PSY.ReserveUp}
+            if name == "Inertia"
+                inertia_price[1, :] = abs.(round.(dual_values_uc["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
+                replace!(inertia_price, NaN => 0.0)
+                scale_voll(inertia_price, da_resolution)
+                # inertia_voll[1, :] = abs.(round.(result_variables_uc["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
+            elseif name == "Clean_Energy"
+            else
+                reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
                 replace!(reserve_price_uc[name], NaN => 0.0)
                 scale_voll(reserve_price_uc[name], da_resolution)
-                #println(reserve_price[name])
-            elseif typeof(service) == PSY.VariableReserve{PSY.ReserveDown}
-                reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc["RequirementConstraint__VariableReserve__ReserveDown__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
-                replace!(reserve_price_uc[name], NaN => 0.0)
-                scale_voll(reserve_price_uc[name], da_resolution)
-                reserve_voll[name][1, :] = abs.(round.(result_variables_uc["ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)")], digits = 5)) / base_power
+                reserve_voll_uc[name][1, :] = abs.(round.(result_variables_uc["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
                 #println(reserve_price[name])
             end
+        elseif typeof(service) == PSY.ReserveDemandCurve{PSY.ReserveUp}
+            reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc["RequirementConstraint__ReserveDemandCurve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
+            replace!(reserve_price_uc[name], NaN => 0.0)
+            scale_voll(reserve_price_uc[name], da_resolution)
+            #println(reserve_price[name])
+        elseif typeof(service) == PSY.VariableReserve{PSY.ReserveDown}
+            reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc["RequirementConstraint__VariableReserve__ReserveDown__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
+            replace!(reserve_price_uc[name], NaN => 0.0)
+            scale_voll(reserve_price_uc[name], da_resolution)
+            reserve_voll_uc[name][1, :] = abs.(round.(result_variables_uc["ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)")], digits = 5)) / base_power
+            #println(reserve_price[name])
         end
+        # end
     end
 
     if md_market_bool == true
         for service in get_system_services(sys_MD)
             name = PSY.get_name(service)
             # TODO: need to replace "only_da_products"
-            if name in only_da_products
-                if typeof(service) == PSY.VariableReserve{PSY.ReserveUp}
-                    if name == "Inertia"
-                        inertia_price[1, :] = abs.(round.(dual_values_md["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
-                        replace!(inertia_price, NaN => 0.0)
-                        scale_voll(inertia_price, da_resolution)
-                        # inertia_voll[1, :] = abs.(round.(result_variables_uc["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
-                    else
-                        reserve_price_md[name][1, :] = abs.(round.(dual_values_md["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
-                        replace!(reserve_price_md[name], NaN => 0.0)
-                        scale_voll(reserve_price_md[name], da_resolution)
-                        reserve_voll[name][1, :] = abs.(round.(result_variables_md["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
-                        #println(reserve_price[name])
-                    end
-                elseif typeof(service) == PSY.ReserveDemandCurve{PSY.ReserveUp}
-                    reserve_price_md[name][1, :] = abs.(round.(dual_values_md["RequirementConstraint__ReserveDemandCurve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
+            # if name in only_da_products
+            if typeof(service) == PSY.VariableReserve{PSY.ReserveUp}
+                if name == "Inertia"
+                    inertia_price[1, :] = abs.(round.(dual_values_md["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
+                    replace!(inertia_price, NaN => 0.0)
+                    scale_voll(inertia_price, da_resolution)
+                    # inertia_voll[1, :] = abs.(round.(result_variables_uc["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
+                elseif name == "Clean_Energy"
+                else
+                    reserve_price_md[name][1, :] = abs.(round.(dual_values_md["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
                     replace!(reserve_price_md[name], NaN => 0.0)
                     scale_voll(reserve_price_md[name], da_resolution)
-                    #println(reserve_price[name])
-                elseif typeof(service) == PSY.VariableReserve{PSY.ReserveDown}
-                    reserve_price_md[name][1, :] = abs.(round.(dual_values_md["RequirementConstraint__VariableReserve__ReserveDown__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
-                    replace!(reserve_price_md[name], NaN => 0.0)
-                    scale_voll(reserve_price_md[name], da_resolution)
-                    reserve_voll[name][1, :] = abs.(round.(result_variables_md["ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)")], digits = 5)) / base_power
+                    reserve_voll_md[name][1, :] = abs.(round.(result_variables_md["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
                     #println(reserve_price[name])
                 end
+            elseif typeof(service) == PSY.ReserveDemandCurve{PSY.ReserveUp}
+                reserve_price_md[name][1, :] = abs.(round.(dual_values_md["RequirementConstraint__ReserveDemandCurve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
+                replace!(reserve_price_md[name], NaN => 0.0)
+                scale_voll(reserve_price_md[name], da_resolution)
+                #println(reserve_price[name])
+            elseif typeof(service) == PSY.VariableReserve{PSY.ReserveDown}
+                reserve_price_md[name][1, :] = abs.(round.(dual_values_md["RequirementConstraint__VariableReserve__ReserveDown__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
+                replace!(reserve_price_md[name], NaN => 0.0)
+                scale_voll(reserve_price_md[name], da_resolution)
+                reserve_voll_md[name][1, :] = abs.(round.(result_variables_md["ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)")], digits = 5)) / base_power
+                #println(reserve_price[name])
             end
+            # end
         end
     end
 
@@ -1491,5 +1573,5 @@ function create_simulation( sys_MD::PSY.System,
         inertia_perc[g] = inertia_perc[g] / PSY.get_base_power(sys_UC)
     end
     println("recorded all sienna results")
-    return energy_price_ed, energy_price_uc, energy_price_md, reserve_price_ed, reserve_price_uc, reserve_price_md, inertia_price, capacity_factors_md, capacity_factors_uc, capacity_factors_ed, reserve_perc_md, reserve_perc_uc, reserve_perc_ed, inertia_perc, start_up_costs, shut_down_costs, energy_voll, reserve_voll, inertia_voll;
+    return energy_price_ed, energy_price_uc, energy_price_md, reserve_price_ed, reserve_price_uc, reserve_price_md, inertia_price, capacity_factors_md, capacity_factors_uc, capacity_factors_ed, reserve_perc_md, reserve_perc_uc, reserve_perc_ed, inertia_perc, start_up_costs, shut_down_costs, energy_voll, energy_voll_uc, energy_voll_md, reserve_voll, reserve_voll_uc, reserve_voll_md, inertia_voll;
 end

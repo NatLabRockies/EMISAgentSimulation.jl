@@ -101,13 +101,13 @@ function gather_data(case::CaseDefinition)
     end
     
     #updating past growth rate in PSY Systems
-    for sim_year in 1:simulation_years
-        for y in 1:size(annual_growth_past_first)[2]
-            apply_PSY_past_load_growth!(sys_MDs[sim_year], annual_growth_past_first[:, y], data_dir)
-            apply_PSY_past_load_growth!(sys_UCs[sim_year], annual_growth_past_first[:, y], data_dir)
-            apply_PSY_past_load_growth!(sys_EDs[sim_year], annual_growth_past_first[:, y], data_dir)
-        end
-    end
+    # for sim_year in 1:simulation_years
+    #     for y in 1:size(annual_growth_past_first)[2]
+    #         apply_PSY_past_load_growth!(sys_MDs[sim_year], annual_growth_past_first[:, y], data_dir)
+    #         apply_PSY_past_load_growth!(sys_UCs[sim_year], annual_growth_past_first[:, y], data_dir)
+    #         apply_PSY_past_load_growth!(sys_EDs[sim_year], annual_growth_past_first[:, y], data_dir)
+    #     end
+    # end
 
     carbon_tax = zeros(simulation_years)
 
