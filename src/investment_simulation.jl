@@ -1,22 +1,23 @@
 
-function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int64, current_siip_sim, siip_system)
+function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int64, current_siip_sim, siip_system, current_year::Int64)
     case = get_case(simulation)
     total_horizon = get_total_horizon(case)
     rolling_horizon = get_rolling_horizon(case)
 
-
-    installed_capacity =  zeros(simulation_years)
+    installed_capacity = zeros(simulation_years)
     capacity_forward_years = get_capacity_forward_years(simulation)
 
     # Set initial capacity market profits considering forward capacity auctions
-    if get_markets(simulation)[:Capacity]
-        initial_existing_projects = vcat(get_existing.(get_investors(simulation))...)
-        initial_capacity_prices = [70000.0, 80000.0]              # initial capacity prices - arbitrarily selected here - #TODO: need some meachanism to generate these
-        for y in 1:capacity_forward_years - 1
-            for project in initial_existing_projects
-                if get_end_life_year(project) >= y
-                    for product in get_products(project)
-                        update_initial_capacity_revenues!(project, product, initial_capacity_prices, y, get_pcm_scenario(case))
+    if current_year == 1
+        if get_markets(simulation)[:Capacity]
+            initial_existing_projects = vcat(get_existing.(get_investors(simulation))...)
+            initial_capacity_prices = [70000.0, 80000.0]              # initial capacity prices - arbitrarily selected here - #TODO: need some meachanism to generate these
+            for y in 1:capacity_forward_years - 1
+                for project in initial_existing_projects
+                    if get_end_life_year(project) >= y
+                        for product in get_products(project)
+                            update_initial_capacity_revenues!(project, product, initial_capacity_prices, y, get_pcm_scenario(case))
+                        end
                     end
                 end
             end
@@ -34,7 +35,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
 
     clean_energy_percentage_vector = zeros(simulation_years)
 
-    for iteration_year = 1:simulation_years
+    for iteration_year = current_year:simulation_years
 
         yearly_horizon = min(total_horizon - iteration_year + 1, rolling_horizon)
 
@@ -50,12 +51,31 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
 
         scenario_names = String.(get_all_scenario_names(get_data_dir(case)))
 
+        simulation_dir = get_data_dir(get_case(simulation))
+
+        # save existing net load csv file for potential checkpoint re-runs
         for scenario in scenario_names
-            derating_factors = read_data(joinpath(get_data_dir(case), "markets_data", "derating_data", scenario, "derating_dict.csv"))
+            pre_update_da_net_load = joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year)", "Net Load Data", "load_n_vg_data_pre_update.csv")
+            pre_update_rt_net_load = joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year)", "Net Load Data", "load_n_vg_data_rt_pre_update.csv")
+            post_update_da_net_load = joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year)", "Net Load Data", "load_n_vg_data.csv")
+            post_update_rt_net_load = joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year)", "Net Load Data", "load_n_vg_data_rt.csv")
+            if isfile(pre_update_da_net_load)
+                cp(pre_update_da_net_load, post_update_da_net_load, force=true)
+                cp(pre_update_rt_net_load, post_update_rt_net_load, force=true)
+            else
+                cp(post_update_da_net_load, pre_update_da_net_load, force=true)
+                cp(post_update_rt_net_load, pre_update_rt_net_load, force=true)
+            end
+        end
 
-            output_file = joinpath(get_results_dir(simulation), "derating_data", scenario, "derating_data_year_$(iteration_year).jld2")
+        if current_year == 1
+            for scenario in scenario_names
+                derating_factors = read_data(joinpath(get_data_dir(case), "markets_data", "derating_data", scenario, "derating_dict.csv"))
 
-            FileIO.save(output_file, "derating_factors", derating_factors)
+                output_file = joinpath(get_results_dir(simulation), "derating_data", scenario, "derating_data_year_$(iteration_year).jld2")
+
+                FileIO.save(output_file, "derating_factors", derating_factors)
+            end
         end
 
         num_scenarios = length(scenario_names)
@@ -255,6 +275,14 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
         simulations, iteration_years, derating_scales, methodologies, ra_metric_list, marginal_cc_switches =  repeat_arguments(num_scenarios, simulation, iteration_year, get_derating_scale(case), get_accreditation_methodology(case), get_accreditation_metric(case), get_marginal_cc_switch(case))
         
         @time Distributed.pmap(parallelize_update_derating_data, zip(scenario_names, simulations, iteration_years, derating_scales, methodologies, ra_metric_list, marginal_cc_switches))
+
+        for scenario in scenario_names
+            derating_factors = read_data(joinpath(get_data_dir(case), "markets_data", "derating_data", scenario, "derating_dict.csv"))
+
+            output_file = joinpath(get_results_dir(simulation), "derating_data", scenario, "derating_data_year_$(iteration_year+1).jld2")
+
+            FileIO.save(output_file, "derating_factors", derating_factors)
+        end
     
         active_projects = get_activeprojects(simulation)
 
@@ -269,6 +297,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
 
         println("COMPLETED YEAR $(iteration_year)")
         FileIO.save(joinpath(get_results_dir(simulation), "simulation_data_year$(iteration_year).jld2"), "simulation_data", simulation)
+        FileIO.save(joinpath(get_results_dir(simulation), "clean_energy_percentage_year$(iteration_year).jld2"), "clean_energy_percentage", clean_energy_percentage_vector)
         # FileIO.save(joinpath(get_results_dir(simulation), "shortfall_data_year$(iteration_year).jld2"), "shortfall_data", shortfall)
     end
 

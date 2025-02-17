@@ -56,11 +56,15 @@ This function removes the PSY System timeseries data for Existing RenewableGen p
         for scenario in scenario_names
             for year in 1:total_horizon
                 load_n_vg_df =  read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(year)", "Net Load Data", "load_n_vg_data.csv"))
-                DataFrames.select!(load_n_vg_df, DataFrames.Not(get_name(project)))
+                if in(get_name(project), names(load_n_vg_df))
+                    DataFrames.select!(load_n_vg_df, DataFrames.Not(get_name(project)))
+                end
                 write_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(year)", "Net Load Data"), "load_n_vg_data.csv", load_n_vg_df)
 
                 load_n_vg_df_rt =  read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(year)", "Net Load Data", "load_n_vg_data_rt.csv"))
-                DataFrames.select!(load_n_vg_df_rt, DataFrames.Not(get_name(project)))
+                if in(get_name(project), names(load_n_vg_df_rt))
+                    DataFrames.select!(load_n_vg_df_rt, DataFrames.Not(get_name(project)))
+                end
                 write_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(year)", "Net Load Data"), "load_n_vg_data_rt.csv", load_n_vg_df_rt)
             end
         end
