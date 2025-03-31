@@ -359,6 +359,7 @@ end
 
 function calculate_reserve_scaling_factor(simulation::AgentSimulation)
 
+    # scaling factor based on PV+Wind capacity
     case = get_case(simulation)
 
     test_system_dir = get_sys_dir(case)
@@ -384,8 +385,7 @@ end
 
 
 function reserve_ts_scaling(simulation::AgentSimulation,
-                            iteration_year::Int64,
-                            scaling_factor::Float64)
+                            iteration_year::Int64,)
 
     simulation_dir = get_data_dir(get_case(simulation))
     all_scenarios = String.(get_all_scenario_names(simulation_dir))
@@ -398,6 +398,13 @@ function reserve_ts_scaling(simulation::AgentSimulation,
         for scenario in all_scenarios
             reserve_timeseries_data = Dict(r => read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year + 1)", "Reserves", "$(r).csv")) for r in non_ordc_products)
             rep_reserve_timeseries_data = Dict(r => read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year + 1)", "Reserves", "rep_$(r).csv")) for r in non_ordc_products)
+
+            load_initial = read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_1", "Load", "load.csv"))
+            load_current = read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year + 1)", "Load", "load.csv"))
+            load_initial_total = sum(sum(eachcol(load_initial[:, Not(:Year, :Month, :Day, :Period)])))
+            load_current_total = sum(sum(eachcol(load_current[:, Not(:Year, :Month, :Day, :Period)])))
+
+            scaling_factor = (load_current_total - load_initial_total) / load_initial_total
 
             for product in non_ordc_products
                 reserve_timeseries_data[product][:, product] = reserve_timeseries_data[product][:, product] * (1 + scaling_factor)

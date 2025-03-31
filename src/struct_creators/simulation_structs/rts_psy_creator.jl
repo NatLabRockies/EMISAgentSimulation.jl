@@ -85,7 +85,7 @@ function create_rts_sys(rts_dir::String,
     # prune_system_devices!(sys_UC, pruned_unit)
     # prune_system_devices!(sys_ED, pruned_unit)
 
-    ntp_ts_data_dir = joinpath(rts_dir, "..", "..", "Feb2024_ERCOT_2011_MARKET_Test_CAVRAAM", "NTP_TimeSeries_Data", "input_processing")
+    ntp_ts_data_dir = joinpath(rts_dir, "..", "..", "Feb2024_ERCOT_2011_MARKET_Test_NGUO_LDES", "NTP_TimeSeries_Data", "input_processing")
 
     sys_MDs = Vector{PSY.System}()
     sys_UCs = Vector{PSY.System}()
@@ -277,9 +277,12 @@ function create_sys_w_updated_ts(
     #--------------------------------------------
     # Calculate load scaling factor: scale 2021 load to 75 GW
     #--------------------------------------------
-    loadscaler_profile=DataFrame(CSV.File(joinpath(data_dir, "load_actuals_processed", "sup3rcc_ecearth3_load_gwh_ercot_$(scenario)_e$(loadyear)_w$(weatheryear)_cst.csv"))) #in GW
-    loadscaler_peak=maximum(sum(eachcol(select(loadscaler_profile, Not([:year, :timestamp])))))
-    loadscaler = loadscaler_peak/loadscaler_base
+    loadscaler_profile_rt=DataFrame(CSV.File(joinpath(data_dir, "load_actuals_processed", "sup3rcc_ecearth3_load_gwh_ercot_$(scenario)_e2021_w2021_cst.csv"))) #in GW
+    loadscaler_profile_da=DataFrame(CSV.File(joinpath(data_dir, "load_forecasts_processed","preds_20210101_$(scenario)_365days.csv")))
+    loadscaler_peak_da=maximum(sum(eachcol(select(loadscaler_profile_da, Not([:Column1])))))
+    loadscaler_peak_rt=maximum(sum(eachcol(select(loadscaler_profile_rt, Not([:year, :timestamp])))))
+    loadscaler_da = loadscaler_peak_da/loadscaler_base
+    loadscaler_rt = loadscaler_peak_rt/loadscaler_base
 
     sys_MD = initial_sys
     PSY.set_units_base_system!(sys_MD, PSY.IS.UnitSystem.NATURAL_UNITS)
@@ -439,9 +442,10 @@ function create_sys_w_updated_ts(
     #--------------------------------------------
     if market_stage == "dayahead"
         profile=DataFrame(CSV.File(joinpath(data_dir, "load_forecasts_processed","preds_$(loadyear)0101_$(scenario)_365days.csv"))) #in GW; original command: profile=DataFrame(CSV.File(joinpath(data_dir, "Load_Forecast_from_Local", "$(scenario)", "$(loadyear)", "preds_$(weatheryear)0101_365days.csv"))) #in GW
-        
+        loadscaler = loadscaler_da
     elseif market_stage == "realtime"
         profile=DataFrame(CSV.File(joinpath(data_dir, "load_actuals_processed", "sup3rcc_ecearth3_load_gwh_ercot_$(scenario)_e$(loadyear)_w$(weatheryear)_cst.csv"))) #in GW
+        loadscaler = loadscaler_rt
     end
 
     for d in get_components(PowerLoad, sys_MD)

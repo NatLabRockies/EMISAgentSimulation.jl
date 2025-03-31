@@ -362,7 +362,14 @@ function update_PSY_timeseries!(
             @warn "Service is clean energy"
         else
             @warn "Update service timeseries (other than ORDC)"
-            reserve_scaling_factor = calculate_reserve_scaling_factor(simulation)
+            # reserve_scaling_factor = calculate_reserve_scaling_factor(simulation)
+            load_initial = read_data(joinpath(simulation_dir, "timeseries_data_files", pcm_scenario, "sim_year_1", "Load", "load.csv"))
+            load_current = read_data(joinpath(simulation_dir, "timeseries_data_files", pcm_scenario, "sim_year_$(iteration_year)", "Load", "load.csv"))
+            load_initial_total = sum(sum(eachcol(load_initial[:, Not(:Year, :Month, :Day, :Period)])))
+            load_current_total = sum(sum(eachcol(load_current[:, Not(:Year, :Month, :Day, :Period)])))
+
+            reserve_scaling_factor = (load_current_total - load_initial_total) / load_initial_total
+
             @info "Reserve scaling factor is $(reserve_scaling_factor)."
             scaled_requirement = deepcopy(PSY.get_requirement(service)) * (1 + reserve_scaling_factor)
             PSY.set_requirement!(service, scaled_requirement)
