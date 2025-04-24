@@ -11,7 +11,18 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
     if current_year == 1
         if get_markets(simulation)[:Capacity]
             initial_existing_projects = vcat(get_existing.(get_investors(simulation))...)
-            initial_capacity_prices = [70000.0, 80000.0]              # initial capacity prices - arbitrarily selected here - #TODO: need some meachanism to generate these
+
+            simulation_dir = get_data_dir(get_case(simulation))
+            capacity_mkt_param_file = joinpath(simulation_dir, "markets_data", "Capacity.csv")
+            capacity_mkt_params = read_data(capacity_mkt_param_file)[1, :]
+            introduction_year = capacity_mkt_params["introduction_year"]
+
+            if introduction_year >= 3
+                initial_capacity_prices = [0.0, 0.0]              # initial capacity prices - arbitrarily selected here - #TODO: need some meachanism to generate these
+            else
+                initial_capacity_prices = [70000.0, 80000.0]
+            end
+
             for y in 1:capacity_forward_years - 1
                 for project in initial_existing_projects
                     if get_end_life_year(project) >= y
