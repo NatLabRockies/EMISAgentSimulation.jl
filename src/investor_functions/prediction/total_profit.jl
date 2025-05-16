@@ -38,15 +38,17 @@ function update_expected_profit!(project::P,
                                                    queue_cost)
 
     for scenario in scenario_data
-        operating_profit,
-        energy_production = calculate_operating_profit(project,
-                                                      get_name(scenario),
-                                                      market_prices,
-                                                      carbon_tax_vector,
-                                                      price_years[:start_year],
-                                                      price_years[:end_year],
-                                                      rep_hour_weight,
-                                                      solver)
+        @timeit TO "calculate_operating_profit" begin
+            operating_profit,
+            energy_production = calculate_operating_profit(project,
+                                                        get_name(scenario),
+                                                        market_prices,
+                                                        carbon_tax_vector,
+                                                        price_years[:start_year],
+                                                        price_years[:end_year],
+                                                        rep_hour_weight,
+                                                        solver)
+        end
 
         push!(operating_profit_array, operating_profit)
         # Calculate expected energy production (NOTE: For storage, we save expected energy consumption (instead of production) here, for adding to clean energy (REC) requirement constraint)

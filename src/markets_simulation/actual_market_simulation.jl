@@ -83,7 +83,9 @@ function create_realized_marketdata(simulation::AgentSimulation,
     reserve_voll,
     reserve_voll_uc,
     reserve_voll_md,
+    @timeit TO "energy_mkt_clearing" begin
     inertia_voll = energy_mkt_clearing(sys_MD, sys_UC, sys_ED, system, simulation_dir, reserve_penalty, rec_perc_requirement, zones, num_days, pcm_scenario, iteration_year, get_da_resolution(case), get_rt_resolution(case), get_name(case), solver, get_base_dir(case), simulation, current_siip_sim, md_market_bool, siip_system)
+    end
 
     println("Clean energy requirement for this year is $(get_rec_requirement(simulation)[iteration_year] * 100) percent")
     total_production = 0.0
@@ -180,7 +182,9 @@ function create_realized_marketdata(simulation::AgentSimulation,
 
         sort!(capacity_supply_curve, by = x -> x[3])      # Sort capacity supply curve by capacity bid
 
-        capacity_price, capacity_accepted_bids = capacity_market_clearing(capacity_demand_curve, capacity_supply_curve, solver)
+        @timeit TO "capacity_mkt_clearing" begin
+            capacity_price, capacity_accepted_bids = capacity_market_clearing(capacity_demand_curve, capacity_supply_curve, solver)
+        end
     end
 
     set_capacity_price!(market_prices, "realized", capacity_price)
@@ -236,7 +240,9 @@ function create_realized_marketdata(simulation::AgentSimulation,
             sort!(rec_supply_curve, by = x -> x[3])      # Sort REC supply curve by REC bid
 
             #rec_energy_requirment = min(total_clean_production, rec_energy_requirment)
-            rec_price, rec_accepted_bids = rec_market_clearing_non_binding(rec_energy_requirment, pricecap_rec, rec_supply_curve, solver)
+            @timeit TO "rec_mkt_clearing" begin
+                rec_price, rec_accepted_bids = rec_market_clearing_non_binding(rec_energy_requirment, pricecap_rec, rec_supply_curve, solver)
+            end
 
             # if iteration_year <= rec_non_binding_years
 
@@ -260,40 +266,42 @@ function create_realized_marketdata(simulation::AgentSimulation,
 
     ################# Write actual market clearing data ################################################
 
-    output_file = joinpath(results_dir, "realized_market_data", "year_$(iteration_year).jld2")
+    @timeit TO "write relaized_market_data" begin
+        output_file = joinpath(results_dir, "realized_market_data", "year_$(iteration_year).jld2")
 
-    FileIO.save(output_file,
-                     "capacity_price", capacity_price,
-                     "energy_price_ed", energy_price_ed,
-                     "energy_price_uc", energy_price_uc,
-                     "energy_price_md", energy_price_md,
-                     "reserve_price_ed", reserve_price_ed,
-                     "reserve_price_uc", reserve_price_uc,
-                     "reserve_price_md", reserve_price_md,
-                     "rec_price", rec_price,
-                     "inertia_price", inertia_price,
-                     "capacity_factors_md", capacity_factors_md,
-                     "capacity_factors_uc", capacity_factors_uc,
-                     "capacity_factors_ed", capacity_factors_ed,
-                     "reserve_perc_md", reserve_perc_md,
-                     "reserve_perc_uc", reserve_perc_uc,
-                     "reserve_perc_ed", reserve_perc_ed,
-                     "capacity_accepted_bids", capacity_accepted_bids,
-                     "rec_accepted_bids", rec_accepted_bids,
-                     "inertia_perc", inertia_perc,
-                     "start_up_costs", start_up_costs,
-                     "shut_down_costs", shut_down_costs,
-                     "energy_voll", energy_voll,
-                     "energy_voll_uc", energy_voll_uc,
-                     "energy_voll_md", energy_voll_md,
-                     "reserve_voll", reserve_voll,
-                     "reserve_voll_uc", reserve_voll_uc,
-                     "reserve_voll_md", reserve_voll_md,
-                     "inertia_voll", inertia_voll,
-                     "rec_supply_curve", rec_supply_curve,
-                     "rec_energy_requirment", rec_energy_requirment,
-                     "cet_achieved_ratio", cet_achieved_ratio
-        )
+        FileIO.save(output_file,
+                        "capacity_price", capacity_price,
+                        "energy_price_ed", energy_price_ed,
+                        "energy_price_uc", energy_price_uc,
+                        "energy_price_md", energy_price_md,
+                        "reserve_price_ed", reserve_price_ed,
+                        "reserve_price_uc", reserve_price_uc,
+                        "reserve_price_md", reserve_price_md,
+                        "rec_price", rec_price,
+                        "inertia_price", inertia_price,
+                        "capacity_factors_md", capacity_factors_md,
+                        "capacity_factors_uc", capacity_factors_uc,
+                        "capacity_factors_ed", capacity_factors_ed,
+                        "reserve_perc_md", reserve_perc_md,
+                        "reserve_perc_uc", reserve_perc_uc,
+                        "reserve_perc_ed", reserve_perc_ed,
+                        "capacity_accepted_bids", capacity_accepted_bids,
+                        "rec_accepted_bids", rec_accepted_bids,
+                        "inertia_perc", inertia_perc,
+                        "start_up_costs", start_up_costs,
+                        "shut_down_costs", shut_down_costs,
+                        "energy_voll", energy_voll,
+                        "energy_voll_uc", energy_voll_uc,
+                        "energy_voll_md", energy_voll_md,
+                        "reserve_voll", reserve_voll,
+                        "reserve_voll_uc", reserve_voll_uc,
+                        "reserve_voll_md", reserve_voll_md,
+                        "inertia_voll", inertia_voll,
+                        "rec_supply_curve", rec_supply_curve,
+                        "rec_energy_requirment", rec_energy_requirment,
+                        "cet_achieved_ratio", cet_achieved_ratio
+            )
+    end
  
     ################ Update realized load data and peak load #########################################
 

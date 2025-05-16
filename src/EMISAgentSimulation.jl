@@ -328,6 +328,9 @@ const MOI = MathOptInterface
 
 using Revise
 
+using TimerOutputs
+const TO = TimerOutput()
+
 import PowerSystems:
     get_value,
     set_value

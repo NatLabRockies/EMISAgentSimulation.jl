@@ -1316,7 +1316,9 @@ function create_simulation( sys_MD::PSY.System,
     # push!(siip_system, sys_UC)
     # push!(siip_system, sys_ED)
 
-    execute_out = PSI.execute!(sim; enable_progress_bar = true)
+    @timeit "run pcm" begin
+        execute_out = PSI.execute!(sim; enable_progress_bar = true)
+    end
     println("finish sienna run")
 
     sim_results = PSI.SimulationResults(sim)

@@ -68,28 +68,31 @@ function run_investor_iteration(investor::Investor,
     end
 
     set_market_prices!(investor, market_prices)
+    @timeit TO "retire_unprofitable" begin
+        retire_unprofitable!(investor,
+                            sys_MDs,
+                            sys_UCs,
+                            sys_EDs,
+                            sys_PRAS,
+                            sys_data_dir,
+                            iteration_year,
+                            yearly_horizon,
+                            simulation_years,
+                            scenario_names,
+                            capacity_forward_years,
+                            solver)
+    end
 
-    retire_unprofitable!(investor,
-                         sys_MDs,
-                         sys_UCs,
-                         sys_EDs,
-                         sys_PRAS,
-                         sys_data_dir,
-                         iteration_year,
-                         yearly_horizon,
-                         simulation_years,
-                         scenario_names,
-                         capacity_forward_years,
-                         solver)
-
-    make_investments!(investor,
-                      max_new_options,
-                      max_new_options_by_type,
-                      iteration_year,
-                      yearly_horizon,
-                      simulation_years,
-                      capacity_forward_years,
-                      solver)
+    @timeit TO "make_investments" begin
+        make_investments!(investor,
+                        max_new_options,
+                        max_new_options_by_type,
+                        iteration_year,
+                        yearly_horizon,
+                        simulation_years,
+                        capacity_forward_years,
+                        solver)
+    end
 
     println(get_name.(get_queue(investor)))
 
