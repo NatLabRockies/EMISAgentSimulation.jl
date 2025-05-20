@@ -338,5 +338,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
         FileIO.save(joinpath(get_results_dir(simulation), "simulation_data.jld2"), "simulation_data", simulation)
     end
 
+    @info "\n$(TO)\n"
+
     return
 end
