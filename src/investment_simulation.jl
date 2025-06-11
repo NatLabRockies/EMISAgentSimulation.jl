@@ -1,5 +1,5 @@
 
-function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int64, current_siip_sim, siip_system, current_year::Int64)
+function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int64, current_siip_sim, siip_system, current_year::Int64, step_size::Int64 = 1)
     case = get_case(simulation)
     total_horizon = get_total_horizon(case)
     rolling_horizon = get_rolling_horizon(case)
@@ -46,7 +46,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
 
     clean_energy_percentage_vector = zeros(simulation_years)
 
-    for iteration_year = current_year:simulation_years
+    for iteration_year = current_year:step_size:simulation_years
 
         yearly_horizon = min(total_horizon - iteration_year + 1, rolling_horizon)
 
