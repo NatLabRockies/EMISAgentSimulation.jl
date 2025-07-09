@@ -78,11 +78,30 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
             end
         end
 
-        num_scenarios = length(scenario_names)
-        sys_PRAS_list, active_projects_list, capacity_forward_years_list, resource_adequacies, peak_loads, static_capacity_bools, iteration_years, simulation_years_list, data_dirs, rt_resolutions, results_dirs, outage_dirs = repeat_arguments(num_scenarios, sys_PRAS, active_projects, capacity_forward_years, get_resource_adequacy(simulation), get_peak_load(simulation), get_static_capacity_market(case), iteration_year, simulation_years, get_data_dir(case), get_rt_resolution(case), get_results_dir(simulation), get_outage_dir(case))
+        # num_scenarios = length(scenario_names)
+        # sys_PRAS_list, active_projects_list, capacity_forward_years_list, resource_adequacies, peak_loads, static_capacity_bools, iteration_years, simulation_years_list, data_dirs, rt_resolutions, results_dirs, outage_dirs = repeat_arguments(num_scenarios, sys_PRAS, active_projects, capacity_forward_years, get_resource_adequacy(simulation), get_peak_load(simulation), get_static_capacity_market(case), iteration_year, simulation_years, get_data_dir(case), get_rt_resolution(case), get_results_dir(simulation), get_outage_dir(case))
 
-        # Parallelize the processing of scenarios using Distributed.pmap
-        @time resource_adequacy_tuples = Distributed.pmap(parallelize_update_delta_irm!, zip(scenario_names, sys_PRAS_list, active_projects_list, capacity_forward_years_list, resource_adequacies, peak_loads, static_capacity_bools, iteration_years, simulation_years_list, data_dirs, rt_resolutions, results_dirs, outage_dirs))
+        # # Parallelize the processing of scenarios using Distributed.pmap
+        # @time resource_adequacy_tuples = Distributed.pmap(parallelize_update_delta_irm!, zip(scenario_names, sys_PRAS_list, active_projects_list, capacity_forward_years_list, resource_adequacies, peak_loads, static_capacity_bools, iteration_years, simulation_years_list, data_dirs, rt_resolutions, results_dirs, outage_dirs))
+        
+        scenario_1 = scenario_names[1]
+        resource_adequacy = update_delta_irm!(
+            sys_PRAS[scenario_1],
+            active_projects,
+            capacity_forward_years,
+            get_resource_adequacy(simulation)[scenario_1],
+            get_peak_load(simulation)[scenario_1][min(iteration_year + capacity_forward_years - 1, simulation_years)],
+            get_static_capacity_market(case),
+            scenario_1,
+            iteration_year,
+            get_data_dir(case),
+            get_rt_resolution(case),
+            get_results_dir(simulation),
+            get_outage_dir(case),
+            simulation_years
+        )
+        resource_adequacy_tuples = [(scenario_1, resource_adequacy)]
+        
         set_resource_adequacy!(simulation, Dict(key => value for (key, value) in resource_adequacy_tuples))
 
         create_investor_predictions(investors,
@@ -272,9 +291,19 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
 
         end
 
-        simulations, iteration_years, derating_scales, methodologies, ra_metric_list, marginal_cc_switches =  repeat_arguments(num_scenarios, simulation, iteration_year, get_derating_scale(case), get_accreditation_methodology(case), get_accreditation_metric(case), get_marginal_cc_switch(case))
+        # simulations, iteration_years, derating_scales, methodologies, ra_metric_list, marginal_cc_switches =  repeat_arguments(num_scenarios, simulation, iteration_year, get_derating_scale(case), get_accreditation_methodology(case), get_accreditation_metric(case), get_marginal_cc_switch(case))
         
-        @time Distributed.pmap(parallelize_update_derating_data, zip(scenario_names, simulations, iteration_years, derating_scales, methodologies, ra_metric_list, marginal_cc_switches))
+        # @time Distributed.pmap(parallelize_update_derating_data, zip(scenario_names, simulations, iteration_years, derating_scales, methodologies, ra_metric_list, marginal_cc_switches))
+
+        update_simulation_derating_data!(
+            simulation,
+            scenario_1,
+            iteration_year,
+            get_derating_scale(case),
+            methodology = get_accreditation_methodology(case),
+            ra_metric = get_accreditation_metric(case),
+            marginal_cc = get_marginal_cc_switch(case)
+        )
 
         for scenario in scenario_names
             derating_factors = read_data(joinpath(get_data_dir(case), "markets_data", "derating_data", scenario, "derating_dict.csv"))
@@ -292,8 +321,9 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
             end
         end
 
-        reserve_ts_scaling_factor = calculate_reserve_scaling_factor(simulation)
-        reserve_ts_scaling(simulation, iteration_year, reserve_ts_scaling_factor)
+        ### NY_change: since reserve ts are zero, might not need to do this
+        # reserve_ts_scaling_factor = calculate_reserve_scaling_factor(simulation)
+        # reserve_ts_scaling(simulation, iteration_year, reserve_ts_scaling_factor)
 
         println("COMPLETED YEAR $(iteration_year)")
         FileIO.save(joinpath(get_results_dir(simulation), "simulation_data_year$(iteration_year).jld2"), "simulation_data", simulation)

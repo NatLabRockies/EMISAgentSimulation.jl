@@ -128,31 +128,38 @@ function finish_construction!(projects::Vector{<: Project{<: BuildPhase}},
                              rt_resolution::Int64) where P <: Project{Planned}
      if get_construction_year(project) == iteration_year
         projects[index] = convert(Project{Existing}, project)
-        PSY_project_MD = create_PSY_generator(project, sys_MDs[iteration_year])
         # println("iteration year is $(iteration_year)")
         # println(PSY.get_name(PSY_project_MD))
         # println(PSY_project_MD)
+        PSY_project_MD = create_PSY_generator(project, sys_MDs[iteration_year])
         PSY_project_UC = create_PSY_generator(project, sys_UCs[iteration_year])
         PSY_project_ED = create_PSY_generator(project, sys_EDs[iteration_year])
         PSY_project_PRAS = create_PSY_generator(project, sys_PRAS[pcm_scenario])
 
         for y in iteration_year:simulation_years
             # println("adding component to year $y")
-            PSY.add_component!(sys_MDs[y], deepcopy(PSY_project_MD))
-            PSY.add_component!(sys_UCs[y], deepcopy(PSY_project_UC))
-            PSY.add_component!(sys_EDs[y], deepcopy(PSY_project_ED))
+            # PSY.add_component!(sys_MDs[y], deepcopy(PSY_project_MD))
+            # PSY.add_component!(sys_UCs[y], deepcopy(PSY_project_UC))
+            # PSY.add_component!(sys_EDs[y], deepcopy(PSY_project_ED))
+            PSY_project_MD_iteration_year = create_PSY_generator(project, sys_MDs[y])
+            PSY_project_UC_iteration_year = create_PSY_generator(project, sys_UCs[y])
+            PSY_project_ED_iteration_year = create_PSY_generator(project, sys_EDs[y])
+
+            PSY.add_component!(sys_MDs[y], PSY_project_MD_iteration_year)
+            PSY.add_component!(sys_UCs[y], PSY_project_UC_iteration_year)
+            PSY.add_component!(sys_EDs[y], PSY_project_ED_iteration_year)
         end
 
         for y in iteration_year:simulation_years
             for product in get_products(project)
-                add_device_services!(sys_MDs[y], PSY.get_component(typeof(PSY_project_MD), sys_MDs[y], PSY.get_name(PSY_project_MD)), product)
+                add_device_services!(sys_MDs[y], PSY.get_component(typeof(PSY_project_MD), sys_MDs[y], PSY.get_name(PSY_project_MD)), product) # probably change to add_service! in the new PSY?
                 add_device_services!(sys_UCs[y], PSY.get_component(typeof(PSY_project_UC), sys_UCs[y], PSY.get_name(PSY_project_UC)), product)
                 add_device_services!(sys_EDs[y], PSY.get_component(typeof(PSY_project_ED), sys_EDs[y], PSY.get_name(PSY_project_ED)), product)
             end
         end
 
         for scenario in keys(sys_PRAS)        
-            PSY.add_component!(sys_PRAS[scenario], deepcopy(PSY_project_PRAS))
+            PSY.add_component!(sys_PRAS[scenario], PSY_project_PRAS)
         end
 
         for scenario in keys(sys_PRAS)

@@ -24,7 +24,8 @@ function create_products(simulation_data::AgentSimulationData,
 
     for product in reserve_products
         product_data = read_data(joinpath(get_data_dir(get_case(simulation_data)), "markets_data", "$(reserve_penalty)_reserve_penalty", "$(product).csv"))
-        eligible_zones = ["zone_$(n)" for n in split(product_data[1, "eligible_zones"], ";")]
+        # eligible_zones = ["zone_$(n)" for n in split(product_data[1, "eligible_zones"], ";")]
+        eligible_zones = ["$(n)" for n in split(product_data[1, "eligible_zones"], ";")]
 
         if markets[Symbol(product)] && (projectdata["Zone"] in eligible_zones) && occursin(projectdata["Category"], product_data[1, "eligible categories"])
             time_scale = product_data[1, "timescale (min)"]

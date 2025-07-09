@@ -74,18 +74,18 @@ mutable struct ThermalFastStartSIIP <: PSY.ThermalGen
     "corresponding dynamic injection device"
     dynamic_injector::Union{Nothing, PSY.DynamicInjection}
     ext::Dict{String, Any}
-    "internal time_series storage"
-    time_series_container::InfrastructureSystems.TimeSeriesContainer
+    # "internal time_series storage"
+    # time_series_container::InfrastructureSystems.TimeSeriesContainer
     "power system internal reference, do not modify"
     internal::InfrastructureSystems.InfrastructureSystemsInternal
 end
 
-function ThermalFastStartSIIP(name, available, status, bus, active_power, reactive_power, rating, active_power_limits, reactive_power_limits, ramp_limits, operation_cost, base_power, time_limits=nothing, prime_mover_type=PSY.PrimeMovers.OT, fuel=PSY.ThermalFuels.OTHER, services=PSY.Device[], time_at_status=PSY.INFINITE_TIME, dynamic_injector=nothing, ext=Dict{String, Any}(), time_series_container=InfrastructureSystems.TimeSeriesContainer(), )
-    ThermalFastStartSIIP(name, available, status, bus, active_power, reactive_power, rating, active_power_limits, reactive_power_limits, ramp_limits, operation_cost, base_power, time_limits, prime_mover_type, fuel, services, time_at_status, dynamic_injector, ext, time_series_container, InfrastructureSystemsInternal(), )
+function ThermalFastStartSIIP(name, available, status, bus, active_power, reactive_power, rating, active_power_limits, reactive_power_limits, ramp_limits, operation_cost, base_power, time_limits=nothing, prime_mover_type=PSY.PrimeMovers.OT, fuel=PSY.ThermalFuels.OTHER, services=PSY.Device[], time_at_status=PSY.INFINITE_TIME, dynamic_injector=nothing, ext=Dict{String, Any}(), )
+    ThermalFastStartSIIP(name, available, status, bus, active_power, reactive_power, rating, active_power_limits, reactive_power_limits, ramp_limits, operation_cost, base_power, time_limits, prime_mover_type, fuel, services, time_at_status, dynamic_injector, ext, InfrastructureSystemsInternal(), )
 end
 
-function ThermalFastStartSIIP(; name, available, status, bus, active_power, reactive_power, rating, active_power_limits, reactive_power_limits, ramp_limits, operation_cost, base_power, time_limits=nothing, prime_mover_type=PSY.PrimeMovers.OT, fuel=PSY.ThermalFuels.OTHER, services=PSY.Device[], time_at_status=PSY.INFINITE_TIME, dynamic_injector=nothing, ext=Dict{String, Any}(), time_series_container=InfrastructureSystems.TimeSeriesContainer(), internal=InfrastructureSystems.InfrastructureSystemsInternal(), )
-    ThermalFastStartSIIP(name, available, status, bus, active_power, reactive_power, rating, active_power_limits, reactive_power_limits, ramp_limits, operation_cost, base_power, time_limits, prime_mover_type, fuel, services, time_at_status, dynamic_injector, ext, time_series_container, internal, )
+function ThermalFastStartSIIP(; name, available, status, bus, active_power, reactive_power, rating, active_power_limits, reactive_power_limits, ramp_limits, operation_cost, base_power, time_limits=nothing, prime_mover_type=PSY.PrimeMovers.OT, fuel=PSY.ThermalFuels.OTHER, services=PSY.Device[], time_at_status=PSY.INFINITE_TIME, dynamic_injector=nothing, ext=Dict{String, Any}(), internal=InfrastructureSystems.InfrastructureSystemsInternal(), )
+    ThermalFastStartSIIP(name, available, status, bus, active_power, reactive_power, rating, active_power_limits, reactive_power_limits, ramp_limits, operation_cost, base_power, time_limits, prime_mover_type, fuel, services, time_at_status, dynamic_injector, ext, internal, )
 end
 
 # Constructor for demo purposes; non-functional.
@@ -101,7 +101,7 @@ function ThermalFastStartSIIP(::Nothing)
         active_power_limits=(min=0.0, max=0.0),
         reactive_power_limits=nothing,
         ramp_limits=nothing,
-        operation_cost=ThreePartCost(nothing),
+        operation_cost=ThermalGenerationCost(nothing),
         base_power=0.0,
         time_limits=nothing,
         prime_mover_type=PrimeMovers.OT,
@@ -110,7 +110,7 @@ function ThermalFastStartSIIP(::Nothing)
         time_at_status=INFINITE_TIME,
         dynamic_injector=nothing,
         ext=Dict{String, Any}(),
-        time_series_container=InfrastructureSystems.TimeSeriesContainer(),
+        # time_series_container=InfrastructureSystems.TimeSeriesContainer(),
     )
 end
 
@@ -152,8 +152,8 @@ PSY.get_time_at_status(value::ThermalFastStartSIIP) = value.time_at_status
 PSY.get_dynamic_injector(value::ThermalFastStartSIIP) = value.dynamic_injector
 """Get [`ThermalFastStartSIIP`](@ref) `ext`."""
 PSY.get_ext(value::ThermalFastStartSIIP) = value.ext
-"""Get [`ThermalFastStartSIIP`](@ref) `time_series_container`."""
-PSY.get_time_series_container(value::ThermalFastStartSIIP) = value.time_series_container
+# """Get [`ThermalFastStartSIIP`](@ref) `time_series_container`."""
+# PSY.get_time_series_container(value::ThermalFastStartSIIP) = value.time_series_container
 """Get [`ThermalFastStartSIIP`](@ref) `internal`."""
 PSY.get_internal(value::ThermalFastStartSIIP) = value.internal
 PSY.get_must_run(::ThermalFastStartSIIP) = false
@@ -194,5 +194,5 @@ PSY.set_services!(value::ThermalFastStartSIIP, val) = value.services = val
 PSY.set_time_at_status!(value::ThermalFastStartSIIP, val) = value.time_at_status = val
 """Set [`ThermalFastStartSIIP`](@ref) `ext`."""
 PSY.set_ext!(value::ThermalFastStartSIIP, val) = value.ext = val
-"""Set [`ThermalFastStartSIIP`](@ref) `time_series_container`."""
-PSY.set_time_series_container!(value::ThermalFastStartSIIP, val) = value.time_series_container = val
+# """Set [`ThermalFastStartSIIP`](@ref) `time_series_container`."""
+# PSY.set_time_series_container!(value::ThermalFastStartSIIP, val) = value.time_series_container = val

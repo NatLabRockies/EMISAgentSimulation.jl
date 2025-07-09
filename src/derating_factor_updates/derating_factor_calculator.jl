@@ -47,7 +47,7 @@ function calculate_derating_data(simulation::Union{AgentSimulation, AgentSimulat
 
     existing_vg_power = zeros(num_hours)
 
-    load = vec(sum(Matrix(load_n_vg_data[:, r"load"]), dims=2))
+    load = vec(sum(Matrix(load_n_vg_data[:, 5:18]), dims=2))
 
     for g in renewable_existing
         existing_vg_power += load_n_vg_data[!,get_name(g)]
@@ -188,7 +188,7 @@ function calculate_derating_data(simulation::Union{AgentSimulation, AgentSimulat
         stor_duration::Int64,
         peak_reductions_existing::Dict{Int64, Float64},
         peak_reduction_new::Float64,
-        init_CC::Dict{Int64, Float64},
+        init_CC::Union{Dict{Any, Any}, Dict{Int64, Float64}},
         average_efficiency::Float64,
         net_load_df::DataFrame,
         num_hours::Int64,

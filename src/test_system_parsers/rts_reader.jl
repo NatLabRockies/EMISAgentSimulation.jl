@@ -28,9 +28,14 @@ function read_rts(data_dir::String,
         test_sys_hour_weight = ones(test_sys_num_hours) * 8760 / test_sys_num_hours
     end
 
+    # zone_numbers = names(test_system_load_da)[5:end]
+    # zones = ["zone_$(i)" for i in zone_numbers]
     zone_numbers = names(test_system_load_da)[5:end]
-    zones = ["zone_$(i)" for i in zone_numbers]
+    zones = names(test_system_load_da)[5:end]
 
+    ### NY_change: there is no reserve product in NY system
+    ### NY_change: but it maybe easier to have reserve timeseries be all zero for CEM purposes
+    ### NY_change: although sienna system does not have reserves
     reserve_params_df = read_data(joinpath(test_system_dir, "RTS_Data", "SourceData", "reserves.csv"))
 
     reserve_products = reserve_params_df[:, "Reserve Product"]
@@ -42,6 +47,7 @@ function read_rts(data_dir::String,
     for product in reserve_products
         test_system_reserves_data[product] = test_system_load_da[:, 1:4]
         test_system_reserves_data[product][:, product] = zeros(data_rows)
+        ### NY_change: zero out all reserve timeseries
         data = DataFrames.DataFrame(CSV.File(joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Reserves", "DAY_AHEAD_regional_$(product).csv")))
         for d in 1:Int(data_rows/24)
             for h in 1:24
@@ -66,11 +72,11 @@ function read_rts(data_dir::String,
     end
 
     for y in 1:(start_year - base_year)
-        for zone in zone_numbers
+        for zone in zones
             # scaled_test_sys_load[:, "$(zone)"] =  scaled_test_sys_load[:, "$(zone)"] .* (1 + annual_growth_past["load_zone_$(zone)",y])
             # scaled_test_sys_load_rt[:, "$(zone)"] =  scaled_test_sys_load_rt[:, "$(zone)"] .* (1 + annual_growth_past["load_zone_$(zone)",y])
-            scaled_test_sys_load[:, "$(zone)"] =  scaled_test_sys_load[:, "$(zone)"]
-            scaled_test_sys_load_rt[:, "$(zone)"] =  scaled_test_sys_load_rt[:, "$(zone)"]
+            scaled_test_sys_load[:, zone] =  scaled_test_sys_load[:, zone]
+            scaled_test_sys_load_rt[:, zone] =  scaled_test_sys_load_rt[:, zone]
         end
         for product in reserve_products
             # scaled_test_system_reserves_data[product][:, product] = scaled_test_system_reserves_data[product][:, product] * (1 + average_annual_growth_past[1][y])
@@ -81,79 +87,81 @@ function read_rts(data_dir::String,
     net_load_df = scaled_test_sys_load[:, 1:4]
     net_load_df_rt = scaled_test_sys_load_rt[:, 1:4]
 
-    for zone in zone_numbers
-        net_load_df[:, "load_zone_$(zone)"] = scaled_test_sys_load[:, zone]
-        net_load_df_rt[:, "load_zone_$(zone)"] = scaled_test_sys_load_rt[:, zone]
+    for zone in zones
+        net_load_df[:, zone] = scaled_test_sys_load[:, zone]
+        net_load_df_rt[:, zone] = scaled_test_sys_load_rt[:, zone]
     end
 
     existing_generator_data = DataFrames.DataFrame(CSV.File(joinpath(test_system_dir, "RTS_Data", "SourceData", "gen.csv")))
 
-    wind_timeseries_file = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "WIND", "DAY_AHEAD_wind.csv")
-    wind_timeseries_file_rt = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "WIND", "REAL_TIME_wind.csv")
-    if isfile(wind_timeseries_file)
-        wind_timeseries_data = DataFrames.DataFrame(CSV.File(wind_timeseries_file))
-        remove_leap_day!(wind_timeseries_data, start_year)
+    # wind_timeseries_file = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "WIND", "DAY_AHEAD_wind.csv")
+    # wind_timeseries_file_rt = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "WIND", "REAL_TIME_wind.csv")
+    # if isfile(wind_timeseries_file)
+    #     wind_timeseries_data = DataFrames.DataFrame(CSV.File(wind_timeseries_file))
+    #     remove_leap_day!(wind_timeseries_data, start_year)
 
-        wind_timeseries_data_rt = DataFrames.DataFrame(CSV.File(wind_timeseries_file_rt))
-        remove_leap_day!(wind_timeseries_data_rt, start_year)
-    end
+    #     wind_timeseries_data_rt = DataFrames.DataFrame(CSV.File(wind_timeseries_file_rt))
+    #     remove_leap_day!(wind_timeseries_data_rt, start_year)
+    # end
 
-    pv_timeseries_file = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "PV", "DAY_AHEAD_pv.csv")
-    pv_timeseries_file_rt = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "PV", "REAL_TIME_pv.csv")
-    if isfile(pv_timeseries_file)
-        pv_timeseries_data = DataFrames.DataFrame(CSV.File(pv_timeseries_file))
-        remove_leap_day!(pv_timeseries_data, start_year)
+    # pv_timeseries_file = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "PV", "DAY_AHEAD_pv.csv")
+    # pv_timeseries_file_rt = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "PV", "REAL_TIME_pv.csv")
+    # if isfile(pv_timeseries_file)
+    #     pv_timeseries_data = DataFrames.DataFrame(CSV.File(pv_timeseries_file))
+    #     remove_leap_day!(pv_timeseries_data, start_year)
 
-        pv_timeseries_data_rt = DataFrames.DataFrame(CSV.File(pv_timeseries_file_rt))
-        remove_leap_day!(pv_timeseries_data_rt, start_year)
-    end
+    #     pv_timeseries_data_rt = DataFrames.DataFrame(CSV.File(pv_timeseries_file_rt))
+    #     remove_leap_day!(pv_timeseries_data_rt, start_year)
+    # end
 
-    rtpv_timeseries_file = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "RTPV", "DAY_AHEAD_rtpv.csv")
-    rtpv_timeseries_file_rt = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "RTPV", "REAL_TIME_rtpv.csv")
-    if isfile(rtpv_timeseries_file)
-        rtpv_timeseries_data = DataFrames.DataFrame(CSV.File(rtpv_timeseries_file))
-        remove_leap_day!(rtpv_timeseries_data, start_year)
+    # rtpv_timeseries_file = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "RTPV", "DAY_AHEAD_rtpv.csv")
+    # rtpv_timeseries_file_rt = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "RTPV", "REAL_TIME_rtpv.csv")
+    # if isfile(rtpv_timeseries_file)
+    #     rtpv_timeseries_data = DataFrames.DataFrame(CSV.File(rtpv_timeseries_file))
+    #     remove_leap_day!(rtpv_timeseries_data, start_year)
 
-        rtpv_timeseries_data_rt = DataFrames.DataFrame(CSV.File(rtpv_timeseries_file_rt))
-        remove_leap_day!(rtpv_timeseries_data_rt, start_year)
-    end
+    #     rtpv_timeseries_data_rt = DataFrames.DataFrame(CSV.File(rtpv_timeseries_file_rt))
+    #     remove_leap_day!(rtpv_timeseries_data_rt, start_year)
+    # end
 
-    hydro_timeseries_file = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Hydro", "DAY_AHEAD_hydro.csv")
-    hydro_timeseries_file_rt = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Hydro", "REAL_TIME_hydro.csv")
-    if isfile(hydro_timeseries_file)
-        hydro_timeseries_data = DataFrames.DataFrame(CSV.File(hydro_timeseries_file))
-        remove_leap_day!(hydro_timeseries_data, start_year)
+    # hydro_timeseries_file = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Hydro", "DAY_AHEAD_hydro.csv")
+    # hydro_timeseries_file_rt = joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Hydro", "REAL_TIME_hydro.csv")
+    # if isfile(hydro_timeseries_file)
+    #     hydro_timeseries_data = DataFrames.DataFrame(CSV.File(hydro_timeseries_file))
+    #     remove_leap_day!(hydro_timeseries_data, start_year)
 
-        hydro_timeseries_data_rt = DataFrames.DataFrame(CSV.File(hydro_timeseries_file_rt))
-        remove_leap_day!(hydro_timeseries_data_rt, start_year)
-    end
+    #     hydro_timeseries_data_rt = DataFrames.DataFrame(CSV.File(hydro_timeseries_file_rt))
+    #     remove_leap_day!(hydro_timeseries_data_rt, start_year)
+    # end
 
     gen_availability_df = scaled_test_sys_load[:, 1:4]
     gen_availability_df_rt = scaled_test_sys_load_rt[:, 1:4]
 
     for i in 1:DataFrames.nrow(existing_generator_data)
-        if existing_generator_data[i, "Unit Type"] == "WIND"
-            gen_availability_df[:, existing_generator_data[i, "GEN UID"]] = wind_timeseries_data[:, existing_generator_data[i, "GEN UID"]] / existing_generator_data[i, "PMax MW"]
-            gen_availability_df_rt[:, existing_generator_data[i, "GEN UID"]] = wind_timeseries_data_rt[:, existing_generator_data[i, "GEN UID"]] / existing_generator_data[i, "PMax MW"]
+        # if existing_generator_data[i, "Unit Type"] == "WIND"
+        #     gen_availability_df[:, existing_generator_data[i, "GEN UID"]] = wind_timeseries_data[:, existing_generator_data[i, "GEN UID"]] / existing_generator_data[i, "PMax MW"]
+        #     gen_availability_df_rt[:, existing_generator_data[i, "GEN UID"]] = wind_timeseries_data_rt[:, existing_generator_data[i, "GEN UID"]] / existing_generator_data[i, "PMax MW"]
 
-            net_load_df[:, existing_generator_data[i, "GEN UID"]] = wind_timeseries_data[:, existing_generator_data[i, "GEN UID"]]
-            net_load_df_rt[:, existing_generator_data[i, "GEN UID"]] = wind_timeseries_data_rt[:, existing_generator_data[i, "GEN UID"]]
-        elseif existing_generator_data[i, "Unit Type"] == "PV"
-            gen_availability_df[:, existing_generator_data[i, "GEN UID"]] = pv_timeseries_data[:, existing_generator_data[i, "GEN UID"]] / existing_generator_data[i, "PMax MW"]
-            gen_availability_df_rt[:, existing_generator_data[i, "GEN UID"]] = pv_timeseries_data_rt[:, existing_generator_data[i, "GEN UID"]] / existing_generator_data[i, "PMax MW"]
+        #     net_load_df[:, existing_generator_data[i, "GEN UID"]] = wind_timeseries_data[:, existing_generator_data[i, "GEN UID"]]
+        #     net_load_df_rt[:, existing_generator_data[i, "GEN UID"]] = wind_timeseries_data_rt[:, existing_generator_data[i, "GEN UID"]]
+        # elseif existing_generator_data[i, "Unit Type"] == "PV"
+        #     gen_availability_df[:, existing_generator_data[i, "GEN UID"]] = pv_timeseries_data[:, existing_generator_data[i, "GEN UID"]] / existing_generator_data[i, "PMax MW"]
+        #     gen_availability_df_rt[:, existing_generator_data[i, "GEN UID"]] = pv_timeseries_data_rt[:, existing_generator_data[i, "GEN UID"]] / existing_generator_data[i, "PMax MW"]
 
-            net_load_df[:, existing_generator_data[i, "GEN UID"]] = pv_timeseries_data[:, existing_generator_data[i, "GEN UID"]]
-            net_load_df_rt[:, existing_generator_data[i, "GEN UID"]] = pv_timeseries_data_rt[:, existing_generator_data[i, "GEN UID"]]
-        elseif existing_generator_data[i, "Unit Type"] == "RTPV"
-            gen_availability_df[:, existing_generator_data[i, "GEN UID"]] = rtpv_timeseries_data[:, existing_generator_data[i, "GEN UID"]] / existing_generator_data[i, "PMax MW"]
-            gen_availability_df_rt[:, existing_generator_data[i, "GEN UID"]] = rtpv_timeseries_data_rt[:, existing_generator_data[i, "GEN UID"]] / existing_generator_data[i, "PMax MW"]
-        elseif existing_generator_data[i, "Unit Type"] == "HYDRO" || existing_generator_data[i, "Unit Type"] == "ROR"
-            gen_availability_df[:, existing_generator_data[i, "GEN UID"]] = hydro_timeseries_data[:, existing_generator_data[i, "GEN UID"]] / existing_generator_data[i, "PMax MW"]
-            gen_availability_df_rt[:, existing_generator_data[i, "GEN UID"]] = hydro_timeseries_data_rt[:, existing_generator_data[i, "GEN UID"]] / existing_generator_data[i, "PMax MW"]
-        else
-            gen_availability_df[:, existing_generator_data[i, "GEN UID"]] = ones(DataFrames.nrow(gen_availability_df))
-            gen_availability_df_rt[:, existing_generator_data[i, "GEN UID"]] = ones(DataFrames.nrow(gen_availability_df_rt))
-        end
+        #     net_load_df[:, existing_generator_data[i, "GEN UID"]] = pv_timeseries_data[:, existing_generator_data[i, "GEN UID"]]
+        #     net_load_df_rt[:, existing_generator_data[i, "GEN UID"]] = pv_timeseries_data_rt[:, existing_generator_data[i, "GEN UID"]]
+        # elseif existing_generator_data[i, "Unit Type"] == "RTPV"
+        #     gen_availability_df[:, existing_generator_data[i, "GEN UID"]] = rtpv_timeseries_data[:, existing_generator_data[i, "GEN UID"]] / existing_generator_data[i, "PMax MW"]
+        #     gen_availability_df_rt[:, existing_generator_data[i, "GEN UID"]] = rtpv_timeseries_data_rt[:, existing_generator_data[i, "GEN UID"]] / existing_generator_data[i, "PMax MW"]
+        # elseif existing_generator_data[i, "Unit Type"] == "HYDRO" || existing_generator_data[i, "Unit Type"] == "ROR"
+        #     gen_availability_df[:, existing_generator_data[i, "GEN UID"]] = hydro_timeseries_data[:, existing_generator_data[i, "GEN UID"]] / existing_generator_data[i, "PMax MW"]
+        #     gen_availability_df_rt[:, existing_generator_data[i, "GEN UID"]] = hydro_timeseries_data_rt[:, existing_generator_data[i, "GEN UID"]] / existing_generator_data[i, "PMax MW"]
+        # else
+        #     gen_availability_df[:, existing_generator_data[i, "GEN UID"]] = ones(DataFrames.nrow(gen_availability_df))
+        #     gen_availability_df_rt[:, existing_generator_data[i, "GEN UID"]] = ones(DataFrames.nrow(gen_availability_df_rt))
+        # end
+        gen_availability_df[:, existing_generator_data[i, "GEN UID"]] = ones(DataFrames.nrow(gen_availability_df))
+        gen_availability_df_rt[:, existing_generator_data[i, "GEN UID"]] = ones(DataFrames.nrow(gen_availability_df_rt))
     end
 
     write_data(joinpath(data_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Availability"), "DAY_AHEAD_availability.csv", gen_availability_df)
@@ -247,15 +255,16 @@ function read_rts(data_dir::String,
 
     zonal_lines = ZonalLine[]
 
+    ### NY_change: copied transmission data over from /kfs2/projects/gmlcmarkets/Phase2_EMIS_Analysis/Feb2024_ERCOT_2011_MARKET_Test_NGUO_LDES/RTS-GMLC_NY/nys_psy/config/branch_config_zonal.csv (zonal_model_tscost branch)
     branches = read_data(joinpath(test_system_dir, "RTS_Data", "SourceData", "branch.csv"))
     dc_branches = read_data(joinpath(test_system_dir, "RTS_Data", "SourceData", "dc_branch.csv"))
 
     for b in 1:DataFrames.nrow(branches)
-        from_bus = "$(branches[b, "From Bus"])"
-        from_zone = "zone_$(first(from_bus, 1))"
+        from_zone = "$(branches[b, "From Bus"])"
+        # from_zone = "zone_$(first(from_bus, 1))"
 
-        to_bus = "$(branches[b, "To Bus"])"
-        to_zone = "zone_$(first(to_bus, 1))"
+        to_zone = "$(branches[b, "To Bus"])"
+        # to_zone = "zone_$(first(to_bus, 1))"
 
         similar_line = filter(l -> (in(from_zone, [get_from_zone(l), get_to_zone(l)]) && in(to_zone, [get_from_zone(l), get_to_zone(l)])), zonal_lines)
 
@@ -267,11 +276,11 @@ function read_rts(data_dir::String,
     end
 
     for b in 1:DataFrames.nrow(dc_branches)
-        from_bus = "$(dc_branches[b, "From Bus"])"
-        from_zone = "zone_$(first(from_bus, 1))"
+        from_zone = "$(dc_branches[b, "From Bus"])"
+        # from_zone = "zone_$(first(from_bus, 1))"
 
-        to_bus = "$(dc_branches[b, "To Bus"])"
-        to_zone = "zone_$(first(to_bus, 1))"
+        to_zone = "$(dc_branches[b, "To Bus"])"
+        # to_zone = "zone_$(first(to_bus, 1))"
 
         similar_line = filter(l -> (in(from_zone, [get_from_zone(l), get_to_zone(l)]) && in(to_zone, [get_from_zone(l), get_to_zone(l)])), zonal_lines)
 

@@ -91,7 +91,8 @@ function find_representative_periods(simulation_dir::String,
         
         labels = net_load_data[!, "Representative_Period"]
 
-        load = vec(sum(Matrix(net_load_data[:, r"load"]), dims=2))
+        # load = vec(sum(Matrix(net_load_data[:, r"load"]), dims=2))
+        load = vec(sum(Matrix(net_load_data[:, 5:18]), dims=2))
         wind = zeros(length(load))
         pv = zeros(length(load))
 

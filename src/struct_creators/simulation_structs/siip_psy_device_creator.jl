@@ -20,7 +20,7 @@ function create_PSY_generator(gen::ThermalGenEMIS{<: BuildPhase}, sys::PSY.Syste
     project_bus = PSY.Bus[]
 
     for b in buses
-        if PSY.get_number(b) == get_bus(tech)
+        if PSY.get_name(b) == get_bus(tech)
             push!(project_bus, b)
         end
     end
@@ -74,7 +74,7 @@ function create_PSY_generator(gen::RenewableGenEMIS{<: BuildPhase}, sys::PSY.Sys
     project_bus = PSY.Bus[]
 
     for b in buses
-        if PSY.get_number(b) == get_bus(tech)
+        if PSY.get_name(b) == get_bus(tech)
             push!(project_bus, b)
         end
     end
@@ -102,9 +102,10 @@ function create_PSY_generator(gen::RenewableGenEMIS{<: BuildPhase}, sys::PSY.Sys
 end
 
 """
-This function creates a PowerSystems GenericBattery unit.
+This function creates a PowerSystems EnergyReservoirStorage unit.
 """
 function create_PSY_generator(gen::BatteryEMIS{<: BuildPhase}, sys::PSY.System)
+    # println(gen)
     tech = get_tech(gen)
     base_power = get_maxcap(gen)
 
@@ -112,18 +113,20 @@ function create_PSY_generator(gen::BatteryEMIS{<: BuildPhase}, sys::PSY.System)
     project_bus = PSY.Bus[]
 
     for b in buses
-        if PSY.get_number(b) == get_bus(tech)
+        if PSY.get_name(b) == get_bus(tech)
             push!(project_bus, b)
         end
     end
 
-    PSY_gen =  PSY.GenericBattery(
+    PSY_gen =  PSY.EnergyReservoirStorage(
         get_name(gen),  # name
         true,           # available
         project_bus[1], # bus
         PSY.PrimeMovers.BA, # primemover
-        get_soc(tech) / (base_power), #initial state of charge
-        (min = get_storage_capacity(tech)[:min] / base_power, max = get_storage_capacity(tech)[:max] / base_power), # state of charge limits
+        StorageTech.LIB,
+        get_storage_capacity(tech)[:max] / get_maxcap(gen),
+        (min = 0.0, max = 1.0), # state of charge limits
+        get_soc(tech) / base_power, # initial state of charge
         get_maxcap(gen) / base_power, # rating
         get_maxcap(gen) / base_power, # active power
         (min = get_input_active_power_limits(tech)[:min] / base_power, max = get_input_active_power_limits(tech)[:max] / base_power), # input active power limits
@@ -132,7 +135,12 @@ function create_PSY_generator(gen::BatteryEMIS{<: BuildPhase}, sys::PSY.System)
         1.0,             # reactive power
         nothing,      # reactive power limits
         base_power, # base power
-        nothing,    #operation_cost
+        PSY.StorageCost(),    #operation_cost
+        1.0, # conversion factor
+        0.0, # storage_target
+        1e4, # cycle_limits
+        PSY.Device[], # services
+        nothing, # dynamic_injector
     )
     for product in get_products(gen)
         add_inertia_constant!(PSY_gen, product)

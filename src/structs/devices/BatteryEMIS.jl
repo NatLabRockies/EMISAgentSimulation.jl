@@ -19,7 +19,7 @@ struct BatteryTech <: Tech
     storage_capacity::NamedTuple{(:min, :max),Tuple{Float64,Float64}}
     soc::Float64
     efficiency::NamedTuple{(:in, :out), Tuple{Float64, Float64}}
-    bus::Int64
+    bus::String
     zone::String
     FOR::Float64
     MTTR::Int64

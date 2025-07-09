@@ -57,9 +57,14 @@ function create_cem_mkt_clr_problem(investor_dir::String,
 
         zonal_load = AxisArrays.AxisArray(zeros(length(zones), num_hours), zones, (1:num_hours))
 
-        for (zone_num, zone) in enumerate(zones)
+        # for (zone_num, zone) in enumerate(zones)
+        #     for h in 1:num_hours
+        #         zonal_load[zone, h] = load_data[:, Symbol(zone_num)][h]
+        #     end
+        # end
+        for zone in zones
             for h in 1:num_hours
-                zonal_load[zone, h] = load_data[:, Symbol(zone_num)][h]
+                zonal_load[zone, h] = load_data[:, Symbol(zone)][h]
             end
         end
         #energy_annual_increment = AxisArrays.AxisArray(ones(length(zones), num_invperiods), zones, collect(1:num_invperiods))
@@ -103,7 +108,7 @@ function create_cem_mkt_clr_problem(investor_dir::String,
                 else
                     direction = lowercase(parameter_data[1, "direction"])
                     price_cap = Float64(parameter_data[1, "price_cap"])
-                    zones = ["zone_$(n)" for n in split(parameter_data[1, "eligible_zones"], ";")]
+                    # zones = ["zone_$(n)" for n in split(parameter_data[1, "eligible_zones"], ";")]
                     if direction == "up"
                         market = ReserveUpMarket(timeseries_data, price_cap, zones, reserve_eligible_projects[product])
                         reserve_up_market[product] = market

@@ -334,15 +334,18 @@ function calculate_carbon_cost_ratio(product::CarbonTax, carbon_cost_ratio::Floa
     return carbon_cost_ratio
 end
 
-function update_device_operation_cost!(project::P, sys_UC::PSY.System, var_cost, fixed::Float64) where P <: Project{<:BuildPhase}
+function update_device_operation_cost!(project::P, sys_UC::PSY.System, operation_cost) where P <: Project{<:BuildPhase}
     return
 end
 
-function update_device_operation_cost!(project::P, sys_UC::PSY.System, var_cost, fixed::Float64) where P <: Project{Existing}
+function update_device_operation_cost!(project::P, sys_UC::PSY.System, operation_cost) where P <: Project{Existing}
     name = get_name(project)
     device = PSY.get_components_by_name(PSY.Device, sys_UC, name)[1]
-    device.operation_cost.variable.cost = var_cost
-    device.operation_cost.fixed = fixed
+    # device.operation_cost.variable.cost = var_cost
+    # cost_curve = PSY.CostCurve(var_cost)
+    # device.operation_cost.variable = cost_curve
+    # device.operation_cost.fixed = fixed
+    device.operation_cost = operation_cost
     return
 end
 
@@ -366,21 +369,71 @@ function update_operation_cost!(project::P, sys_UC::PSY.System, carbon_tax::Vect
 
         total_cost_scalar = 1 + carbon_cost_ratio
 
-        var_cost = deepcopy(PSY.get_variable(operation_cost).cost)
-
-        fixed = deepcopy(PSY.get_fixed(operation_cost))
-
-        if length(var_cost) > 1
-            for i in 1:length(var_cost)
-                var_cost[i] = (var_cost[i][1] * total_cost_scalar, var_cost[i][2])
-            end
-        elseif length(var_cost) == 1
-            var_cost = var_cost * total_cost_scalar
+        if typeof(operation_cost) == PSY.ThermalGenerationCost
+            fixed = deepcopy(PSY.get_fixed(operation_cost))
+            fixed = fixed * total_cost_scalar
         end
 
-        fixed = fixed * total_cost_scalar
+        value_curve = get_variable(operation_cost).value_curve
 
-        update_device_operation_cost!(project, sys_UC, var_cost, fixed)
+        ### NY_change
+        if typeof(value_curve) == PiecewisePointCurve
+            points = value_curve.function_data.points
+
+            new_value_curve_vec = []
+            for i in 1:length(points)
+                push!(new_value_curve_vec, (points[i][1], points[i][2] * total_cost_scalar))
+            end
+        
+            new_value_curve = PSY.PiecewisePointCurve(new_value_curve_vec)
+
+            cost_curve = PSY.CostCurve(new_value_curve)
+
+            if get_tech(project).type == "CC" || get_tech(project).type == "CT" || get_tech(project).type == "GT" || get_tech(project).type == "ST" || get_tech(project).type == "NU_ST" || get_tech(project).type == "RE_CT" || get_tech(project).type == "IC" || get_tech(project).type == "HY"
+                start_up_cost = deepcopy(PSY.get_start_up(operation_cost))
+                shut_down_cost = deepcopy(PSY.get_shut_down(operation_cost))
+                operation_cost = PSY.ThermalGenerationCost(cost_curve, fixed, start_up_cost, shut_down_cost)
+            elseif get_tech(project).type == "WT" || get_tech(project).type == "PVe"
+                operation_cost = PSY.RenewableGenerationCost(cost_curve)
+            elseif get_tech(project).type == "BA" || get_tech(project).type == "LDES"
+                operation_cost = PSY.StorageCost()
+            end
+
+        elseif typeof(value_curve) == LinearCurve
+
+            new_value_curve = deepcopy(PSY.get_variable(operation_cost).value_curve)
+            power_units = deepcopy(PSY.get_variable(operation_cost).power_units)
+            fuel_cost = deepcopy(PSY.get_variable(operation_cost).fuel_cost) * total_cost_scalar
+            vom_cost = deepcopy(PSY.get_variable(operation_cost).vom_cost)
+
+            cost_curve = PSY.FuelCurve(new_value_curve, power_units, fuel_cost, vom_cost)
+
+            if get_tech(project).type == "CC" || get_tech(project).type == "CT" || get_tech(project).type == "GT" || get_tech(project).type == "ST" || get_tech(project).type == "NU_ST" || get_tech(project).type == "RE_CT" || get_tech(project).type == "IC" || get_tech(project).type == "HY"
+                start_up_cost = deepcopy(PSY.get_start_up(operation_cost))
+                shut_down_cost = deepcopy(PSY.get_shut_down(operation_cost))
+                operation_cost = PSY.ThermalGenerationCost(cost_curve, fixed, start_up_cost, shut_down_cost)
+            elseif get_tech(project).type == "WT" || get_tech(project).type == "PVe"
+                operation_cost = PSY.RenewableGenerationCost(cost_curve)
+            elseif get_tech(project).type == "BA" || get_tech(project).type == "LDES"
+                operation_cost = PSY.StorageCost()
+            end
+        end
+
+        # var_cost = deepcopy(PSY.get_variable(operation_cost).cost)
+
+        # fixed = deepcopy(PSY.get_fixed(operation_cost))
+
+        # if length(var_cost) > 1
+        #     for i in 1:length(var_cost)
+        #         var_cost[i] = (var_cost[i][1] * total_cost_scalar, var_cost[i][2])
+        #     end
+        # elseif length(var_cost) == 1
+        #     var_cost = var_cost * total_cost_scalar
+        # end
+
+        # fixed = fixed * total_cost_scalar
+
+        update_device_operation_cost!(project, sys_UC, operation_cost)
     end
 
     return
@@ -706,6 +759,7 @@ function get_all_scenario_names(data_dir)
     scenarios = []
 
     for investor in investor_names
+        ### NY_change: only keep scenario_1
         scenario_filename = joinpath(investor_dir_name, investor, "markets_data", "scenario_data.csv")
         scenario_names = String.(read_data(scenario_filename).scenario)
         for scenario in scenario_names

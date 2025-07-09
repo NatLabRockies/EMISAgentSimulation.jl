@@ -13,7 +13,8 @@ function create_ordc_market(points::Union{Vector{String}, PooledArrays.PooledArr
         price_points[t] = [parse.(Float64, tuple)[2] for tuple in tuples]
     end
 
-    zones = ["zone_$(n)" for n in split(parameters[1, "eligible_zones"], ";")]
+    # zones = ["zone_$(n)" for n in split(parameters[1, "eligible_zones"], ";")]
+    zones = ["$(n)" for n in split(parameters[1, "eligible_zones"], ";")]
 
     stepped = parameters[1, "stepped"]
 
