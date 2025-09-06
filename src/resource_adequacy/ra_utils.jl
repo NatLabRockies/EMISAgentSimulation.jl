@@ -21,20 +21,24 @@ function calculate_RA_metrics(sys::PSY.System,
 
     system_period_of_interest = range(1, length = 8760 * 15);
     correlated_outage_csv_location = joinpath(outage_dir, "ThermalFOR_scenario_1_new.csv")
-    pras_system = make_pras_system(sys,
-                                    system_model="Single-Node",
-                                    aggregation="Area",
-                                    period_of_interest = system_period_of_interest,
-                                    outage_flag=false,
-                                    lump_pv_wind_gens=false,
-                                    availability_flag=true,
-                                    outage_csv_location = correlated_outage_csv_location);
+    @timeit TO "make_pras_system" begin
+        pras_system = make_pras_system(sys,
+                                        system_model="Single-Node",
+                                        aggregation="Area",
+                                        period_of_interest = system_period_of_interest,
+                                        outage_flag=false,
+                                        lump_pv_wind_gens=false,
+                                        availability_flag=true,
+                                        outage_csv_location = correlated_outage_csv_location);
+    end
 
     total_load = calculate_total_load(sys, 60)
 
     ra_metrics = Dict{String, Float64}()
     # seed = 3
-    shortfall, gens_avail= @time PRAS.assess(pras_system,  PRAS.SequentialMonteCarlo(samples = samples, seed = seed),  PRAS.Shortfall(),  PRAS.GeneratorAvailability()) 
+    @timeit TO "assess_pras" begin   
+        shortfall, gens_avail= @time PRAS.assess(pras_system,  PRAS.SequentialMonteCarlo(samples = samples, seed = seed),  PRAS.Shortfall(),  PRAS.GeneratorAvailability())
+    end 
     @info "Finished PRAS simulation... "
     eue_overall = PRAS.EUE(shortfall)
     lole_overall = PRAS.LOLE(shortfall)
@@ -47,7 +51,9 @@ function calculate_RA_metrics(sys::PSY.System,
             df_outage[!,asset_name] = Int.(gens_avail.available[j,:,scenarionum])
         end
         outage_csv_location=joinpath(base_dir,"GeneratorOutage") #get_base_dir(case)
-        CSV.write(joinpath(outage_csv_location,"1/Generator_year$(iteration_year+1).csv"), df_outage,writeheader = true)
+        @timeit TO "write_outage_csv" begin
+            CSV.write(joinpath(outage_csv_location,"1/Generator_year$(iteration_year+1).csv"), df_outage,writeheader = true)
+        end
     end
 
     ra_metrics["LOLE"] = val(lole_overall) / 15
