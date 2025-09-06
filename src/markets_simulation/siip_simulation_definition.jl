@@ -247,7 +247,8 @@ function update_realized_reserve_perc!(device::PSY.Device,
                                         da_products::Vector{SubString{String}},
                                         md_products::Vector{SubString{String}},
                                         base_power::Float64,
-                                        md_market_bool::Bool,) where S <: PSY.Service
+                                        md_market_bool::Bool,
+                                        single_stage_bool::Bool,) where S <: PSY.Service
     return
 end
 
@@ -267,7 +268,8 @@ function update_realized_reserve_perc!(device::PSY.Device,
                                         da_products::Vector{SubString{String}},
                                         md_products::Vector{SubString{String}},
                                         base_power::Float64,
-                                        md_market_bool::Bool,)
+                                        md_market_bool::Bool,
+                                        single_stage_bool::Bool,)
 
     service_name = PSY.get_name(service)
 
@@ -287,9 +289,11 @@ function update_realized_reserve_perc!(device::PSY.Device,
         #     reserve_perc[get_name(device)][service_name][1, :] = reserve_perc_value
 
         # end
-        reserve_provision_ed = results_ed["ActivePowerReserveVariable__VariableReserve__ReserveUp__$(service_name)"][:, Symbol(get_name(device))]
-        reserve_perc_value_ed = reserve_provision_ed / get_device_size(device) / base_power
-        reserve_perc_ed[get_name(device)][service_name][1, :] = reserve_perc_value_ed
+        if single_stage_bool == false
+            reserve_provision_ed = results_ed["ActivePowerReserveVariable__VariableReserve__ReserveUp__$(service_name)"][:, Symbol(get_name(device))]
+            reserve_perc_value_ed = reserve_provision_ed / get_device_size(device) / base_power
+            reserve_perc_ed[get_name(device)][service_name][1, :] = reserve_perc_value_ed
+        end
 
         reserve_provision_uc = results_uc["ActivePowerReserveVariable__VariableReserve__ReserveUp__$(service_name)"][:, Symbol(get_name(device))]
         reserve_perc_value_uc = reserve_provision_uc / get_device_size(device) / base_power
@@ -321,13 +325,16 @@ function update_realized_reserve_perc!(device::PSY.Device,
                                         da_products::Vector{SubString{String}},
                                         md_products::Vector{SubString{String}},
                                         base_power::Float64,
-                                        md_market_bool::Bool,)
+                                        md_market_bool::Bool,
+                                        single_stage_bool::Bool,)
 
     service_name = PSY.get_name(service)
 
-    reserve_provision_ed = results_ed["ActivePowerReserveVariable__ReserveDemandCurve__ReserveUp__$(service_name)"][:, Symbol(get_name(device))]
-    reserve_perc_value_ed = reserve_provision_ed / get_device_size(device) / base_power
-    reserve_perc_ed[get_name(device)][service_name][1, :] = reserve_perc_value_ed
+    if single_stage_bool == false
+        reserve_provision_ed = results_ed["ActivePowerReserveVariable__ReserveDemandCurve__ReserveUp__$(service_name)"][:, Symbol(get_name(device))]
+        reserve_perc_value_ed = reserve_provision_ed / get_device_size(device) / base_power
+        reserve_perc_ed[get_name(device)][service_name][1, :] = reserve_perc_value_ed
+    end
 
     reserve_provision_uc = results_uc["ActivePowerReserveVariable__ReserveDemandCurve__ReserveUp__$(service_name)"][:, Symbol(get_name(device))]
     reserve_perc_value_uc = reserve_provision_uc / get_device_size(device) / base_power
@@ -369,13 +376,16 @@ function update_realized_reserve_perc!(device::PSY.Device,
                                         da_products::Vector{SubString{String}},
                                         md_products::Vector{SubString{String}},
                                         base_power::Float64,
-                                        md_market_bool::Bool,)
+                                        md_market_bool::Bool,
+                                        single_stage_bool::Bool,)
 
     service_name = PSY.get_name(service)
 
-    reserve_provision_ed = results_ed["ActivePowerReserveVariable__VariableReserve__ReserveDown__$(service_name)"][:, Symbol(get_name(device))]
-    reserve_perc_value_ed = reserve_provision_ed / get_device_size(device) / base_power
-    reserve_perc_ed[get_name(device)][service_name][1, :] = reserve_perc_value_ed
+    if single_stage_bool == false
+        reserve_provision_ed = results_ed["ActivePowerReserveVariable__VariableReserve__ReserveDown__$(service_name)"][:, Symbol(get_name(device))]
+        reserve_perc_value_ed = reserve_provision_ed / get_device_size(device) / base_power
+        reserve_perc_ed[get_name(device)][service_name][1, :] = reserve_perc_value_ed
+    end
 
     reserve_provision_uc = results_uc["ActivePowerReserveVariable__VariableReserve__ReserveDown__$(service_name)"][:, Symbol(get_name(device))]
     reserve_perc_value_uc = reserve_provision_uc / get_device_size(device) / base_power
@@ -418,14 +428,17 @@ function update_realized_reserve_perc!(device::PSY.GenericBattery,
     da_products::Vector{SubString{String}},
     md_products::Vector{SubString{String}},
     base_power::Float64,
-    md_market_bool::Bool,)
+    md_market_bool::Bool,
+    single_stage_bool::Bool,)
 
     service_name = PSY.get_name(service)
 
-    reserve_provision_ed = (results_ed["AncillaryServiceVariableDischarge__GenericBattery__ReserveDemandCurve{ReserveUp}_$(service_name)"][:, Symbol(get_name(device))] .+
-        results_ed["AncillaryServiceVariableCharge__GenericBattery__ReserveDemandCurve{ReserveUp}_$(service_name)"][:, Symbol(get_name(device))])
-    reserve_perc_value_ed = reserve_provision_ed / get_device_size(device) / base_power
-    reserve_perc_ed[get_name(device)][service_name][1, :] = reserve_perc_value_ed
+    if single_stage_bool == false
+        reserve_provision_ed = (results_ed["AncillaryServiceVariableDischarge__GenericBattery__ReserveDemandCurve{ReserveUp}_$(service_name)"][:, Symbol(get_name(device))] .+
+            results_ed["AncillaryServiceVariableCharge__GenericBattery__ReserveDemandCurve{ReserveUp}_$(service_name)"][:, Symbol(get_name(device))])
+        reserve_perc_value_ed = reserve_provision_ed / get_device_size(device) / base_power
+        reserve_perc_ed[get_name(device)][service_name][1, :] = reserve_perc_value_ed
+    end
 
     reserve_provision_uc = (results_uc["AncillaryServiceVariableDischarge__GenericBattery__ReserveDemandCurve{ReserveUp}_$(service_name)"][:, Symbol(get_name(device))] .+
         results_uc["AncillaryServiceVariableCharge__GenericBattery__ReserveDemandCurve{ReserveUp}_$(service_name)"][:, Symbol(get_name(device))])
@@ -1016,13 +1029,21 @@ end
 """
 This function creates the Sequences for PSI Simulation.
 """
-function create_sequence(problems::PSI.SimulationModels, feedforward_dict)
+function create_sequence(problems::PSI.SimulationModels, feedforward_dict, single_stage_bool::Bool)
 
-    sequence = PSI.SimulationSequence(
-        models = problems,
-        feedforwards = feedforward_dict,
-        ini_cond_chronology = PSI.InterProblemChronology(),
-    )
+    if single_stage_bool == false
+        sequence = PSI.SimulationSequence(
+            models = problems,
+            feedforwards = feedforward_dict,
+            ini_cond_chronology = PSI.InterProblemChronology(),
+        )
+    else
+        sequence = PSI.SimulationSequence(
+            models = problems,
+            ini_cond_chronology = PSI.InterProblemChronology(),
+        )
+    end
+
     return sequence
 end
 
@@ -1046,6 +1067,7 @@ function create_simulation( sys_MD::PSY.System,
                             solver::JuMP.MOI.OptimizerWithAttributes,
                             current_siip_sim,
                             md_market_bool::Bool,
+                            single_stage_bool::Bool,
                             siip_system;
                             kwargs...)
 
@@ -1061,12 +1083,17 @@ function create_simulation( sys_MD::PSY.System,
 
     inertia_product = collect(PSY.get_components_by_name(PSY.Service, sys_ED, "Inertia"))
 
-    template_uc = create_uc_template(inertia_product)
-    template_ed = create_ed_template(inertia_product)
-    uc_problem = create_problem(template_uc, sys_UC, "UC", solver, inertia_product)
-    ed_problem = create_problem(template_ed, sys_ED, "ED", solver, inertia_product)
+    if single_stage_bool == false
+        template_uc = create_uc_template(inertia_product)
+        template_ed = create_ed_template(inertia_product)
+        uc_problem = create_problem(template_uc, sys_UC, "UC", solver, inertia_product)
+        ed_problem = create_problem(template_ed, sys_ED, "ED", solver, inertia_product)
+    else
+        template_uc = create_uc_template(inertia_product)
+        uc_problem = create_problem(template_uc, sys_UC, "UC", solver, inertia_product)
+    end
 
-    if md_market_bool == true
+    if md_market_bool == true && single_stage_bool == false
 
         template_md = create_md_template(inertia_product)
         md_problem = create_problem(template_md, sys_MD, "MD", solver, inertia_product)
@@ -1179,7 +1206,7 @@ function create_simulation( sys_MD::PSY.System,
             ]
         );
 
-    else
+    elseif md_market_bool == false && single_stage_bool == false
 
         if isempty(inertia_product)
             feedforward_dict = Dict(
@@ -1262,6 +1289,17 @@ function create_simulation( sys_MD::PSY.System,
             ]
         );
 
+    elseif md_market_bool == false && single_stage_bool == true
+        feedforward_dict = []
+
+        models = PSI.SimulationModels(
+            decision_models = [
+                uc_problem,
+            ]
+        );
+
+    else
+         @error "invalid stage combination"
     end
 
     # TODO: need to define reserve products for MD
@@ -1276,7 +1314,7 @@ function create_simulation( sys_MD::PSY.System,
     energy_mkt_data = read_data(joinpath(simulation_dir, "markets_data", "Energy.csv"))
     energy_voll_cost = AxisArrays.AxisArray(energy_mkt_data.price_cap * 1.0, zones)
 
-    sequence = create_sequence(models, feedforward_dict);
+    sequence = create_sequence(models, feedforward_dict, single_stage_bool);
 
     if md_market_bool == true
         sim = PSI.Simulation(
@@ -1327,14 +1365,25 @@ function create_simulation( sys_MD::PSY.System,
     res_uc = PSI.get_decision_problem_results(sim_results, "UC")
     res_ed = PSI.get_decision_problem_results(sim_results, "ED")
 
-    dual_values_ed = PSI.read_realized_duals(res_ed)
-    dual_values_uc = PSI.read_realized_duals(res_uc)
+    if single_stage_bool == false
+        dual_values_ed = PSI.read_realized_duals(res_ed)
+        dual_values_uc = PSI.read_realized_duals(res_uc)
 
-    result_variables_ed = PSI.read_realized_variables(res_ed)
-    result_variables_uc = PSI.read_realized_variables(res_uc)
+        result_variables_ed = PSI.read_realized_variables(res_ed)
+        result_variables_uc = PSI.read_realized_variables(res_uc)
 
-    data_length_ed = DataFrames.nrow(dual_values_ed["NodalBalanceActiveConstraint__ACBus"])
-    data_length_uc = DataFrames.nrow(dual_values_uc["NodalBalanceActiveConstraint__ACBus"])
+        data_length_ed = DataFrames.nrow(dual_values_ed["NodalBalanceActiveConstraint__ACBus"])
+        data_length_uc = DataFrames.nrow(dual_values_uc["NodalBalanceActiveConstraint__ACBus"])
+    else
+        result_variables_ed = nothing
+
+        res_uc = PSI.get_decision_problem_results(sim_results, "UC")
+        dual_values_uc = PSI.read_realized_duals(res_uc)
+        result_variables_uc = PSI.read_realized_variables(res_uc)
+        
+        data_length_uc = DataFrames.nrow(dual_values_uc["NodalBalanceActiveConstraint__ACBus"])
+        data_length_ed = DataFrames.nrow(dual_values_uc["NodalBalanceActiveConstraint__ACBus"])
+    end
 
     if md_market_bool == true
         res_md = PSI.get_decision_problem_results(sim_results, "MD")
@@ -1541,8 +1590,10 @@ function create_simulation( sys_MD::PSY.System,
         if md_market_bool == true
             capacity_factors_md[name][1, :] = get_realized_capacity_factors(tech, result_variables_md, result_variables_uc, base_power)
         end
+        if single_stage_bool == false
+            capacity_factors_ed[name][1, :] = get_realized_capacity_factors(tech, result_variables_ed, result_variables_ed, base_power)
+        end
         capacity_factors_uc[name][1, :] = get_realized_capacity_factors(tech, result_variables_uc, result_variables_uc, base_power)
-        capacity_factors_ed[name][1, :] = get_realized_capacity_factors(tech, result_variables_ed, result_variables_ed, base_power)
         start_up_costs[name][1, :] = get_start_costs(tech, result_variables_uc, data_length_uc)
         shut_down_costs[name][1, :] = get_shut_costs(tech, result_variables_uc, data_length_uc)
 
@@ -1565,7 +1616,8 @@ function create_simulation( sys_MD::PSY.System,
                                             da_products,
                                             md_products,
                                             base_power,
-                                            md_market_bool,)
+                                            md_market_bool,
+                                            single_stage_bool,)
             end
 
         end

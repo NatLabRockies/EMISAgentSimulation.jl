@@ -29,6 +29,7 @@ function create_realized_marketdata(simulation::AgentSimulation,
     pcm_scenario = get_pcm_scenario(case)
     all_scenarios = String.(get_all_scenario_names(simulation_dir))
     md_market_bool = get_md_market(case)
+    single_stage_bool = get_single_stage(case)
 
     # DEPRECATED: Commenting out all code related to load growth.
 
@@ -84,7 +85,7 @@ function create_realized_marketdata(simulation::AgentSimulation,
         reserve_voll,
         reserve_voll_uc,
         reserve_voll_md,
-        inertia_voll = energy_mkt_clearing(sys_MD, sys_UC, sys_ED, system, simulation_dir, reserve_penalty, rec_perc_requirement, zones, num_days, pcm_scenario, iteration_year, get_da_resolution(case), get_rt_resolution(case), get_name(case), solver, get_base_dir(case), simulation, current_siip_sim, md_market_bool, siip_system)
+        inertia_voll = energy_mkt_clearing(sys_MD, sys_UC, sys_ED, system, simulation_dir, reserve_penalty, rec_perc_requirement, zones, num_days, pcm_scenario, iteration_year, get_da_resolution(case), get_rt_resolution(case), get_name(case), solver, get_base_dir(case), simulation, current_siip_sim, md_market_bool, single_stage_bool, siip_system)
     end
 
     println("Clean energy requirement for this year is $(get_rec_requirement(simulation)[iteration_year] * 100) percent")
