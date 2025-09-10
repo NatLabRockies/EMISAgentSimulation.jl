@@ -1363,9 +1363,9 @@ function create_simulation( sys_MD::PSY.System,
     println("get sienna results")
 
     res_uc = PSI.get_decision_problem_results(sim_results, "UC")
-    res_ed = PSI.get_decision_problem_results(sim_results, "ED")
 
     if single_stage_bool == false
+        res_ed = PSI.get_decision_problem_results(sim_results, "ED")
         dual_values_ed = PSI.read_realized_duals(res_ed)
         dual_values_uc = PSI.read_realized_duals(res_uc)
 
@@ -1434,21 +1434,27 @@ function create_simulation( sys_MD::PSY.System,
             energy_voll_uc[zone, 1, :] = zeros(data_length_uc)
             energy_voll_md[zone, 1, :] = zeros(data_length_md)
         else
-            energy_price_ed[zone, 1, :] =
-                abs.(round.(dual_values_ed["NodalBalanceActiveConstraint__ACBus"][:, PSY.get_name(bus)], digits = 5)) / base_power
-            energy_price_uc[zone, 1, :] =
-                abs.(round.(dual_values_uc["NodalBalanceActiveConstraint__ACBus"][:, PSY.get_name(bus)], digits = 5)) / base_power
-            if md_market_bool == true
-                energy_price_md[zone, 1, :] =
-                    abs.(round.(dual_values_md["NodalBalanceActiveConstraint__ACBus"][:, PSY.get_name(bus)], digits = 5)) / base_power
-                
-                energy_voll_md[zone, 1, :] = abs.(round.(result_variables_md["SystemBalanceSlackUp__ACBus"][:, string(PSY.get_number(bus))], digits = 5)) / base_power
+            if single_stage_bool == false
+                energy_price_ed[zone, 1, :] =
+                    abs.(round.(dual_values_ed["NodalBalanceActiveConstraint__ACBus"][:, PSY.get_name(bus)], digits = 5)) / base_power
+                energy_price_uc[zone, 1, :] =
+                    abs.(round.(dual_values_uc["NodalBalanceActiveConstraint__ACBus"][:, PSY.get_name(bus)], digits = 5)) / base_power
+                if md_market_bool == true
+                    energy_price_md[zone, 1, :] =
+                        abs.(round.(dual_values_md["NodalBalanceActiveConstraint__ACBus"][:, PSY.get_name(bus)], digits = 5)) / base_power
+                    
+                    energy_voll_md[zone, 1, :] = abs.(round.(result_variables_md["SystemBalanceSlackUp__ACBus"][:, string(PSY.get_number(bus))], digits = 5)) / base_power
+                else
+                    energy_price_md[zone, 1, :] = zeros(data_length_md)
+                end
+                energy_voll[zone, 1, :] = abs.(round.(result_variables_ed["SystemBalanceSlackUp__ACBus"][:, string(PSY.get_number(bus))], digits = 5)) / base_power
+                energy_voll_uc[zone, 1, :] = abs.(round.(result_variables_uc["SystemBalanceSlackUp__ACBus"][:, string(PSY.get_number(bus))], digits = 5)) / base_power
+                # energy_voll[zone, 1, :] += abs.(round.(result_variables_ed["SystemBalanceSlackDown__ACBus"][:, string(PSY.get_number(bus))], digits = 5)) / base_power
             else
-                energy_price_md[zone, 1, :] = zeros(data_length_md)
+                energy_price_uc[zone, 1, :] =
+                    abs.(round.(dual_values_uc["NodalBalanceActiveConstraint__ACBus"][:, PSY.get_name(bus)], digits = 5)) / base_power
+                energy_voll_uc[zone, 1, :] = abs.(round.(result_variables_uc["SystemBalanceSlackUp__ACBus"][:, string(PSY.get_number(bus))], digits = 5)) / base_power
             end
-            energy_voll[zone, 1, :] = abs.(round.(result_variables_ed["SystemBalanceSlackUp__ACBus"][:, string(PSY.get_number(bus))], digits = 5)) / base_power
-            energy_voll_uc[zone, 1, :] = abs.(round.(result_variables_uc["SystemBalanceSlackUp__ACBus"][:, string(PSY.get_number(bus))], digits = 5)) / base_power
-            # energy_voll[zone, 1, :] += abs.(round.(result_variables_ed["SystemBalanceSlackDown__ACBus"][:, string(PSY.get_number(bus))], digits = 5)) / base_power
         end
     end
 
@@ -1464,67 +1470,103 @@ function create_simulation( sys_MD::PSY.System,
     #println(Statistics.mean(energy_price))
 
 
-    for service in get_system_services(sys_ED)
-        name = PSY.get_name(service)
-        #println(name)
-        if typeof(service) == PSY.VariableReserve{PSY.ReserveUp}
-            if name == "Inertia"
-                inertia_price[1, :] = abs.(round.(dual_values_ed["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
-                replace!(inertia_price, NaN => 0.0)
-                scale_voll(inertia_price, rt_resolution)
-                inertia_voll[1, :] = abs.(round.(result_variables_ed["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
-            elseif name == "Clean_Energy"
-            else
-                reserve_price_ed[name][1, :] = abs.(round.(dual_values_ed["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
+    if single_stage_bool == false
+        for service in get_system_services(sys_ED)
+            name = PSY.get_name(service)
+            #println(name)
+            if typeof(service) == PSY.VariableReserve{PSY.ReserveUp}
+                if name == "Inertia"
+                    inertia_price[1, :] = abs.(round.(dual_values_ed["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
+                    replace!(inertia_price, NaN => 0.0)
+                    scale_voll(inertia_price, rt_resolution)
+                    inertia_voll[1, :] = abs.(round.(result_variables_ed["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
+                elseif name == "Clean_Energy"
+                else
+                    reserve_price_ed[name][1, :] = abs.(round.(dual_values_ed["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
+                    replace!(reserve_price_ed[name], NaN => 0.0)
+                    scale_voll(reserve_price_ed[name], rt_resolution)
+                    reserve_voll[name][1, :] = abs.(round.(result_variables_ed["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
+                    #println(reserve_price[name])
+                end
+            elseif typeof(service) == PSY.ReserveDemandCurve{PSY.ReserveUp}
+                reserve_price_ed[name][1, :] = abs.(round.(dual_values_ed["RequirementConstraint__ReserveDemandCurve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
                 replace!(reserve_price_ed[name], NaN => 0.0)
                 scale_voll(reserve_price_ed[name], rt_resolution)
-                reserve_voll[name][1, :] = abs.(round.(result_variables_ed["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
+                #println(reserve_price[name])
+            elseif typeof(service) == PSY.VariableReserve{PSY.ReserveDown}
+                reserve_price_ed[name][1, :] = abs.(round.(dual_values_ed["RequirementConstraint__VariableReserve__ReserveDown__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
+                replace!(reserve_price_ed[name], NaN => 0.0)
+                scale_voll(reserve_price_ed[name], rt_resolution)
+                reserve_voll[name][1, :] = abs.(round.(result_variables_ed["ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)")], digits = 5)) / base_power
                 #println(reserve_price[name])
             end
-        elseif typeof(service) == PSY.ReserveDemandCurve{PSY.ReserveUp}
-            reserve_price_ed[name][1, :] = abs.(round.(dual_values_ed["RequirementConstraint__ReserveDemandCurve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
-            replace!(reserve_price_ed[name], NaN => 0.0)
-            scale_voll(reserve_price_ed[name], rt_resolution)
-            #println(reserve_price[name])
-        elseif typeof(service) == PSY.VariableReserve{PSY.ReserveDown}
-            reserve_price_ed[name][1, :] = abs.(round.(dual_values_ed["RequirementConstraint__VariableReserve__ReserveDown__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
-            replace!(reserve_price_ed[name], NaN => 0.0)
-            scale_voll(reserve_price_ed[name], rt_resolution)
-            reserve_voll[name][1, :] = abs.(round.(result_variables_ed["ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)")], digits = 5)) / base_power
-            #println(reserve_price[name])
         end
-    end
 
-    for service in get_system_services(sys_UC)
-        name = PSY.get_name(service)
-        # if name in only_da_products
-        if typeof(service) == PSY.VariableReserve{PSY.ReserveUp}
-            if name == "Inertia"
-                inertia_price[1, :] = abs.(round.(dual_values_uc["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
-                replace!(inertia_price, NaN => 0.0)
-                scale_voll(inertia_price, da_resolution)
-                # inertia_voll[1, :] = abs.(round.(result_variables_uc["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
-            elseif name == "Clean_Energy"
-            else
-                reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
+        for service in get_system_services(sys_UC)
+            name = PSY.get_name(service)
+            # if name in only_da_products
+            if typeof(service) == PSY.VariableReserve{PSY.ReserveUp}
+                if name == "Inertia"
+                    inertia_price[1, :] = abs.(round.(dual_values_uc["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
+                    replace!(inertia_price, NaN => 0.0)
+                    scale_voll(inertia_price, da_resolution)
+                    # inertia_voll[1, :] = abs.(round.(result_variables_uc["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
+                elseif name == "Clean_Energy"
+                else
+                    reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
+                    replace!(reserve_price_uc[name], NaN => 0.0)
+                    scale_voll(reserve_price_uc[name], da_resolution)
+                    reserve_voll_uc[name][1, :] = abs.(round.(result_variables_uc["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
+                    #println(reserve_price[name])
+                end
+            elseif typeof(service) == PSY.ReserveDemandCurve{PSY.ReserveUp}
+                reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc["RequirementConstraint__ReserveDemandCurve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
                 replace!(reserve_price_uc[name], NaN => 0.0)
                 scale_voll(reserve_price_uc[name], da_resolution)
-                reserve_voll_uc[name][1, :] = abs.(round.(result_variables_uc["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
+                #println(reserve_price[name])
+            elseif typeof(service) == PSY.VariableReserve{PSY.ReserveDown}
+                reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc["RequirementConstraint__VariableReserve__ReserveDown__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
+                replace!(reserve_price_uc[name], NaN => 0.0)
+                scale_voll(reserve_price_uc[name], da_resolution)
+                reserve_voll_uc[name][1, :] = abs.(round.(result_variables_uc["ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)")], digits = 5)) / base_power
                 #println(reserve_price[name])
             end
-        elseif typeof(service) == PSY.ReserveDemandCurve{PSY.ReserveUp}
-            reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc["RequirementConstraint__ReserveDemandCurve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
-            replace!(reserve_price_uc[name], NaN => 0.0)
-            scale_voll(reserve_price_uc[name], da_resolution)
-            #println(reserve_price[name])
-        elseif typeof(service) == PSY.VariableReserve{PSY.ReserveDown}
-            reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc["RequirementConstraint__VariableReserve__ReserveDown__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
-            replace!(reserve_price_uc[name], NaN => 0.0)
-            scale_voll(reserve_price_uc[name], da_resolution)
-            reserve_voll_uc[name][1, :] = abs.(round.(result_variables_uc["ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)")], digits = 5)) / base_power
-            #println(reserve_price[name])
+            # end
         end
-        # end
+    else
+        for service in get_system_services(sys_UC)
+            name = PSY.get_name(service)
+            # if name in only_da_products
+            if typeof(service) == PSY.VariableReserve{PSY.ReserveUp}
+                if name == "Inertia"
+                    inertia_price[1, :] = abs.(round.(dual_values_uc["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
+                    replace!(inertia_price, NaN => 0.0)
+                    scale_voll(inertia_price, da_resolution)
+                    # inertia_voll[1, :] = abs.(round.(result_variables_uc["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
+                elseif name == "Clean_Energy"
+                else
+                    reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
+                    replace!(reserve_price_uc[name], NaN => 0.0)
+                    scale_voll(reserve_price_uc[name], da_resolution)
+                    reserve_voll_uc[name][1, :] = abs.(round.(result_variables_uc["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
+                    #println(reserve_price[name])
+                end
+            elseif typeof(service) == PSY.ReserveDemandCurve{PSY.ReserveUp}
+                ### NY_change: need to re-enable this
+                # reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc["RequirementConstraint__ReserveDemandCurve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
+                # replace!(reserve_price_uc[name], NaN => 0.0)
+                # scale_voll(reserve_price_uc[name], da_resolution)
+
+                #println(reserve_price[name])
+            elseif typeof(service) == PSY.VariableReserve{PSY.ReserveDown}
+                reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc["RequirementConstraint__VariableReserve__ReserveDown__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
+                replace!(reserve_price_uc[name], NaN => 0.0)
+                scale_voll(reserve_price_uc[name], da_resolution)
+                reserve_voll_uc[name][1, :] = abs.(round.(result_variables_uc["ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)")], digits = 5)) / base_power
+                #println(reserve_price[name])
+            end
+            # end
+        end
     end
 
     if md_market_bool == true
