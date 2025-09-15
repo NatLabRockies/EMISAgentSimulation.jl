@@ -3,6 +3,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
     case = get_case(simulation)
     total_horizon = get_total_horizon(case)
     rolling_horizon = get_rolling_horizon(case)
+    step_size = get_step_size(case)
 
     installed_capacity = zeros(simulation_years)
     capacity_forward_years = get_capacity_forward_years(simulation)
@@ -46,7 +47,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
 
     clean_energy_percentage_vector = zeros(simulation_years)
 
-    for iteration_year = current_year:simulation_years
+    for iteration_year = current_year:step_size:simulation_years
 
         yearly_horizon = min(total_horizon - iteration_year + 1, rolling_horizon)
 
@@ -211,7 +212,8 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
             update_rec_correction_factors!(get_activeprojects(simulation),
                                         realized_capacity_factors_ed,
                                         get_rt_resolution(case),
-                                        iteration_year)
+                                        iteration_year,
+                                        step_size)
 
             if get_markets(simulation)[:CarbonTax]
                 max_carbon_tax_increment = get_max_carbon_tax_increase(case)
@@ -220,8 +222,8 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
                 else
                     delta_carbon_tax = max_carbon_tax_increment * max(0.0, (1 - cet_achieved_ratio))
                 end
-                new_carbon_tax = max((get_carbon_tax(simulation)[iteration_year] + delta_carbon_tax), get_carbon_tax(simulation)[iteration_year + 1])
-                simulation.carbon_tax[iteration_year + 1] = new_carbon_tax
+                new_carbon_tax = max((get_carbon_tax(simulation)[iteration_year] + delta_carbon_tax), get_carbon_tax(simulation)[iteration_year + step_size])
+                simulation.carbon_tax[iteration_year + step_size] = new_carbon_tax
             end
         end
 
@@ -274,6 +276,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
                             sys_PRAS,
                             get_data_dir(case),
                             iteration_year,
+                            step_size,
                             scenario_names,
                             total_horizon)
 
@@ -290,7 +293,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
         for scenario in scenario_names
             derating_factors = read_data(joinpath(get_data_dir(case), "markets_data", "derating_data", scenario, "derating_dict.csv"))
 
-            output_file = joinpath(get_results_dir(simulation), "derating_data", scenario, "derating_data_year_$(iteration_year+1).jld2")
+            output_file = joinpath(get_results_dir(simulation), "derating_data", scenario, "derating_data_year_$(iteration_year+step_size).jld2")
 
             FileIO.save(output_file, "derating_factors", derating_factors)
         end
@@ -304,7 +307,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
         end
 
         # reserve_ts_scaling_factor = calculate_reserve_scaling_factor(simulation)
-        reserve_ts_scaling(simulation, iteration_year)
+        reserve_ts_scaling(simulation, iteration_year, step_size)
 
         println("COMPLETED YEAR $(iteration_year)")
         FileIO.save(joinpath(get_results_dir(simulation), "simulation_data_year$(iteration_year).jld2"), "simulation_data", simulation)

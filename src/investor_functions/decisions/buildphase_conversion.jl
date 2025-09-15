@@ -5,7 +5,8 @@ Returns nothing.
 function start_construction!(projects::Vector{<: Project{<: BuildPhase}},
                              index::Int64,
                              project::P,
-                             iteration_year::Int64) where P <: Project{<: BuildPhase}
+                             iteration_year::Int64,
+                             step_size::Int64) where P <: Project{<: BuildPhase}
     return
 end
 
@@ -17,15 +18,17 @@ Returns nothing.
 function start_construction!(projects::Vector{<: Project{<: BuildPhase}},
                              index::Int64,
                              project::P,
-                             iteration_year::Int64) where P <: Project{Queue}
+                             iteration_year::Int64,
+                             step_size::Int64) where P <: Project{Queue}
 
     queue_time = length(get_queue_cost(get_finance_data(project)))
 
-     if get_decision_year(project) + queue_time == iteration_year
+    # check if project construction start year is within this iteration step
+    if iteration_year <= get_decision_year(project) + queue_time <= iteration_year + step_size - 1
         println("CONSTRUCTING:")
         println(get_name(project))
         projects[index] = convert(Project{Planned}, project)
-     end
+    end
 end
 
 """
@@ -41,6 +44,7 @@ function finish_construction!(projects::Vector{<: Project{<: BuildPhase}},
                              sys_PRAS::Dict{String, PSY.System},
                              simulation_dir::String,
                              iteration_year::Int64,
+                             step_size::Int64,
                              pcm_scenario::String,
                              simulation_years::Int64,
                              scenario_names::Vector{String},
@@ -63,13 +67,15 @@ function finish_construction!(projects::Vector{<: Project{<: BuildPhase}},
                              sys_PRAS::Dict{String, PSY.System},
                              simulation_dir::String,
                              iteration_year::Int64,
+                             step_size::Int64,
                              pcm_scenario::String,
                              simulation_years::Int64,
                              scenario_names::Vector{String},
                              da_resolution::Int64,
                              rt_resolution::Int64) where P <: Project{Planned}
 
-     if get_construction_year(project) == iteration_year
+    # check if project construction end year is within this iteration step
+     if iteration_year <= get_construction_year(project) <= iteration_year + step_size - 1
         projects[index] = convert(Project{Existing}, project)
 
         if typeof(project) == RenewableGenEMIS{Planned}
@@ -121,12 +127,14 @@ function finish_construction!(projects::Vector{<: Project{<: BuildPhase}},
                              sys_PRAS::Dict{String, PSY.System},
                              simulation_dir::String,
                              iteration_year::Int64,
+                             step_size::Int64,
                              pcm_scenario::String,
                              simulation_years::Int64,
                              scenario_names::Vector{String},
                              da_resolution::Int64,
                              rt_resolution::Int64) where P <: Project{Planned}
-     if get_construction_year(project) == iteration_year
+    # check if project construction end year is within this iteration step
+     if iteration_year <= get_construction_year(project) <= iteration_year + step_size - 1
         projects[index] = convert(Project{Existing}, project)
         PSY_project_MD = create_PSY_generator(project, sys_MDs[iteration_year])
         # println("iteration year is $(iteration_year)")
@@ -245,6 +253,7 @@ function retire_old!(projects::Vector{<: Project{<: BuildPhase}},
                      sys_PRAS::Dict{String, PSY.System},
                      simulation_dir::String,
                      iteration_year::Int64,
+                     step_size::Int64,
                      scenario_names::Vector{String},
                      total_horizon::Int64) where P <: Project{<: BuildPhase}
     return false
@@ -264,12 +273,14 @@ function retire_old!(projects::Vector{<: Project{<: BuildPhase}},
                      sys_PRAS::Dict{String, PSY.System},
                      simulation_dir::String,
                      iteration_year::Int64,
+                     step_size::Int64,
                      scenario_names::Vector{String},
                      total_horizon::Int64
                      ) where P <: Project{Existing}
 
-    if get_end_life_year(project) == iteration_year
-        set_retirement_year!(projects[index], iteration_year + 1)
+    # check if project end of life is within this iteration step
+    if iteration_year <= get_end_life_year(project) <= iteration_year + step_size - 1
+        set_retirement_year!(projects[index], iteration_year + step_size)
         projects[index] = convert(Project{Retired}, project)
         for y in iteration_year:total_horizon
             remove_system_component!(sys_MDs[y], project)

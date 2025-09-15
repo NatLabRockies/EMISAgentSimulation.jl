@@ -208,7 +208,8 @@ end
 function update_rec_correction_factors!(active_projects::Vector{Project},
                                        realized_capacity_factors::Dict{String, Array{Float64, 2}},
                                        rt_resolution::Int64,
-                                       iteration_year::Int64)
+                                       iteration_year::Int64,
+                                       step_size::Int64)
 
     zones = unique(get_zone.(get_tech.(active_projects)))
     techs = unique(get_type.(get_tech.(active_projects)))
@@ -246,7 +247,7 @@ function update_rec_correction_factors!(active_projects::Vector{Project},
         end
 
         for product in get_products(project)
-            set_rec_correction_factor!(product, iteration_year + 1, (correction_factor + previous_correction_factor) / 2)
+            set_rec_correction_factor!(product, iteration_year + step_size, (correction_factor + previous_correction_factor) / 2)
         end
 
     end
