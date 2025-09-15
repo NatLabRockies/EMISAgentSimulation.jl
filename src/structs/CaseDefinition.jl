@@ -44,6 +44,7 @@
         risk_aversion: Whether investors are risk averse.
         parallel_investors: Whether investors' price prediction is to be parallelized.
         parallel_scenarios: Whether each investor's price prediction scenarios are to be parallelized.
+        step_size: Step size in hours for the simulation.
 """
 
 struct CaseDefinition
@@ -96,6 +97,7 @@ struct CaseDefinition
     ed_horizon::Int64
     ed_interval::Int64
     md_market::Bool
+    step_size::Int64
 
     function CaseDefinition(name,
                             base_dir,
@@ -145,7 +147,8 @@ struct CaseDefinition
                             uc_interval,
                             ed_horizon,
                             ed_interval,
-                            md_market,)
+                            md_market,
+                            step_size)
 
         @assert total_horizon >= simulation_years
 
@@ -218,7 +221,8 @@ struct CaseDefinition
                    uc_interval,
                    ed_horizon,
                    ed_interval,
-                   md_market,)
+                   md_market,
+                   step_size)
 
         make_case_data_dir(case)
         return case
@@ -273,7 +277,8 @@ function CaseDefinition(name::String,
                         uc_interval::Int64 = 24,
                         ed_horizon::Int64 = 2,
                         ed_interval::Int64 = 1,
-                        md_market::Bool = false,)
+                        md_market::Bool = false,
+                        step_size::Int64 = 1)
 
     CaseDefinition(name,
                    base_dir,
@@ -323,7 +328,8 @@ function CaseDefinition(name::String,
                    uc_interval,
                    ed_horizon,
                    ed_interval,
-                   md_market,)
+                   md_market,
+                   step_size)
 end
 
 get_base_dir(case::CaseDefinition) = case.base_dir
@@ -374,6 +380,7 @@ get_uc_interval(case::CaseDefinition) = case.uc_interval
 get_ed_horizon(case::CaseDefinition) = case.ed_horizon
 get_ed_interval(case::CaseDefinition) = case.ed_interval
 get_md_market(case::CaseDefinition) = case.md_market
+get_step_size(case::CaseDefinition) = case.step_size
 
 function get_name(case::CaseDefinition)
     #=

@@ -15,6 +15,8 @@ function run_investor_iteration(investor::Investor,
     sys_data_dir = get_data_dir(case)
     solver = get_solver(case)
 
+    step_size = get_step_size(case)
+
     investor_dir = get_data_dir(investor)
     projects = get_projects(investor)
 
@@ -101,7 +103,8 @@ function run_investor_iteration(investor::Investor,
         start_construction!(projects,
                             i,
                             project,
-                            iteration_year)
+                            iteration_year,
+                            step_size,)
 
         finish_construction!(projects,
                             i,
@@ -112,6 +115,7 @@ function run_investor_iteration(investor::Investor,
                             sys_PRAS,
                             sys_data_dir,
                             iteration_year,
+                            step_size,
                             pcm_scenario,
                             total_horizon,
                             scenario_names,
@@ -120,6 +124,7 @@ function run_investor_iteration(investor::Investor,
 
         update_lifecycle!(project,
                           iteration_year,
+                          step_size,
                           simulation_years)
     end
 
