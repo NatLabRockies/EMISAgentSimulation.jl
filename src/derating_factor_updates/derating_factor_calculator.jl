@@ -188,7 +188,7 @@ function calculate_derating_data(simulation::Union{AgentSimulation, AgentSimulat
         stor_duration::Int64,
         peak_reductions_existing::Dict{Int64, Float64},
         peak_reduction_new::Float64,
-        init_CC::Dict{Int64, Float64},
+        init_CC::Union{Dict{Any, Any}, Dict{Int64, Float64}},
         average_efficiency::Float64,
         net_load_df::DataFrame,
         num_hours::Int64,

@@ -293,6 +293,7 @@ import PowerSimulations
 
 # using EMISExtensions
 using PRAS
+using SiennaPRASInterface
 using HiGHS
 using OrderedCollections
 import InfrastructureSystems
@@ -308,6 +309,7 @@ const IS = InfrastructureSystems
 # const RPSI = ReliablePowerSimulations
 const HSI = HydroPowerSimulations
 const SSI = StorageSystemsSimulations
+const SPI = SiennaPRASInterface
 
 import Random
 import UUIDs

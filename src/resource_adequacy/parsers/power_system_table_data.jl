@@ -265,7 +265,7 @@ function PSY.make_generator(data::PSY.PowerSystemTableData, gen, cost_colnames, 
         generator = PSY.make_hydro_generator(gen_type, data, gen, cost_colnames, bus)
     elseif gen_type <: PSY.RenewableGen
         generator = PSY.make_renewable_generator(gen_type, data, gen, cost_colnames, bus)
-    elseif gen_type == PSY.GenericBattery
+    elseif gen_type == PSY.EnergyReservoirStorage
         storage = PSY.get_storage_by_generator(data, gen.name).head
         generator = PSY.make_storage(data, gen, storage, bus)
     else
@@ -305,7 +305,7 @@ function PSY.make_thermal_generator(data::PSY.PowerSystemTableData, gen, cost_co
     var_cost, fixed, fuel_cost =
         PSY.calculate_variable_cost(data, gen, cost_colnames, base_power)
     startup_cost, shutdown_cost = PSY.calculate_uc_cost(data, gen, fuel_cost)
-    op_cost = PSY.ThreePartCost(var_cost, fixed, startup_cost, shutdown_cost)
+    op_cost = PSY.ThermalGenerationCost(var_cost, fixed, startup_cost, shutdown_cost)
 
     component = PSY.ThermalStandard(
         name = gen.name,
@@ -439,7 +439,7 @@ function PSY.make_hydro_generator(gen_type, data::PSY.PowerSystemTableData, gen,
 
         var_cost, fixed, fuel_cost =
             PSY.calculate_variable_cost(data, gen, cost_colnames, base_power)
-        operation_cost = PSY.TwoPartCost(var_cost, fixed)
+        operation_cost = PSY.HydroGenerationCost(var_cost, fixed)
 
         if gen_type == PSY.HydroEnergyReservoir
             @debug("Creating $(gen.name) as HydroEnergyReservoir")
@@ -461,6 +461,7 @@ function PSY.make_hydro_generator(gen_type, data::PSY.PowerSystemTableData, gen,
                 storage_capacity = storage.head.storage_capacity,
                 inflow = storage.head.input_active_power_limit_max,
                 initial_storage = storage.head.energy_level,
+                status = true,
             )
 
         elseif gen_type == PSY.HydroPumpedStorage
@@ -566,7 +567,7 @@ function PSY.make_renewable_generator(
     base_power = gen.base_mva
     var_cost, fixed, fuel_cost =
         PSY.calculate_variable_cost(data, gen, cost_colnames, base_power)
-    operation_cost = PSY.TwoPartCost(var_cost, fixed)
+    operation_cost = PSY.RenewableGenerationCost(var_cost)
 
     if gen_type == PSY.RenewableDispatch
         @debug("Creating $(gen.name) as RenewableDispatch")
@@ -583,9 +584,9 @@ function PSY.make_renewable_generator(
             operation_cost = operation_cost,
             base_power = base_power,
         )
-    elseif gen_type == PSY.RenewableFix
-        @debug("Creating $(gen.name) as RenewableFix")
-        generator = PSY.RenewableFix(
+    elseif gen_type == PSY.RenewableNonDispatch
+        @debug("Creating $(gen.name) as RenewableNonDispatch")
+        generator = PSY.RenewableNonDispatch(
             name = gen.name,
             available = gen.available,
             bus = bus,
@@ -611,7 +612,7 @@ end
 ##############################################
 function PSY.make_storage(data::PSY.PowerSystemTableData, gen, storage, bus)
     @debug "Making Storge" storage.name
-    state_of_charge_limits =
+    storage_level_limits =
         (min = storage.min_storage_capacity, max = storage.storage_capacity)
     input_active_power_limits = (
         min = storage.input_active_power_limit_min,
@@ -625,13 +626,13 @@ function PSY.make_storage(data::PSY.PowerSystemTableData, gen, storage, bus)
     efficiency = (in = storage.input_efficiency, out = storage.output_efficiency)
     (reactive_power, reactive_power_limits) = PSY.make_reactive_params(storage)
 
-    battery = PSY.GenericBattery(
+    battery = PSY.EnergyReservoirStorage(
         name = gen.name,
         available = storage.available,
         bus = bus,
         prime_mover_type = PSY.parse_enum_mapping(PSY.PrimeMovers, gen.unit_type),
-        initial_energy = storage.energy_level,
-        state_of_charge_limits = state_of_charge_limits,
+        initial_storage_capacity_level = storage.energy_level,
+        storage_level_limits = storage_level_limits,
         rating = storage.rating,
         active_power = storage.active_power,
         input_active_power_limits = input_active_power_limits,

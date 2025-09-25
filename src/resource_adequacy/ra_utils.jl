@@ -21,20 +21,22 @@ function calculate_RA_metrics(sys::PSY.System,
 
     system_period_of_interest = range(1, length = 8760 * 15);
     correlated_outage_csv_location = joinpath(outage_dir, "ThermalFOR_scenario_1_new.csv")
-    pras_system = make_pras_system(sys,
-                                    system_model="Single-Node",
-                                    aggregation="Area",
-                                    period_of_interest = system_period_of_interest,
-                                    outage_flag=false,
-                                    lump_pv_wind_gens=false,
-                                    availability_flag=true,
-                                    outage_csv_location = correlated_outage_csv_location);
+    # pras_system = make_pras_system(sys,
+    #                                 system_model="Single-Node",
+    #                                 aggregation="Area",
+    #                                 period_of_interest = system_period_of_interest,
+    #                                 outage_flag=false,
+    #                                 lump_pv_wind_gens=false,
+    #                                 availability_flag=true,
+    #                                 outage_csv_location = correlated_outage_csv_location);
+
+    #TODO: Add outages to system
 
     total_load = calculate_total_load(sys, 60)
 
     ra_metrics = Dict{String, Float64}()
     # seed = 3
-    shortfall, gens_avail= @time PRAS.assess(pras_system,  PRAS.SequentialMonteCarlo(samples = samples, seed = seed),  PRAS.Shortfall(),  PRAS.GeneratorAvailability()) 
+    shortfall, gens_avail= @time PRAS.assess(sys, PSY.Area, PRAS.SequentialMonteCarlo(samples = samples, seed = seed),  PRAS.Shortfall(),  PRAS.GeneratorAvailability()) 
     @info "Finished PRAS simulation... "
     eue_overall = PRAS.EUE(shortfall)
     lole_overall = PRAS.LOLE(shortfall)
@@ -175,7 +177,7 @@ function create_capacity_mkt_system(initial_system::PSY.System,
         end
     end
 
-    nodal_loads = PSY.get_components(PSY.PowerLoad, capacity_market_system)
+    nodal_loads = PSY.get_components(PSY.StandardLoad, capacity_market_system)
 
     @warn "UPDATE PSY TIMESERIES!"
     #= for load in nodal_loads

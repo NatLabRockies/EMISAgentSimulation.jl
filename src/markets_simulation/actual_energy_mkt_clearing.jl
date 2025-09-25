@@ -15,7 +15,8 @@ function energy_mkt_clearing(sys_UC::Nothing,
                              da_resolution::Int64,
                              rt_resolution::Int64,
                              case_name::String,
-                             solver::JuMP.MOI.OptimizerWithAttributes)
+                             solver::JuMP.MOI.OptimizerWithAttributes,
+                             case,)
     @warn "This functionality has been deprecated. All PCMs are currently run with Sienna."
    
     energy_price,
@@ -53,12 +54,16 @@ function energy_mkt_clearing(sys_MD::PSY.System,
                              simulation::AgentSimulation,
                              current_siip_sim,
                              md_market_bool::Bool,
-                             siip_system)
+                             single_stage_bool::Bool,
+                             siip_system,
+                             case)
 
     @warn "Uncomment the update_PSY_timeseries function calls"
     update_PSY_timeseries!(simulation, sys_MD, rec_requirement, simulation_dir, "MD", pcm_scenario, iteration_year, da_resolution, rt_resolution)
     update_PSY_timeseries!(simulation, sys_UC, rec_requirement, simulation_dir, "UC", pcm_scenario, iteration_year, da_resolution, rt_resolution)
-    update_PSY_timeseries!(simulation, sys_ED, rec_requirement, simulation_dir, "ED", pcm_scenario, iteration_year, da_resolution, rt_resolution) 
+    update_PSY_timeseries!(simulation, sys_ED, rec_requirement, simulation_dir, "ED", pcm_scenario, iteration_year, da_resolution, rt_resolution)
+    
+    transform_psy_timeseries!(sys_MD, sys_UC, sys_ED, get_da_resolution(case), get_rt_resolution(case), get_md_horizon(case), get_uc_horizon(case), get_ed_horizon(case), get_md_interval(case), get_uc_interval(case), get_ed_interval(case))
     # TODO: need to update outage timeseries for MD as well
     # update_PSY_outage_timeseries!(sys_UC, sys_ED,get_results_dir(simulation),base_dir,iteration_year)
 
@@ -84,7 +89,7 @@ function energy_mkt_clearing(sys_MD::PSY.System,
     reserve_voll,
     reserve_voll_uc,
     reserve_voll_md,
-    inertia_voll = create_simulation(sys_MD, sys_UC, sys_ED, simulation_dir, reserve_penalty, zones, num_days, da_resolution, rt_resolution, case_name, solver, current_siip_sim, md_market_bool, siip_system)
+    inertia_voll = create_simulation(sys_MD, sys_UC, sys_ED, simulation_dir, reserve_penalty, zones, num_days, da_resolution, rt_resolution, case_name, solver, current_siip_sim, md_market_bool, single_stage_bool, siip_system)
 
     return energy_price_ed, energy_price_uc, energy_price_md, reserve_price_ed, reserve_price_uc, reserve_price_md, inertia_price, capacity_factors_md, capacity_factors_uc, capacity_factors_ed, reserve_perc_md, reserve_perc_uc, reserve_perc_ed, inertia_perc, start_up_costs, shut_down_costs, energy_voll, energy_voll_uc, energy_voll_md, reserve_voll, reserve_voll_uc, reserve_voll_md, inertia_voll;
 end

@@ -74,11 +74,16 @@ end
 This function writes the project's hourly availability data
 to the "DAY_AHEAD_availability.csv" file
 """
-function add_investor_project_availability!(simulation_dir::String,
-                                              scenario::String,
-                                              sim_year::Int64,
-                                              projects::Vector{Project},
-                                              sys_UC::Union{Nothing, PSY.System})
+function add_investor_project_availability!(test_system_dir::String,
+                                            simulation_dir::String,
+                                            scenario::String,
+                                            sim_year::Int64,
+                                            projects::Vector{Project},
+                                            sys_UC::Union{Nothing, PSY.System})
+                                                                               
+    # pv_availability_file = CSV.read(joinpath(test_system_dir, "RTS_Data", "upv_availability.csv"), DataFrame)
+    # wind_availability_file = CSV.read(joinpath(test_system_dir, "RTS_Data", "wind_availability.csv"), DataFrame)
+
     system_availability_data = DataFrames.DataFrame(CSV.File(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Availability", "DAY_AHEAD_availability.csv")))
     system_availability_data_rt = DataFrames.DataFrame(CSV.File(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Availability", "REAL_TIME_availability.csv")))
     gennames = names(system_availability_data)[5:length(names(system_availability_data))] #################
@@ -132,6 +137,14 @@ function add_investor_project_availability!(simulation_dir::String,
                     system_availability_data[:, type_zone_id] = availability / length(gens_in_zone)
                     system_availability_data_rt[:, type_zone_id] = availability_rt / length(gens_in_zone)
                 end
+
+                # if get_type(tech) == "WT"
+                #     system_availability_data[:, type_zone_id] = wind_availability_file[:, get_zone(tech)]
+                #     system_availability_data_rt[:, type_zone_id] = wind_availability_file[:, get_zone(tech)]
+                # elseif get_type(tech) == "PVe"
+                #     system_availability_data[:, type_zone_id] = pv_availability_file[:, get_zone(tech)]
+                #     system_availability_data_rt[:, type_zone_id] = pv_availability_file[:, get_zone(tech)]
+                # end
             end
         end
     end
@@ -198,20 +211,34 @@ function create_operation_cost(projectdata::DataFrames.DataFrameRow, size::Float
         end
     elseif length(var_cost) == 1
         # if there is only one point, use it to determine the constant $/MW cost
-        var_cost = var_cost[1][1] * var_cost[1][2] * fuel_cost * base_power
+        var_cost = [(0.0, 0.0), (var_cost[1][1] * var_cost[1][2] * fuel_cost * base_power, size)]
         fixed = 0.0
     else
-        var_cost = 0.0
+        var_cost = [(0.0, 0.0), (0.0, size)]
         fixed = 0.0
     end
 
     start_up_cost = fuel_cost * projectdata["Start Heat Cold MBTU"] * 1000.0
     shut_down_cost = 0.0
 
-    if occursin("CC", projectdata["Unit Type"]) || occursin("CT", projectdata["Unit Type"]) || occursin("GT", projectdata["Unit Type"]) || occursin("ST", projectdata["Unit Type"]) || occursin("NUCLEAR", projectdata["Unit Type"])
-        operation_cost = PSY.ThreePartCost(var_cost, fixed, start_up_cost, shut_down_cost)
-    else
-        operation_cost = PSY.TwoPartCost(var_cost, fixed)
+    ### NY_change: parse into new operation cost format
+    value_curve_vec = []
+    for i in 1:length(var_cost)
+        push!(value_curve_vec, (var_cost[i][2], var_cost[i][1]))
+    end
+
+    value_curve = PSY.PiecewisePointCurve(value_curve_vec)
+
+    cost_curve = PSY.CostCurve(value_curve)
+
+    if occursin("CC", projectdata["Unit Type"]) || occursin("CT", projectdata["Unit Type"]) || occursin("GT", projectdata["Unit Type"]) || occursin("ST", projectdata["Unit Type"]) || occursin("NU_ST", projectdata["Unit Type"]) || occursin("RE_CT", projectdata["Unit Type"])
+        operation_cost = PSY.ThermalGenerationCost(cost_curve, fixed, start_up_cost, shut_down_cost)
+    elseif occursin("WT", projectdata["Unit Type"]) || occursin("PVe", projectdata["Unit Type"])
+        operation_cost = PSY.RenewableGenerationCost(cost_curve)
+    elseif occursin("HY", projectdata["Unit Type"])
+        operation_cost = PSY.HydroGenerationCost(cost_curve, fixed)
+    elseif occursin("BA", projectdata["Unit Type"]) || occursin("LDES", projectdata["Unit Type"])
+        operation_cost = PSY.StorageCost()
     end
 
     return operation_cost
@@ -598,7 +625,7 @@ function create_tech_type(name::String,
                        deepcopy(PSY.get_operation_cost(device)),
                        fuel_cost,
                        heat_rate,
-                       deepcopy(PSY.get_number(bus)),
+                       deepcopy(PSY.get_name(bus)),
                        projectdata["Zone"],
                        FOR,
                        MTTR)
@@ -642,7 +669,7 @@ function create_tech_type(name::String,
                        (min = 0.0, max = size),
                        (up = size, down = size),
                        deepcopy(PSY.get_operation_cost(device)),
-                       deepcopy(PSY.get_number(bus)),
+                       deepcopy(PSY.get_name(bus)),
                        projectdata["Zone"],
                        FOR,
                        MTTR)
@@ -694,7 +721,7 @@ function create_tech_type(name::String,
                        ramp_limits,
                        deepcopy(PSY.get_time_limits(device)),
                        deepcopy(PSY.get_operation_cost(device)),
-                       deepcopy( PSY.get_number(bus)),
+                       deepcopy(PSY.get_name(bus)),
                        projectdata["Zone"],
                        FOR,
                        MTTR)
@@ -715,7 +742,7 @@ This function creates the Tech struct for Battery projects
 based on the CSV and PSY Device data.
 """
 function create_tech_type(name::String,
-                          device::PSY.GenericBattery,
+                          device::PSY.EnergyReservoirStorage,
                           projectdata::DataFrames.DataFrameRow,
                           size::Float64,
                           base_power::Float64,
@@ -732,7 +759,7 @@ function create_tech_type(name::String,
     type = string(deepcopy(PSY.get_prime_mover_type(device)))
     input_active_power_limits = deepcopy(PSY.get_input_active_power_limits(device))
     output_active_power_limits = deepcopy(PSY.get_output_active_power_limits(device))
-    storage_capacity = deepcopy(PSY.get_state_of_charge_limits(device))
+    storage_capacity = deepcopy(PSY.get_storage_level_limits(device))
 
     FOR = projectdata["FOR"]
     MTTR = projectdata["MTTR Hr"]
@@ -742,9 +769,9 @@ function create_tech_type(name::String,
                        (min = output_active_power_limits[:min] * base_power, max = output_active_power_limits[:max] * base_power),
                        (up = size, down = size),
                        (min = storage_capacity[:min] * base_power, max = storage_capacity[:max] * base_power), #originally has *size
-                       PSY.get_initial_energy(device) * size * base_power,
+                       PSY.get_initial_storage_capacity_level(device) * size * base_power,
                        PSY.get_efficiency(device),
-                       PSY.get_number(bus),
+                       PSY.get_name(bus),
                        projectdata["Zone"],
                        FOR,
                        MTTR)

@@ -17,10 +17,10 @@ struct ThermalTech <: Tech
     active_power_limits::NamedTuple{(:min, :max),Tuple{Float64,Float64}}
     ramp_limits::Union{Nothing, NamedTuple{(:up, :down), Tuple{Float64, Float64}}}
     time_limits::Union{Nothing, NamedTuple{(:up, :down), Tuple{Float64, Float64}}}
-    operation_cost::Union{Nothing, PSY.ThreePartCost}
+    operation_cost::Union{Nothing, PSY.ThermalGenerationCost}
     fuel_cost::Float64
     heat_rate_curve::Vector{Tuple{Float64, Float64}}
-    bus::Int64
+    bus::String
     zone::String
     FOR::Float64
     MTTR::Int64

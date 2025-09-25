@@ -276,6 +276,8 @@ function add_psy_ordc!(simulation_dir::String,
     sys_resolution = sys.data.time_series_params.resolution
     start_datetime = sys.data.time_series_params.forecast_params.initial_timestamp
     finish_datetime = start_datetime + Dates.Hour((forecast_count * sys_interval/sys_resolution + (sys_horizon - sys_interval/sys_resolution) - 1))
+    # start_datetime = Dates.DateTime("2019-01-01T00:00:00")
+    # finish_datetime = start_datetime + Dates.Hour(8759)
     time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
 
     additional_timestep = length(time_stamps) - 8760
@@ -317,7 +319,7 @@ function add_psy_ordc!(simulation_dir::String,
                     end
                 end
                 if occursin("Battery", eligible_categories)
-                    for component in PSY.get_components(PSY.GenericBattery, sys)
+                    for component in PSY.get_components(PSY.EnergyReservoirStorage, sys)
                         PSY.add_service!(component, reserve, sys)
                     end
                 end
@@ -336,13 +338,22 @@ function add_psy_ordc!(simulation_dir::String,
                 end
 
                 if type in ["MD", "UC", "ED"]
-                    product_data_ts = process_ordc_data_for_siip(product_ts_raw)
-                    product_data_ts = [product_data_ts;product_data_ts[1:additional_timestep]]
-                    forecast = PSY.SingleTimeSeries("variable_cost", TimeSeries.TimeArray(time_stamps, product_data_ts))
-                    PSY.add_time_series!(sys, reserve, forecast)
-                    key = IS.TimeSeriesKey(forecast)
-                    PSY.set_variable!(reserve, key)
+                    ### TODO: ORDC timeseries is not available now
+                    # product_data_ts = process_ordc_data_for_siip(product_ts_raw)
+                    # forecast = PSY.SingleTimeSeries("variable_cost", TimeSeries.TimeArray(time_stamps, product_data_ts))
+                    # key = PSY.add_time_series!(sys, reserve, forecast)
+                    # PSY.set_variable_cost!(sys, reserve, key)
+
+                    product_single = product_ts_raw[1]
+                    tuples = split.(chop.(split(chop(product_single, head = 1, tail = 2), "), "), head = 1, tail = 0), ", ")
+                    tuples_value = [(parse.(Float64, tuple)[2], parse.(Float64, tuple)[1]) for tuple in tuples]
+
+                    piecewisecurve = PSY.PiecewiseIncrementalCurve(0.0, [0.0, tuples_value[2][2]], [tuples_value[2][1]])
+                    cost_curve = PSY.CostCurve(piecewisecurve)
+                    PSY.set_variable_cost!(sys, reserve, cost_curve)
                 end
+
+
         end
     end
 

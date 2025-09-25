@@ -76,7 +76,7 @@ end
 # Function to get Line Rating
 #######################################################
 function line_rating(line::Union{PSY.Line,PSY.MonitoredLine})
-    rate = PSY.get_rate(line);
+    rate = PSY.get_rating(line);
     return(forward_capacity = rate , backward_capacity = rate)
 end
 
@@ -315,8 +315,8 @@ function make_pras_system(sys::PSY.System;
     region_load = Array{Int64,2}(undef,num_regions,N);
    
     for (idx,region) in enumerate(regions)
-        reg_load_comps = availability_flag ? get_available_components_in_aggregation_topology(PSY.PowerLoad, sys, region) :
-                                             PSY.get_components_in_aggregation_topology(PSY.PowerLoad, sys, region)
+        reg_load_comps = availability_flag ? get_available_components_in_aggregation_topology(PSY.StandardLoad, sys, region) :
+                                             PSY.get_components_in_aggregation_topology(PSY.StandardLoad, sys, region)
       
         region_load[idx,:]=floor.(Int,sum(get_forecast_values.(first.(PSY.get_time_series_multiple.(reg_load_comps, name = "max_active_power")))
                         .*PSY.get_max_active_power.(reg_load_comps))); # Any issues with using the first of time_series_multiple?
@@ -625,7 +625,7 @@ function make_pras_system(sys::PSY.System;
     for (idx,s) in enumerate(stor)
         stor_charge_cap_array[idx,:] = fill(floor(Int,getfield(PSY.get_input_active_power_limits(s), :max)),1,N);
         stor_discharge_cap_array[idx,:] = fill(floor(Int,getfield(PSY.get_output_active_power_limits(s), :max)),1,N);
-        stor_energy_cap_array[idx,:] = fill(floor(Int,getfield(PSY.get_state_of_charge_limits(s),:max)),1,N);
+        stor_energy_cap_array[idx,:] = fill(floor(Int,getfield(PSY.get_storage_level_limits(s),:max)),1,N);
         stor_chrg_eff_array[idx,:] = fill(getfield(PSY.get_efficiency(s), :in),1,N);
         stor_dischrg_eff_array[idx,:]  = fill.(getfield(PSY.get_efficiency(s), :out),1,N);
 
@@ -725,7 +725,7 @@ function make_pras_system(sys::PSY.System;
         else
             gen_stor_charge_cap_array[idx,:] = fill.(floor.(Int,getfield(PSY.get_input_active_power_limits(PSY.get_storage(g_s)), :max)),1,N);
             gen_stor_discharge_cap_array[idx,:] = fill.(floor.(Int,getfield(PSY.get_output_active_power_limits(PSY.get_storage(g_s)), :max)),1,N);
-            gen_stor_enrgy_cap_array[idx,:] = fill.(floor.(Int,getfield(PSY.get_state_of_charge_limits(PSY.get_storage(g_s)), :max)),1,N); 
+            gen_stor_enrgy_cap_array[idx,:] = fill.(floor.(Int,getfield(PSY.get_storage_level_limits(PSY.get_storage(g_s)), :max)),1,N); 
             gen_stor_gridinj_cap_array[idx,:] = fill.(floor.(Int,PSY.getfield(PSY.get_output_active_power_limits(g_s), :max)),1,N);
             
             if (PSY.has_time_series(PSY.get_renewable_unit(g_s)) && ("max_active_power" in PSY.get_name.(PSY.get_time_series_multiple(PSY.get_renewable_unit(g_s)))))

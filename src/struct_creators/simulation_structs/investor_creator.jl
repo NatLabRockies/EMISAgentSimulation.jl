@@ -7,6 +7,7 @@ function create_investors(simulation_data::AgentSimulationData)
     dir_name = joinpath(get_data_dir(get_case(simulation_data)), "investors")
     investor_names = readdir(dir_name)
     investors = Vector{Investor}(undef, length(investor_names))
+    test_system_dir = get_sys_dir(get_case(simulation_data))
     for i = 1:length(investor_names)
         investor_dir = joinpath(dir_name, "$(investor_names[i])")
 
@@ -69,6 +70,7 @@ function create_investors(simulation_data::AgentSimulationData)
             if get_uncertainty(get_case(simulation_data))
                 
                 # Assert that user has provided parameter multiplier values for each scenario
+                ### NY_change
                 if get_info_symmetry(get_case(simulation_data))
                     scenario_file_name = joinpath(simulation_data_dir, "markets_data", "symmetric_scenario_data.csv")
                 else
@@ -121,6 +123,7 @@ function create_investors(simulation_data::AgentSimulationData)
         #Empty vector of projects.
         projects = Project{<:BuildPhase}[]
 
+        ### NY_change
         projectdata_existing = extract_projectdata(investor_dir, "projectexisting.csv")
         projectdata_options = extract_projectdata(investor_dir, "projectoptions.csv")
 
@@ -145,7 +148,7 @@ function create_investors(simulation_data::AgentSimulationData)
             for sim_year in collect(1:horizon)
                 println(scenario)
                 println(sim_year)          
-                add_investor_project_availability!(simulation_data_dir, scenario, sim_year, projects, sys_UC)
+                add_investor_project_availability!(test_system_dir, simulation_data_dir, scenario, sim_year, projects, sys_UC)
             end
         end
 

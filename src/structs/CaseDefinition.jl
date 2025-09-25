@@ -97,6 +97,7 @@ struct CaseDefinition
     ed_horizon::Int64
     ed_interval::Int64
     md_market::Bool
+    single_stage::Bool
     step_size::Int64
 
     function CaseDefinition(name,
@@ -148,6 +149,7 @@ struct CaseDefinition
                             ed_horizon,
                             ed_interval,
                             md_market,
+                            single_stage
                             step_size)
 
         @assert total_horizon >= simulation_years
@@ -222,6 +224,7 @@ struct CaseDefinition
                    ed_horizon,
                    ed_interval,
                    md_market,
+                   single_stage
                    step_size)
 
         make_case_data_dir(case)
@@ -278,6 +281,7 @@ function CaseDefinition(name::String,
                         ed_horizon::Int64 = 2,
                         ed_interval::Int64 = 1,
                         md_market::Bool = false,
+                        single_stage::Bool = false,
                         step_size::Int64 = 1)
 
     CaseDefinition(name,
@@ -329,6 +333,7 @@ function CaseDefinition(name::String,
                    ed_horizon,
                    ed_interval,
                    md_market,
+                   single_stage,
                    step_size)
 end
 
@@ -380,6 +385,7 @@ get_uc_interval(case::CaseDefinition) = case.uc_interval
 get_ed_horizon(case::CaseDefinition) = case.ed_horizon
 get_ed_interval(case::CaseDefinition) = case.ed_interval
 get_md_market(case::CaseDefinition) = case.md_market
+get_single_stage(case::CaseDefinition) = case.single_stage
 get_step_size(case::CaseDefinition) = case.step_size
 
 function get_name(case::CaseDefinition)

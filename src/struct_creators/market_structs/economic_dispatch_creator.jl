@@ -17,9 +17,14 @@ function create_economic_dispatch_problem(simulation::AgentSimulation,
     zones = get_zones(simulation)
     zonal_load = AxisArrays.AxisArray(zeros(length(zones), num_hours), zones, (1:num_hours))
 
-    for (zone_num, zone) in enumerate(zones)
+    # for (zone_num, zone) in enumerate(zones)
+    #     for h in 1:num_hours
+    #         zonal_load[zone, h] = load_data[:, Symbol(zone_num)][h]
+    #     end
+    # end
+    for zone in zones
         for h in 1:num_hours
-            zonal_load[zone, h] = load_data[:, Symbol(zone_num)][h]
+            zonal_load[zone, h] = load_data[:, Symbol(zone)][h]
         end
     end
 

@@ -62,6 +62,11 @@ function create_cem_mkt_clr_problem(investor_dir::String,
                 zonal_load[zone, h] = load_data[:, Symbol(zone_num)][h]
             end
         end
+        # for zone in zones
+        #     for h in 1:num_hours
+        #         zonal_load[zone, h] = load_data[:, Symbol(zone)][h]
+        #     end
+        # end
         #energy_annual_increment = AxisArrays.AxisArray(ones(length(zones), num_invperiods), zones, collect(1:num_invperiods))
 
         energy_markets[p] = EnergyMarket(AxisArrays.AxisArray(zonal_load, zones, (1:num_hours)), price_cap_energy)
