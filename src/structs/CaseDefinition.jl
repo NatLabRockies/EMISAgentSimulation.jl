@@ -149,7 +149,7 @@ struct CaseDefinition
                             ed_horizon,
                             ed_interval,
                             md_market,
-                            single_stage
+                            single_stage,
                             step_size)
 
         @assert total_horizon >= simulation_years
@@ -224,7 +224,7 @@ struct CaseDefinition
                    ed_horizon,
                    ed_interval,
                    md_market,
-                   single_stage
+                   single_stage,
                    step_size)
 
         make_case_data_dir(case)

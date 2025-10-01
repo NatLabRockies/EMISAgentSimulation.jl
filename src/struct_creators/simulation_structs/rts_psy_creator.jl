@@ -300,10 +300,11 @@ function create_sys_w_updated_ts(
     #-----------------------------------------------------------------------------------
     # Construct hydro timeseries with new horizon from existing Deterministic timeseries
     #-----------------------------------------------------------------------------------
-    first_ts_temp_MD = first(PSY.get_time_series_multiple(sys_MD))
-    start_datetime_MD = PSY.IS.get_initial_timestamp(first_ts_temp_MD)
-    sys_MD_res = PSY.get_time_series_resolution(sys_MD)
-    sys_MD_initial_interval = Int(sys_MD.data.time_series_params.forecast_params.interval / sys_MD_res)
+    # first_ts_temp_MD = first(PSY.get_time_series_multiple(sys_MD))
+    # start_datetime_MD = PSY.IS.get_initial_timestamp(first_ts_temp_MD)
+    start_datetime_MD = PSY.get_forecast_initial_timestamp(sys_MD)
+    sys_MD_res = PSY.get_time_series_resolutions(sys_MD)[1]
+    sys_MD_initial_interval = Int(PSY.get_forecast_interval(sys_MD).value / sys_MD_res.value)
 
     # if not the first stage, I think finish_datetime_MD needs to be first stage's number_of_forecast * interval + (horizon - interval) -- all from first stage (need to pass down these parameters)
     if first_stage == true
@@ -321,7 +322,7 @@ function create_sys_w_updated_ts(
     first_stage_total = Int((finish_datetime_MD - start_datetime_MD) / sys_MD_res + 1)
     additional_timestep = Int(horizon - (first_stage_total-(interval*(length(timestep)-1))) + (first_stage_total - 8760))
 
-    for component in collect(get_components(HydroDispatch, sys_MD))
+    for component in get_components(x -> has_time_series(x, Deterministic), HydroDispatch, sys_MD)
         forecast = get_time_series(Deterministic, component, "max_active_power")
 
         reconstruct_single_ts = Float64[]
@@ -341,7 +342,7 @@ function create_sys_w_updated_ts(
 
     remove_time_series!(sys_MD, Deterministic)
 
-    for component in collect(get_components(HydroDispatch, sys_MD))
+    for component in get_components(x -> has_time_series(x, SingleTimeSeries), HydroDispatch, sys_MD)
 
         revisedts = DataStructures.SortedDict{DateTime,Vector}()
         newtsdata = values(get_time_series(SingleTimeSeries, component, "max_active_power").data)
