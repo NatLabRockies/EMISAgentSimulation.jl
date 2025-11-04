@@ -113,7 +113,7 @@ function create_rts_sys(rts_dir::String,
         if !(isfile(MD_sys_filename) && isfile(MD_num_forecast_filename))
             println("MD json file doesn't exist. Creating required data.")   
             dir_exists(dirname(MD_sys_filename))         
-            sys_MD_initial = PSY.System(joinpath(rts_dir,"sys_da_ercot_v4.json"), time_series_directory = scratch_dir);
+            sys_MD_initial = PSY.System(joinpath(rts_dir,"oct_6_sys_da.json"), time_series_directory = scratch_dir);
             # create MD system
             create_sys_w_updated_ts(
                 ntp_ts_data_dir,
@@ -139,7 +139,7 @@ function create_rts_sys(rts_dir::String,
         if !(isfile(UC_filename))
             println("UC json file doesn't exist. Creating required json file.")  
             dir_exists(dirname(UC_filename))   
-            sys_UC_initial = PSY.System(joinpath(rts_dir, "sys_da_ercot_v4.json"), time_series_directory = scratch_dir);
+            sys_UC_initial = PSY.System(joinpath(rts_dir, "oct_6_sys_da.json"), time_series_directory = scratch_dir);
             create_sys_w_updated_ts(
                 ntp_ts_data_dir,
                 sys_UC_initial,
@@ -175,7 +175,7 @@ function create_rts_sys(rts_dir::String,
             if !isfile(ED_filename)
                 println("ED json file doesn't exist. Creating required json file.")  
                 dir_exists(dirname(ED_filename))   
-                sys_ED_initial = PSY.System(joinpath(rts_dir,"sys_da_ercot_v4.json"), time_series_directory = scratch_dir);
+                sys_ED_initial = PSY.System(joinpath(rts_dir,"oct_6_sys_da.json"), time_series_directory = scratch_dir);
                 create_sys_w_updated_ts(
                     ntp_ts_data_dir,
                     sys_ED_initial,
@@ -344,11 +344,11 @@ function create_sys_w_updated_ts(
 
     for component in get_components(x -> has_time_series(x, SingleTimeSeries), HydroDispatch, sys_MD)
 
-        revisedts = DataStructures.SortedDict{DateTime,Vector}()
+        revisedts = DataStructures.SortedDict{DateTime,Vector{Float64}}()
         newtsdata = values(get_time_series(SingleTimeSeries, component, "max_active_power").data)
 
         for t in 1:length(timestep)
-            rtseries=[]
+            rtseries=Vector{Float64}()
             datetimeindex = timestep[t]
             rtseries = newtsdata[(interval*(t-1)+1):(interval*(t-1)+horizon)]
             push!(revisedts, datetimeindex => rtseries)
@@ -389,7 +389,7 @@ function create_sys_w_updated_ts(
         # println("Processing generator: $(get_name(d))")
         #create dictionary
         # revisedts = Dict{DateTime, Array{Float64}}()
-        revisedts = DataStructures.SortedDict{DateTime,Vector}()
+        revisedts = DataStructures.SortedDict{DateTime,Vector{Float64}}()
 
         # tstype = "1dayahead" ## actuals/, 1dayahead/, intraday/
         if market_stage == "dayahead"
@@ -411,7 +411,7 @@ function create_sys_w_updated_ts(
         newtsdata = newtsdata ./ basepower
 
         for t in 1:length(timestep)
-            rtseries=[]
+            rtseries = Vector{Float64}()
             datetimeindex = timestep[t]
             if t < 8760/interval
                 rtseries = newtsdata[(interval*(t-1)+1):(interval*(t-1)+horizon)]
@@ -454,7 +454,7 @@ function create_sys_w_updated_ts(
         # println("Processing region: $(get_name(get_bus(d)))")
         #create dictionary
         # revisedts = Dict{DateTime, Array{Float64}}()
-        revisedts = DataStructures.SortedDict{DateTime,Vector}()
+        revisedts = DataStructures.SortedDict{DateTime,Vector{Float64}}()
 
         newtsdata = profile[!,lowercase(PSY.get_name(PSY.get_bus(d)))] 
         baseload = get_max_active_power(d)
@@ -463,7 +463,7 @@ function create_sys_w_updated_ts(
         newtsdata = newtsdata./loadscaler # scale 2021 to 75GW peak
 
         for t in 1:length(timestep)
-            rtseries=[]
+            rtseries = Vector{Float64}()
             datetimeindex = timestep[t]
             if t < 8760/interval
                 rtseries = newtsdata[(interval*(t-1)+1):(interval*(t-1)+horizon)]
@@ -512,14 +512,14 @@ function create_sys_w_updated_ts(
         # println("Processing serve: $(get_name(d))")
         #create dictionary
         # revisedts = Dict{DateTime, Array{Float64}}()
-        revisedts = DataStructures.SortedDict{DateTime,Vector}()
+        revisedts = DataStructures.SortedDict{DateTime,Vector{Float64}}()
 
         newtsdata = reg_profile[!,PSY.get_name(d)] 
         basereq = get_requirement(d)
         newtsdata = newtsdata./basereq/100
 
         for t in 1:length(timestep)
-            rtseries=[]
+            rtseries = Vector{Float64}()
             datetimeindex = timestep[t]
             if t < 8760/interval
                 rtseries = newtsdata[(interval*(t-1)+1):(interval*(t-1)+horizon)]
@@ -564,7 +564,7 @@ function create_sys_w_updated_ts(
     PSY.set_units_base_system!(sys_MD, PSY.IS.UnitSystem.SYSTEM_BASE)
     to_json(sys_MD, output_file, force=true)
 
-    number_of_forecast = sys_MD.data.time_series_params.forecast_params.count
+    number_of_forecast = sum(get_forecast_summary_table(sys_MD).count)
     if first_stage
         open(first_stage_number_of_forecast_filename, "w") do file
             write(first_stage_number_of_forecast_filename, string(number_of_forecast))
