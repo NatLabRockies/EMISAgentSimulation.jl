@@ -564,7 +564,7 @@ function create_sys_w_updated_ts(
     PSY.set_units_base_system!(sys_MD, PSY.IS.UnitSystem.SYSTEM_BASE)
     to_json(sys_MD, output_file, force=true)
 
-    number_of_forecast = sum(get_forecast_summary_table(sys_MD).count)
+    number_of_forecast = get_forecast_window_count(sys_MD)
     if first_stage
         open(first_stage_number_of_forecast_filename, "w") do file
             write(first_stage_number_of_forecast_filename, string(number_of_forecast))
