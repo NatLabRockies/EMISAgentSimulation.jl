@@ -683,19 +683,18 @@ function create_PRAS_sys_json(
 )
     sys_PRAS = deepcopy(first(sys_EDs))
 
-    first_ts_temp_PRAS = first(PSY.get_time_series_multiple(sys_PRAS))
-    start_datetime_PRAS = PSY.IS.get_initial_timestamp(first_ts_temp_PRAS)
-    sys_PRAS_res = PSY.get_time_series_resolution(sys_PRAS)
-    sys_PRAS_interval = Int(sys_PRAS.data.time_series_params.forecast_params.interval / sys_PRAS_res)
-    sys_PRAS_horizon = sys_PRAS.data.time_series_params.forecast_params.horizon
+    start_datetime_PRAS = PSY.get_forecast_initial_timestamp(sys_PRAS)
+    sys_PRAS_res = PSY.get_time_series_resolutions(sys_PRAS)[1]
+    sys_PRAS_interval = Int(PSY.get_forecast_interval(sys_PRAS).value / sys_PRAS_res.value)
+    sys_PRAS_horizon = Int(PSY.get_forecast_horizon(sys_PRAS).value / sys_PRAS_res.value)
     finish_datetime_PRAS = start_datetime_PRAS + Dates.Hour(8760 * sys_PRAS_res * length(sys_EDs) - sys_PRAS_res)
     
     timestep = StepRange(start_datetime_PRAS, sys_PRAS_res * sys_PRAS_interval, finish_datetime_PRAS);
 
     ts_objects = Dict{String, Any}()
 
-    ts_objects["gens"] = collect(PSY.get_components(x -> PSY.get_prime_mover_type(x) in [PrimeMovers.PVe, PrimeMovers.WT, PrimeMovers.HY], Generator, sys_PRAS))
-    ts_objects["loads"] = collect(PSY.get_components(PowerLoad, sys_PRAS))
+    ts_objects["gens"] = collect(PSY.get_components(x -> has_time_series(x, Deterministic) && PSY.get_prime_mover_type(x) in [PrimeMovers.PVe, PrimeMovers.WT, PrimeMovers.HY], Generator, sys_PRAS))
+    ts_objects["loads"] = collect(PSY.get_components(x -> has_time_series(x, Deterministic), PowerLoad, sys_PRAS))
 
     for (key, devices) in ts_objects
         for component_PRAS in devices
@@ -744,11 +743,11 @@ function create_PRAS_sys_json(
 
     for (key, devices) in ts_objects
         for component in devices
-            revisedts = DataStructures.SortedDict{DateTime,Vector}()
+            revisedts = DataStructures.SortedDict{DateTime,Vector{Float64}}()
             newtsdata = values(get_time_series(SingleTimeSeries, component, "max_active_power").data)
     
             for t in 1:length(timestep)
-                rtseries=[]
+                rtseries=Vector{Float64}()
                 datetimeindex = timestep[t]
                 rtseries = newtsdata[(sys_PRAS_interval * (t - 1) + 1):(sys_PRAS_interval * ( t - 1) + sys_PRAS_horizon)]
                 push!(revisedts, datetimeindex => rtseries)
@@ -767,11 +766,11 @@ function create_PRAS_sys_json(
     end
 
     for service in services
-        revisedts = DataStructures.SortedDict{DateTime,Vector}()
+        revisedts = DataStructures.SortedDict{DateTime,Vector{Float64}}()
         newtsdata = values(get_time_series(SingleTimeSeries, service, "requirement").data)
 
         for t in 1:length(timestep)
-            rtseries=[]
+            rtseries=Vector{Float64}()
             datetimeindex = timestep[t]
             rtseries = newtsdata[(sys_PRAS_interval * (t - 1) + 1):(sys_PRAS_interval * ( t - 1) + sys_PRAS_horizon)]
             push!(revisedts, datetimeindex => rtseries)

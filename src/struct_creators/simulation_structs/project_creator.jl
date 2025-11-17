@@ -88,6 +88,10 @@ function add_investor_project_availability!(test_system_dir::String,
     system_availability_data_rt = DataFrames.DataFrame(CSV.File(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Availability", "REAL_TIME_availability.csv")))
     gennames = names(system_availability_data)[5:length(names(system_availability_data))] #################
 
+    psy_gens = PSY.get_name.(PSY.get_components(PSY.Generator, sys_UC))
+
+    gen_diff = setdiff(gennames, psy_gens)
+
     for project in projects
         # println("this is $(get_name(project))")
         project_name = get_name(project)
@@ -110,6 +114,23 @@ function add_investor_project_availability!(test_system_dir::String,
                 if get_type(tech) == "WT"
                     # gens_in_zone = filter(g -> (first("$(bus)", 1) == first(g, 1)) && (occursin("wind", lowercase(g)) || occursin("wt", lowercase(g))),
                     #                                 names(system_availability_data))
+                    for g in gennames
+                        @info "generator name from availability data: $g"
+                        gen = PSY.get_component(PSY.StaticInjection, sys_UC, g)
+                        gen_name = PSY.get_name(gen)
+                        @info "Checking generator: $gen_name"
+                        gen_bus = PSY.get_bus(gen)
+                        bus_number = PSY.get_number(gen_bus)
+                        @info "Generator bus number: $bus_number"
+                        @info first("$(bus)", 1)
+                        @info first(string(bus_number), 1)
+                        prime_mover_type = PSY.get_prime_mover_type(gen)
+                        @info "Prime mover type: $prime_mover_type"
+                        if (first("$(bus)", 1) == first(string(bus_number), 1)) &&
+                           occursin("WT", string(prime_mover_type))
+                            @info "Generator $gen_name matches criteria and will be included."
+                        end
+                    end
                     gens_in_zone = filter(g -> (first("$(bus)", 1) == first(string(PSY.get_number(PSY.get_bus(PSY.get_component(PSY.StaticInjection, sys_UC,g)))), 1)) &&
                                                 occursin("WT", string(PSY.get_prime_mover_type(PSY.get_component(PSY.StaticInjection, sys_UC,g)))),
                                                     gennames)
@@ -374,7 +395,7 @@ function create_tech_type(name::String,
     ramp_limits = (up = projectdata["Ramp Rate pu/Hr"]  * size, down = projectdata["Ramp Rate pu/Hr"] * size)
     fuel_cost = projectdata["Fuel Price \$/MMBTU"]
     zone = projectdata["Zone"]
-    bus = projectdata["Bus ID"]
+    bus = "$(projectdata["Bus ID"])"
     FOR = projectdata["FOR"]
     MTTR = projectdata["MTTR Hr"]
 
