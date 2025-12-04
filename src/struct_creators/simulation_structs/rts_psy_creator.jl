@@ -113,7 +113,7 @@ function create_rts_sys(rts_dir::String,
         if !(isfile(MD_sys_filename) && isfile(MD_num_forecast_filename))
             println("MD json file doesn't exist. Creating required data.")   
             dir_exists(dirname(MD_sys_filename))         
-            sys_MD_initial = PSY.System(joinpath(rts_dir,"oct_6_sys_da.json"), time_series_directory = scratch_dir);
+            sys_MD_initial = PSY.System(joinpath(rts_dir,"DA_sys_zonal.json"), time_series_directory = scratch_dir);
             # create MD system
             create_sys_w_updated_ts(
                 ntp_ts_data_dir,
@@ -139,7 +139,7 @@ function create_rts_sys(rts_dir::String,
         if !(isfile(UC_filename))
             println("UC json file doesn't exist. Creating required json file.")  
             dir_exists(dirname(UC_filename))   
-            sys_UC_initial = PSY.System(joinpath(rts_dir, "oct_6_sys_da.json"), time_series_directory = scratch_dir);
+            sys_UC_initial = PSY.System(joinpath(rts_dir, "DA_sys_zonal.json"), time_series_directory = scratch_dir);
             create_sys_w_updated_ts(
                 ntp_ts_data_dir,
                 sys_UC_initial,
@@ -175,7 +175,7 @@ function create_rts_sys(rts_dir::String,
             if !isfile(ED_filename)
                 println("ED json file doesn't exist. Creating required json file.")  
                 dir_exists(dirname(ED_filename))   
-                sys_ED_initial = PSY.System(joinpath(rts_dir,"oct_6_sys_da.json"), time_series_directory = scratch_dir);
+                sys_ED_initial = PSY.System(joinpath(rts_dir,"DA_sys_zonal.json"), time_series_directory = scratch_dir);
                 create_sys_w_updated_ts(
                     ntp_ts_data_dir,
                     sys_ED_initial,
@@ -454,11 +454,19 @@ function create_sys_w_updated_ts(
         # println("Processing region: $(get_name(get_bus(d)))")
         #create dictionary
         # revisedts = Dict{DateTime, Array{Float64}}()
+        bus = PSY.get_bus(d)
+        zone = PSY.get_area(bus)
         revisedts = DataStructures.SortedDict{DateTime,Vector{Float64}}()
 
-        newtsdata = profile[!,lowercase(PSY.get_name(PSY.get_bus(d)))] 
+        newtsdata = profile[!,lowercase(PSY.get_name(zone))] 
         baseload = get_max_active_power(d)
-        newtsdata = newtsdata./baseload
+
+        # Get the loads in the zone and caculate the proportion that this load represents
+        loads_in_zone = PSY.get_components(x -> PSY.get_area(PSY.get_bus(x)) == zone, StandardLoad, sys_MD)
+        zonal_load_sum = sum(get_max_active_power.(loads_in_zone))
+        proportion = baseload / zonal_load_sum
+        
+        newtsdata = newtsdata .* proportion
         newtsdata = newtsdata.*1000
         newtsdata = newtsdata./loadscaler # scale 2021 to 75GW peak
 

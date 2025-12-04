@@ -58,14 +58,14 @@ This function returns the size of the PSY Device.
 """
 get_device_size(device::T) where T <: PSY.ThermalGen = PSY.get_active_power_limits(device)[:max]
 get_device_size(device::PSY.RenewableDispatch) = PSY.get_rating(device)
-get_device_size(device::Union{PSY.HydroEnergyReservoir, PSY.HydroDispatch}) = PSY.get_active_power_limits(device)[:max]
+get_device_size(device::Union{PSY.HydroTurbine, PSY.HydroDispatch}) = PSY.get_active_power_limits(device)[:max]
 get_device_size(device::PSY.EnergyReservoirStorage) = PSY.get_rating(device)
 
 """
 This function returns line rating for PSY Lines.
 """
 get_line_rating(line::PSY.Line) = PSY.get_rating(line)
-get_line_rating(line::PSY.TwoTerminalHVDCLine) = line.active_power_limits_from[:max]
+get_line_rating(line::PSY.TwoTerminalGenericHVDCLine) = line.active_power_limits_from[:max]
 
 """
 This function removes leap days from the data if year is not leap year.

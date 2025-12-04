@@ -262,7 +262,7 @@ function PSY.make_generator(data::PSY.PowerSystemTableData, gen, cost_colnames, 
     elseif gen_type == PSY.ThermalMultiStart
         generator = PSY.make_thermal_generator_multistart(data, gen, cost_colnames, bus)
     elseif gen_type <: PSY.HydroGen
-        generator = PSY.make_hydro_generator(gen_type, data, gen, cost_colnames, bus)
+        generator = make_hydro_generator(gen_type, data, gen, cost_colnames, bus)
     elseif gen_type <: PSY.RenewableGen
         generator = PSY.make_renewable_generator(gen_type, data, gen, cost_colnames, bus)
     elseif gen_type == PSY.EnergyReservoirStorage
@@ -418,7 +418,7 @@ end
 ##############################################
 # PowerSystems2PRAS definition of make_hydro_generator()
 ##############################################
-function PSY.make_hydro_generator(gen_type, data::PSY.PowerSystemTableData, gen, cost_colnames, bus)
+function make_hydro_generator(gen_type, data::PSY.PowerSystemTableData, gen, cost_colnames, bus)
     @debug "Making HydroGen" gen.name
     active_power_limits =
         (min = gen.active_power_limits_min, max = gen.active_power_limits_max)
@@ -430,7 +430,7 @@ function PSY.make_hydro_generator(gen_type, data::PSY.PowerSystemTableData, gen,
     time_limits = PSY.make_timelimits(gen, :min_up_time, :min_down_time)
     base_power = gen.base_mva
 
-    if gen_type == PSY.HydroEnergyReservoir || gen_type == PSY.HydroPumpedStorage
+    if gen_type == PSY.HydroTurbine || gen_type == PSY.HydroPumpTurbine
         if !haskey(data.category_to_df, PSY.InputCategory.STORAGE)
             throw(PSY.DataFormatError("Storage information must defined in storage.csv"))
         end
@@ -441,10 +441,10 @@ function PSY.make_hydro_generator(gen_type, data::PSY.PowerSystemTableData, gen,
             PSY.calculate_variable_cost(data, gen, cost_colnames, base_power)
         operation_cost = PSY.HydroGenerationCost(var_cost, fixed)
 
-        if gen_type == PSY.HydroEnergyReservoir
-            @debug("Creating $(gen.name) as HydroEnergyReservoir")
+        if gen_type == PSY.HydroTurbine
+            @debug("Creating $(gen.name) as HydroTurbine")
 
-            hydro_gen = PSY.HydroEnergyReservoir(
+            hydro_gen = PSY.HydroTurbine(
                 name = gen.name,
                 available = gen.available,
                 bus = bus,
@@ -458,14 +458,17 @@ function PSY.make_hydro_generator(gen_type, data::PSY.PowerSystemTableData, gen,
                 time_limits = time_limits,
                 operation_cost = operation_cost,
                 base_power = base_power,
-                storage_capacity = storage.head.storage_capacity,
-                inflow = storage.head.input_active_power_limit_max,
-                initial_storage = storage.head.energy_level,
-                status = true,
             )
 
-        elseif gen_type == PSY.HydroPumpedStorage
-            @debug("Creating $(gen.name) as HydroPumpedStorage")
+            reservoir = PSY.HydroReservoir(
+                name = "Reservoir_$(gen.name)",
+                storage_level_limits = (min = 0.0, max = storage.head.storage_capacity),
+                inflow = storage.head.input_active_power_limit_max,
+                initial_level = storage.head.energy_level,
+            )
+
+        elseif gen_type == PSY.HydroPumpTurbine
+            @debug("Creating $(gen.name) as HydroPumpTurbine")
 
             pump_active_power_limits = (
                 min = gen.pump_active_power_limits_min,
@@ -486,7 +489,7 @@ function PSY.make_hydro_generator(gen_type, data::PSY.PowerSystemTableData, gen,
                 rampdncol = :pump_ramp_down,
             )
             pump_time_limits = PSY.make_timelimits(gen, :pump_min_up_time, :pump_min_down_time)
-            hydro_gen = PSY.HydroPumpedStorage(
+            hydro_gen = PSY.HydroPumpTurbine(
                 name = gen.name,
                 available = gen.available,
                 bus = bus,
@@ -499,27 +502,49 @@ function PSY.make_hydro_generator(gen_type, data::PSY.PowerSystemTableData, gen,
                 reactive_power_limits = reactive_power_limits,
                 ramp_limits = ramp_limits,
                 time_limits = time_limits,
-                rating_pump = pump_rating,
+                # rating_pump = pump_rating,
                 active_power_limits_pump = pump_active_power_limits,
                 reactive_power_limits_pump = pump_reactive_power_limits,
-                ramp_limits_pump = pump_ramp_limits,
-                time_limits_pump = pump_time_limits,
-                storage_capacity = (
-                    up = storage.head.storage_capacity,
-                    down = storage.head.storage_capacity,
-                ),
-                inflow = storage.head.input_active_power_limit_max,
-                outflow = storage.tail.input_active_power_limit_max,
-                initial_storage = (
-                    up = storage.head.energy_level,
-                    down = storage.tail.energy_level,
-                ),
-                storage_target = (
-                    up = storage.head.storage_target,
-                    down = storage.tail.storage_target,
-                ),
+                # ramp_limits_pump = pump_ramp_limits,
+                # time_limits_pump = pump_time_limits,
+                # storage_capacity = (
+                #     up = storage.head.storage_capacity,
+                #     down = storage.head.storage_capacity,
+                # ),
+                # inflow = storage.head.input_active_power_limit_max,
+                outflow_limits = (min = 0.0, max = storage.tail.input_active_power_limit_max),
+                # initial_storage = (
+                #     up = storage.head.energy_level,
+                #     down = storage.tail.energy_level,
+                # ),
+                # storage_target = (
+                #     up = storage.head.storage_target,
+                #     down = storage.tail.storage_target,
+                # ),
                 operation_cost = operation_cost,
-                pump_efficiency = storage.tail.efficiency,
+                efficiency = (turbine = 1.0, pump = storage.tail.efficiency),
+            )
+
+            head_reservoir = HydroReservoir(;
+                name = "HeadReservoir_$(gen.name)",
+                available = true,
+                storage_level_limits = (min = 0.0, max = storage.head.storage_capacity),
+                initial_level = storage.head.energy_level,
+                spillage_limits = nothing,
+                inflow = storage.head.input_active_power_limit_max,
+                outflow = storage.head.input_active_power_limit_max,
+                level_targets = storage.head.storage_target,
+            )
+
+            tail_reservoir = HydroReservoir(;
+                name = "TailReservoir_$(gen.name)",
+                available = true,
+                storage_level_limits = (min = 0.0, max = storage.head.storage_capacity),
+                initial_level = storage.tail.energy_level,
+                spillage_limits = nothing,
+                inflow = storage.head.input_active_power_limit_max,
+                outflow = storage.head.input_active_power_limit_max,
+                level_targets = storage.tail.storage_target,
             )
         end
     elseif gen_type == PSY.HydroDispatch

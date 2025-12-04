@@ -194,7 +194,7 @@ function finish_construction!(projects::Vector{<: Project{<: BuildPhase}},
             if y >= iteration_year
                 add_device_forecast!(sys_MDs[y], sys_UCs[y], sys_EDs[y], PSY.get_component(typeof(PSY_project_MD), sys_MDs[y], PSY.get_name(PSY_project_MD)), PSY.get_component(typeof(PSY_project_UC), sys_UCs[y], PSY.get_name(PSY_project_UC)), PSY.get_component(typeof(PSY_project_ED), sys_EDs[y], PSY.get_name(PSY_project_ED)), availability_raw, availability_raw_rt, da_resolution, rt_resolution)
                 
-                if type == "NU_ST" || type == "RE_CT" || typeof(PSY_project_UC) == PSY.RenewableDispatch || typeof(PSY_project_UC) == PSY.HydroEnergyReservoir || typeof(PSY_project_UC) == PSY.HydroDispatch
+                if type == "NU_ST" || type == "RE_CT" || typeof(PSY_project_UC) == PSY.RenewableDispatch || typeof(PSY_project_UC) == PSY.HydroTurbine || typeof(PSY_project_UC) == PSY.HydroDispatch
                     # convert_to_thermal_clean_energy!(PSY_project_UC, sys_UCs[y])
                     # convert_to_thermal_clean_energy!(PSY_project_ED, sys_EDs[y])
                     add_clean_energy_contribution!(sys_MDs[y], PSY.get_component(typeof(PSY_project_MD), sys_MDs[y], PSY.get_name(PSY_project_MD)))
@@ -232,7 +232,7 @@ function finish_construction!(projects::Vector{<: Project{<: BuildPhase}},
 
             add_device_forecast_PRAS!(sys_PRAS[scenario], PSY.get_component(typeof(PSY_project_PRAS), sys_PRAS[scenario], PSY.get_name(PSY_project_PRAS)), availability_raw_rt, rt_resolution)
 
-            if type == "NU_ST" || type == "RE_CT" || typeof(PSY_project_PRAS) == PSY.RenewableDispatch || typeof(PSY_project_PRAS) == PSY.HydroEnergyReservoir || typeof(PSY_project_PRAS) == PSY.HydroDispatch
+            if type == "NU_ST" || type == "RE_CT" || typeof(PSY_project_PRAS) == PSY.RenewableDispatch || typeof(PSY_project_PRAS) == PSY.HydroTurbine || typeof(PSY_project_PRAS) == PSY.HydroDispatch
                 if type == "RE_CT"
                     convert_to_thermal_fast_start!(PSY.get_component(typeof(PSY_project_PRAS), sys_PRAS[scenario], PSY.get_name(PSY_project_PRAS)), sys_PRAS[scenario])
                 end

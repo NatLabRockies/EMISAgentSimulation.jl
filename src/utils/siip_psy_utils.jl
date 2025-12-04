@@ -72,7 +72,7 @@ function add_clean_energy_contribution!(sys_UC::PSY.System,
 end
 
 function add_clean_energy_contribution!(sys::PSY.System,
-                                        device::T) where T <:Union{PSY.ThermalStandard, PSY.RenewableDispatch, PSY.HydroEnergyReservoir, PSY.HydroDispatch}
+                                        device::T) where T <:Union{PSY.ThermalStandard, PSY.RenewableDispatch, PSY.HydroTurbine, PSY.HydroDispatch}
 
     services = get_system_services(sys)
     for service in services
@@ -513,6 +513,27 @@ function find_zonal_bus(zone::String, sys::PSY.System)
 
 end
 
+
+function find_zonal_area(zone::String, sys::PSY.System)
+    zone_number_map = Dict(
+        "FarWest" => 1,
+        "North" => 2,
+        "West" => 3,
+        "Southern" => 4,
+        "NorthCentral" => 5,
+        "SouthCentral" => 6,
+        "Coast" => 7,
+        "East" => 8,
+    )
+    for area in PSY.get_components(PSY.Area, sys)
+        name = PSY.get_name(area)
+        if zone == "zone_$(zone_number_map[name])"
+            return area
+        end
+    end
+    return nothing
+end
+
 """
 This function transforms the timeseries of PSY Systems.
 """
@@ -580,7 +601,7 @@ function add_psy_inertia!(simulation_dir::String,
         collect(PSY.get_components(ThermalFastStartSIIP, sys)),
         collect(PSY.get_components(PSY.RenewableDispatch, sys)),
         collect(PSY.get_components(PSY.HydroDispatch, sys)),
-        collect(PSY.get_components(PSY.HydroEnergyReservoir, sys)),
+        collect(PSY.get_components(PSY.HydroTurbine, sys)),
         collect(PSY.get_components(PSY.EnergyReservoirStorage, sys))
         );
 
@@ -670,7 +691,7 @@ function add_psy_clean_energy_constraint!(sys::PSY.System,
         vcat(collect(PSY.get_components(x -> (occursin("NUC", PSY.get_name(x)) || occursin("RECT", PSY.get_name(x))), PSY.ThermalStandard, sys)),
         collect(PSY.get_components(PSY.RenewableDispatch, sys)),
         collect(PSY.get_components(PSY.HydroDispatch, sys)),
-        collect(PSY.get_components(PSY.HydroEnergyReservoir, sys)),
+        collect(PSY.get_components(PSY.HydroTurbine, sys)),
     );
 
     PSY.add_service!(sys, clean_energy_reserve, contri_devices)

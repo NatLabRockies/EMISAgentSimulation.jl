@@ -309,7 +309,7 @@ function add_psy_ordc!(simulation_dir::String,
                     for component in PSY.get_components(PSY.HydroDispatch, sys)
                         PSY.add_service!(component, reserve, sys)
                     end
-                    for component in PSY.get_components(PSY.HydroEnergyReservoir, sys)
+                    for component in PSY.get_components(PSY.HydroTurbine, sys)
                         PSY.add_service!(component, reserve, sys)
                     end
                 end

@@ -18,11 +18,11 @@ function adjust_reserve_voll!(sys::PSY.System,
     variables = PSI.get_variables(optimization_container)
 
     for zone in zones
-        bus = find_zonal_bus(zone, sys)
+        area = find_zonal_area(sys, zone)
         slack_coefficients = [PSI.SystemBalanceSlackUp, PSI.SystemBalanceSlackDown]
         for c in slack_coefficients
             slack_key = PSI.VariableKey{c, PSY.ACBus}("")
-            index = findall(x -> x == PSY.get_number(bus), variables[slack_key].axes[1])[1]
+            index = findall(x -> x == PSY.get_name(area), variables[slack_key].axes[1])[1]
             slack_variables = variables[slack_key].data[index, :]
             delta_cost = energy_voll_cost[zone] * base_power - default_balance_slack_cost
             for v in slack_variables
@@ -203,12 +203,12 @@ end
 """
 This function returns realized capacity factors for Hydropower generators from PSI Simulation.
 """
-function get_realized_capacity_factors(device::PSY.HydroEnergyReservoir,
+function get_realized_capacity_factors(device::PSY.HydroTurbine,
                                         results::Dict{String, DataFrames.DataFrame},
                                         results_uc::Dict{String, DataFrames.DataFrame},
                                         base_power::Float64
                                         )
-    energy_production = results["ActivePowerVariable__HydroEnergyReservoir"][:, Symbol(get_name(device))]
+    energy_production = results["ActivePowerVariable__HydroTurbine"][:, Symbol(get_name(device))]
     capacity_factors = (energy_production / base_power) / get_device_size(device)
     return capacity_factors
 end
@@ -479,8 +479,8 @@ function create_md_template(inertia_product)
 
         template = PSI.ProblemTemplate(
             PSI.NetworkModel(
-                PSI.PM.NFAPowerModel,
-                duals = [PSI.NodalBalanceActiveConstraint],
+                PSI.AreaBalancePowerModel,
+                duals = [PSI.CopperPlateBalanceConstraint],
                 use_slacks = true,
             ),
         )
@@ -495,7 +495,7 @@ function create_md_template(inertia_product)
         PSI.set_device_model!(template, PSY.RenewableDispatch, PSI.RenewableFullDispatch)
         PSI.set_device_model!(template, PSY.RenewableNonDispatch, PSI.FixedOutput)
         PSI.set_device_model!(template, PSY.StandardLoad, PSI.StaticPowerLoad)
-        PSI.set_device_model!(template, PSY.HydroEnergyReservoir, HSI.HydroCommitmentRunOfRiver)
+        PSI.set_device_model!(template, PSY.HydroTurbine, HSI.HydroCommitmentRunOfRiver)
         PSI.set_device_model!(template, PSY.HydroDispatch, HSI.HydroCommitmentRunOfRiver) # TODO: check which hydro device we have
         # PSI.set_device_model!(template, PSY.HydroEnergyReservoir, HSI.HydroDispatchRunOfRiver)
         # PSI.set_device_model!(template, PSY.HydroDispatch, HSI.HydroDispatchRunOfRiver) # TODO: check which hydro device we have
@@ -503,7 +503,7 @@ function create_md_template(inertia_product)
         PSI.set_device_model!(template, PSY.Line, PSI.StaticBranch)
         PSI.set_device_model!(template, PSY.Transformer2W, PSI.StaticBranch)
         PSI.set_device_model!(template, PSY.TapTransformer, PSI.StaticBranch)
-        PSI.set_device_model!(template, PSY.TwoTerminalHVDCLine, PSI.HVDCTwoTerminalLossless)
+        PSI.set_device_model!(template, PSY.TwoTerminalGenericHVDCLine, PSI.HVDCTwoTerminalLossless)
         PSI.set_service_model!(
             template,
             PSI.ServiceModel(
@@ -524,26 +524,26 @@ function create_md_template(inertia_product)
                 duals = [PSI.RequirementConstraint],
             )
         )
-        PSI.set_service_model!(
-            template,
-            PSI.ServiceModel(
-                PSY.ReserveDemandCurve{PSY.ReserveUp},
-                PSI.StepwiseCostReserve,
-                "Synchronous",
-                use_slacks=true,
-                duals = [PSI.RequirementConstraint],
-            )
-        )
-        PSI.set_service_model!(
-            template,
-            PSI.ServiceModel(
-                PSY.ReserveDemandCurve{PSY.ReserveUp},
-                PSI.StepwiseCostReserve,
-                "Primary",
-                use_slacks=true,
-                duals = [PSI.RequirementConstraint],
-            )
-        )
+        # PSI.set_service_model!(
+        #     template,
+        #     PSI.ServiceModel(
+        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
+        #         PSI.StepwiseCostReserve,
+        #         "Synchronous",
+        #         use_slacks=true,
+        #         duals = [PSI.RequirementConstraint],
+        #     )
+        # )
+        # PSI.set_service_model!(
+        #     template,
+        #     PSI.ServiceModel(
+        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
+        #         PSI.StepwiseCostReserve,
+        #         "Primary",
+        #         use_slacks=true,
+        #         duals = [PSI.RequirementConstraint],
+        #     )
+        # )
 
         # PSI.set_service_model!(
         #     template,
@@ -568,8 +568,8 @@ function create_md_template(inertia_product)
     else
         template = PSI.ProblemTemplate(
             PSI.NetworkModel(
-                PSI.PM.NFAPowerModel,
-                duals = [PSI.NodalBalanceActiveConstraint],
+                PSI.AreaBalancePowerModel,
+                duals = [PSI.CopperPlateBalanceConstraint],
                 use_slacks = true,
             ),
         )
@@ -584,7 +584,7 @@ function create_md_template(inertia_product)
         PSI.set_device_model!(template, PSY.RenewableDispatch, PSI.RenewableFullDispatch)
         PSI.set_device_model!(template, PSY.RenewableNonDispatch, PSI.FixedOutput)
         PSI.set_device_model!(template, PSY.StandardLoad, PSI.StaticPowerLoad)
-        PSI.set_device_model!(template, PSY.HydroEnergyReservoir, HSI.HydroCommitmentRunOfRiver)
+        PSI.set_device_model!(template, PSY.HydroTurbine, HSI.HydroCommitmentRunOfRiver)
         PSI.set_device_model!(template, PSY.HydroDispatch, HSI.HydroCommitmentRunOfRiver) # TODO: check which hydro device we have
         # PSI.set_device_model!(template, PSY.HydroEnergyReservoir, HSI.HydroDispatchRunOfRiver)
         # PSI.set_device_model!(template, PSY.HydroDispatch, HSI.HydroDispatchRunOfRiver) # TODO: check which hydro device we have
@@ -592,7 +592,7 @@ function create_md_template(inertia_product)
         PSI.set_device_model!(template, PSY.Line, PSI.StaticBranch)
         PSI.set_device_model!(template, PSY.Transformer2W, PSI.StaticBranch)
         PSI.set_device_model!(template, PSY.TapTransformer, PSI.StaticBranch)
-        PSI.set_device_model!(template, PSY.TwoTerminalHVDCLine, PSI.HVDCTwoTerminalLossless)
+        PSI.set_device_model!(template, PSY.TwoTerminalGenericHVDCLine, PSI.HVDCTwoTerminalLossless)
         PSI.set_service_model!(
             template,
             PSI.ServiceModel(
@@ -613,26 +613,26 @@ function create_md_template(inertia_product)
                 duals = [PSI.RequirementConstraint],
             )
         )
-        PSI.set_service_model!(
-            template,
-            PSI.ServiceModel(
-                PSY.ReserveDemandCurve{PSY.ReserveUp},
-                PSI.StepwiseCostReserve,
-                "Synchronous",
-                use_slacks=true,
-                duals = [PSI.RequirementConstraint],
-            )
-        )
-        PSI.set_service_model!(
-            template,
-            PSI.ServiceModel(
-                PSY.ReserveDemandCurve{PSY.ReserveUp},
-                PSI.StepwiseCostReserve,
-                "Primary",
-                use_slacks=true,
-                duals = [PSI.RequirementConstraint],
-            )
-        )
+        # PSI.set_service_model!(
+        #     template,
+        #     PSI.ServiceModel(
+        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
+        #         PSI.StepwiseCostReserve,
+        #         "Synchronous",
+        #         use_slacks=true,
+        #         duals = [PSI.RequirementConstraint],
+        #     )
+        # )
+        # PSI.set_service_model!(
+        #     template,
+        #     PSI.ServiceModel(
+        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
+        #         PSI.StepwiseCostReserve,
+        #         "Primary",
+        #         use_slacks=true,
+        #         duals = [PSI.RequirementConstraint],
+        #     )
+        # )
 
         # PSI.set_service_model!(
         #     template,
@@ -655,8 +655,8 @@ function create_uc_template(inertia_product)
 
         template = PSI.ProblemTemplate(
             PSI.NetworkModel(
-                PSI.PM.NFAPowerModel,
-                duals = [PSI.NodalBalanceActiveConstraint],
+                PSI.AreaBalancePowerModel,
+                duals = [PSI.CopperPlateBalanceConstraint],
                 use_slacks = true,
             ),
         )
@@ -667,13 +667,13 @@ function create_uc_template(inertia_product)
         PSI.set_device_model!(template, PSY.RenewableDispatch, PSI.RenewableFullDispatch)
         PSI.set_device_model!(template, PSY.RenewableNonDispatch, PSI.FixedOutput)
         PSI.set_device_model!(template, PSY.StandardLoad, PSI.StaticPowerLoad)
-        PSI.set_device_model!(template, PSY.HydroEnergyReservoir, HSI.HydroCommitmentRunOfRiver)
+        PSI.set_device_model!(template, PSY.HydroTurbine, HSI.HydroCommitmentRunOfRiver)
         PSI.set_device_model!(template, PSY.HydroDispatch, HSI.HydroCommitmentRunOfRiver) # TODO: check which hydro device we have
         PSI.set_device_model!(template, PSY.EnergyReservoirStorage, SSI.StorageDispatchWithReserves)
         PSI.set_device_model!(template, PSY.Line, PSI.StaticBranch)
         PSI.set_device_model!(template, PSY.Transformer2W, PSI.StaticBranch)
         PSI.set_device_model!(template, PSY.TapTransformer, PSI.StaticBranch)
-        PSI.set_device_model!(template, PSY.TwoTerminalHVDCLine, PSI.HVDCTwoTerminalLossless)
+        PSI.set_device_model!(template, PSY.TwoTerminalGenericHVDCLine, PSI.HVDCTwoTerminalLossless)
         PSI.set_service_model!(
             template,
             PSI.ServiceModel(
@@ -694,26 +694,26 @@ function create_uc_template(inertia_product)
                 duals = [PSI.RequirementConstraint],
             )
         )
-        PSI.set_service_model!(
-            template,
-            PSI.ServiceModel(
-                PSY.ReserveDemandCurve{PSY.ReserveUp},
-                PSI.StepwiseCostReserve,
-                "Synchronous",
-                use_slacks=true,
-                duals = [PSI.RequirementConstraint],
-            )
-        )
-        PSI.set_service_model!(
-            template,
-            PSI.ServiceModel(
-                PSY.ReserveDemandCurve{PSY.ReserveUp},
-                PSI.StepwiseCostReserve,
-                "Primary",
-                use_slacks=true,
-                duals = [PSI.RequirementConstraint],
-            )
-        )
+        # PSI.set_service_model!(
+        #     template,
+        #     PSI.ServiceModel(
+        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
+        #         PSI.StepwiseCostReserve,
+        #         "Synchronous",
+        #         use_slacks=true,
+        #         duals = [PSI.RequirementConstraint],
+        #     )
+        # )
+        # PSI.set_service_model!(
+        #     template,
+        #     PSI.ServiceModel(
+        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
+        #         PSI.StepwiseCostReserve,
+        #         "Primary",
+        #         use_slacks=true,
+        #         duals = [PSI.RequirementConstraint],
+        #     )
+        # )
         # PSI.set_service_model!(
         #     template,
         #     PSI.ServiceModel(
@@ -737,8 +737,8 @@ function create_uc_template(inertia_product)
     else
         template = PSI.ProblemTemplate(
             PSI.NetworkModel(
-                PSI.PM.NFAPowerModel,
-                duals = [PSI.NodalBalanceActiveConstraint],
+                PSI.AreaBalancePowerModel,
+                duals = [PSI.CopperPlateBalanceConstraint],
                 use_slacks = true,
             ),
         )
@@ -749,13 +749,13 @@ function create_uc_template(inertia_product)
         PSI.set_device_model!(template, PSY.RenewableDispatch, PSI.RenewableFullDispatch)
         PSI.set_device_model!(template, PSY.RenewableNonDispatch, PSI.FixedOutput)
         PSI.set_device_model!(template, PSY.StandardLoad, PSI.StaticPowerLoad)
-        PSI.set_device_model!(template, PSY.HydroEnergyReservoir, HSI.HydroCommitmentRunOfRiver)
+        PSI.set_device_model!(template, PSY.HydroTurbine, HSI.HydroCommitmentRunOfRiver)
         PSI.set_device_model!(template, PSY.HydroDispatch, HSI.HydroCommitmentRunOfRiver) # TODO: check which hydro device we have
         PSI.set_device_model!(template, PSY.EnergyReservoirStorage, SSI.StorageDispatchWithReserves)
         PSI.set_device_model!(template, PSY.Line, PSI.StaticBranch)
         PSI.set_device_model!(template, PSY.Transformer2W, PSI.StaticBranch)
         PSI.set_device_model!(template, PSY.TapTransformer, PSI.StaticBranch)
-        PSI.set_device_model!(template, PSY.TwoTerminalHVDCLine, PSI.HVDCTwoTerminalLossless)
+        PSI.set_device_model!(template, PSY.TwoTerminalGenericHVDCLine, PSI.HVDCTwoTerminalLossless)
         PSI.set_service_model!(
             template,
             PSI.ServiceModel(
@@ -779,26 +779,26 @@ function create_uc_template(inertia_product)
 
 
         ## NY_change: need to re-enable these
-        PSI.set_service_model!(
-            template,
-            PSI.ServiceModel(
-                PSY.ReserveDemandCurve{PSY.ReserveUp},
-                PSI.StepwiseCostReserve,
-                "Synchronous",
-                use_slacks=true,
-                duals = [PSI.RequirementConstraint],
-            )
-        )
-        PSI.set_service_model!(
-            template,
-            PSI.ServiceModel(
-                PSY.ReserveDemandCurve{PSY.ReserveUp},
-                PSI.StepwiseCostReserve,
-                "Primary",
-                use_slacks=true,
-                duals = [PSI.RequirementConstraint],
-            )
-        )
+        # PSI.set_service_model!(
+        #     template,
+        #     PSI.ServiceModel(
+        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
+        #         PSI.StepwiseCostReserve,
+        #         "Synchronous",
+        #         use_slacks=true,
+        #         duals = [PSI.RequirementConstraint],
+        #     )
+        # )
+        # PSI.set_service_model!(
+        #     template,
+        #     PSI.ServiceModel(
+        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
+        #         PSI.StepwiseCostReserve,
+        #         "Primary",
+        #         use_slacks=true,
+        #         duals = [PSI.RequirementConstraint],
+        #     )
+        # )
 
 
         # PSI.set_service_model!(
@@ -825,8 +825,8 @@ function create_ed_template(inertia_product)
     if !(isempty(inertia_product))
         template = PSI.ProblemTemplate(
             PSI.NetworkModel(
-                PSI.PM.NFAPowerModel,
-                duals = [PSI.NodalBalanceActiveConstraint],
+                PSI.AreaBalancePowerModel,
+                duals = [PSI.CopperPlateBalanceConstraint],
                 use_slacks = true,
             ),
         )
@@ -838,13 +838,13 @@ function create_ed_template(inertia_product)
         PSI.set_device_model!(template, PSY.RenewableDispatch, PSI.RenewableFullDispatch)
         PSI.set_device_model!(template, PSY.RenewableNonDispatch, PSI.FixedOutput)
         PSI.set_device_model!(template, PSY.StandardLoad, PSI.StaticPowerLoad)
-        PSI.set_device_model!(template, PSY.HydroEnergyReservoir, HSI.HydroDispatchRunOfRiver)
+        PSI.set_device_model!(template, PSY.HydroTurbine, HSI.HydroDispatchRunOfRiver)
         PSI.set_device_model!(template, PSY.HydroDispatch, HSI.HydroDispatchRunOfRiver) # TODO: check which hydro device we have
         PSI.set_device_model!(template, PSY.EnergyReservoirStorage, SSI.StorageDispatchWithReserves)
         PSI.set_device_model!(template, PSY.Line, PSI.StaticBranch)
         PSI.set_device_model!(template, PSY.Transformer2W, PSI.StaticBranch)
         PSI.set_device_model!(template, PSY.TapTransformer, PSI.StaticBranch)
-        PSI.set_device_model!(template, PSY.TwoTerminalHVDCLine, PSI.HVDCTwoTerminalLossless)
+        PSI.set_device_model!(template, PSY.TwoTerminalGenericHVDCLine, PSI.HVDCTwoTerminalLossless)
         PSI.set_service_model!(
             template,
             PSI.ServiceModel(
@@ -865,26 +865,26 @@ function create_ed_template(inertia_product)
                 duals = [PSI.RequirementConstraint],
             )
         )
-        PSI.set_service_model!(
-            template,
-            PSI.ServiceModel(
-                PSY.ReserveDemandCurve{PSY.ReserveUp},
-                PSI.StepwiseCostReserve,
-                "Synchronous",
-                use_slacks=true,
-                duals = [PSI.RequirementConstraint],
-            )
-        )
-        PSI.set_service_model!(
-            template,
-            PSI.ServiceModel(
-                PSY.ReserveDemandCurve{PSY.ReserveUp},
-                PSI.StepwiseCostReserve,
-                "Primary",
-                use_slacks=true,
-                duals = [PSI.RequirementConstraint],
-            )
-        )
+        # PSI.set_service_model!(
+        #     template,
+        #     PSI.ServiceModel(
+        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
+        #         PSI.StepwiseCostReserve,
+        #         "Synchronous",
+        #         use_slacks=true,
+        #         duals = [PSI.RequirementConstraint],
+        #     )
+        # )
+        # PSI.set_service_model!(
+        #     template,
+        #     PSI.ServiceModel(
+        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
+        #         PSI.StepwiseCostReserve,
+        #         "Primary",
+        #         use_slacks=true,
+        #         duals = [PSI.RequirementConstraint],
+        #     )
+        # )
         # PSI.set_service_model!(
         #     template,
         #     PSI.ServiceModel(
@@ -898,8 +898,8 @@ function create_ed_template(inertia_product)
     else
         template = PSI.ProblemTemplate(
             PSI.NetworkModel(
-                PSI.PM.NFAPowerModel,
-                duals = [PSI.NodalBalanceActiveConstraint],
+                PSI.AreaBalancePowerModel,
+                duals = [PSI.CopperPlateBalanceConstraint],
                 use_slacks = true,
             ),
         )
@@ -911,13 +911,13 @@ function create_ed_template(inertia_product)
         PSI.set_device_model!(template, PSY.RenewableDispatch, PSI.RenewableFullDispatch)
         PSI.set_device_model!(template, PSY.RenewableNonDispatch, PSI.FixedOutput)
         PSI.set_device_model!(template, PSY.StandardLoad, PSI.StaticPowerLoad)
-        PSI.set_device_model!(template, PSY.HydroEnergyReservoir, HSI.HydroDispatchRunOfRiver)
+        PSI.set_device_model!(template, PSY.HydroTurbine, HSI.HydroDispatchRunOfRiver)
         PSI.set_device_model!(template, PSY.HydroDispatch, HSI.HydroDispatchRunOfRiver) # TODO: check which hydro device we have
         PSI.set_device_model!(template, PSY.EnergyReservoirStorage, SSI.StorageDispatchWithReserves)
         PSI.set_device_model!(template, PSY.Line, PSI.StaticBranch)
         PSI.set_device_model!(template, PSY.Transformer2W, PSI.StaticBranch)
         PSI.set_device_model!(template, PSY.TapTransformer, PSI.StaticBranch)
-        PSI.set_device_model!(template, PSY.TwoTerminalHVDCLine, PSI.HVDCTwoTerminalLossless)
+        PSI.set_device_model!(template, PSY.TwoTerminalGenericHVDCLine, PSI.HVDCTwoTerminalLossless)
         PSI.set_service_model!(
             template,
             PSI.ServiceModel(
@@ -938,26 +938,26 @@ function create_ed_template(inertia_product)
                 duals = [PSI.RequirementConstraint],
             )
         )
-        PSI.set_service_model!(
-            template,
-            PSI.ServiceModel(
-                PSY.ReserveDemandCurve{PSY.ReserveUp},
-                PSI.StepwiseCostReserve,
-                "Synchronous",
-                use_slacks=true,
-                duals = [PSI.RequirementConstraint],
-            )
-        )
-        PSI.set_service_model!(
-            template,
-            PSI.ServiceModel(
-                PSY.ReserveDemandCurve{PSY.ReserveUp},
-                PSI.StepwiseCostReserve,
-                "Primary",
-                use_slacks=true,
-                duals = [PSI.RequirementConstraint],
-            )
-        )
+        # PSI.set_service_model!(
+        #     template,
+        #     PSI.ServiceModel(
+        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
+        #         PSI.StepwiseCostReserve,
+        #         "Synchronous",
+        #         use_slacks=true,
+        #         duals = [PSI.RequirementConstraint],
+        #     )
+        # )
+        # PSI.set_service_model!(
+        #     template,
+        #     PSI.ServiceModel(
+        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
+        #         PSI.StepwiseCostReserve,
+        #         "Primary",
+        #         use_slacks=true,
+        #         duals = [PSI.RequirementConstraint],
+        #     )
+        # )
     end
 
     return template
@@ -1327,7 +1327,7 @@ function create_simulation( sys_MD::PSY.System,
     if md_market_bool == true
         sim = PSI.Simulation(
                         name = "emis_$(case_name)",
-                        steps = sys_MD.data.time_series_params.forecast_params.count, # sys_MD.data.time_series_params.forecast_params.count
+                        steps = PSY.get_forecast_interval(sys_MD), # sys_MD.data.time_series_params.forecast_params.count
                         models = models,
                         sequence = sequence,
                         simulation_folder = ".",
@@ -1380,27 +1380,27 @@ function create_simulation( sys_MD::PSY.System,
         result_variables_ed = PSI.read_realized_variables(res_ed)
         result_variables_uc = PSI.read_realized_variables(res_uc)
 
-        data_length_ed = DataFrames.nrow(dual_values_ed["NodalBalanceActiveConstraint__ACBus"])
-        data_length_uc = DataFrames.nrow(dual_values_uc["NodalBalanceActiveConstraint__ACBus"])
+        data_length_ed = DataFrames.nrow(dual_values_ed["CopperPlateBalanceConstraint__Area"])
+        data_length_uc = DataFrames.nrow(dual_values_uc["CopperPlateBalanceConstraint__Area"])
     else
         result_variables_ed = nothing
 
         res_uc = PSI.get_decision_problem_results(sim_results, "UC")
         dual_values_uc = PSI.read_realized_duals(res_uc)
         result_variables_uc = PSI.read_realized_variables(res_uc)
-        
-        data_length_uc = DataFrames.nrow(dual_values_uc["NodalBalanceActiveConstraint__ACBus"])
-        data_length_ed = DataFrames.nrow(dual_values_uc["NodalBalanceActiveConstraint__ACBus"])
+
+        data_length_uc = DataFrames.nrow(dual_values_uc["CopperPlateBalanceConstraint__Area"])
+        data_length_ed = DataFrames.nrow(dual_values_uc["CopperPlateBalanceConstraint__Area"])
     end
 
     if md_market_bool == true
         res_md = PSI.get_decision_problem_results(sim_results, "MD")
         dual_values_md = PSI.read_realized_duals(res_md)
         result_variables_md = PSI.read_realized_variables(res_md)
-        data_length_md = DataFrames.nrow(dual_values_md["NodalBalanceActiveConstraint__ACBus"])
+        data_length_md = DataFrames.nrow(dual_values_md["CopperPlateBalanceConstraint__Area"])
     else
         result_variables_md = nothing
-        data_length_md = DataFrames.nrow(dual_values_uc["NodalBalanceActiveConstraint__ACBus"])
+        data_length_md = DataFrames.nrow(dual_values_uc["CopperPlateBalanceConstraint__Area"])
     end
 
     energy_price_ed = AxisArrays.AxisArray(zeros(length(zones), 1, data_length_ed), zones, 1:1, 1:data_length_ed)
@@ -1432,7 +1432,8 @@ function create_simulation( sys_MD::PSY.System,
     end
 
     for zone in zones
-        bus = find_zonal_bus(zone, sys_UC)
+        # bus = find_zonal_bus(zone, sys_UC)
+        area = find_zonal_area(zone, sys_UC)
         # zone_num = parse(Int64, last(zone, 1))
         if isnothing(zone)
             energy_price_ed[zone, 1, :] = zeros(data_length_ed)
@@ -1444,24 +1445,24 @@ function create_simulation( sys_MD::PSY.System,
         else
             if single_stage_bool == false
                 energy_price_ed[zone, 1, :] =
-                    abs.(round.(dual_values_ed["NodalBalanceActiveConstraint__ACBus"][:, PSY.get_name(bus)], digits = 5)) / base_power
+                    abs.(round.(dual_values_ed["CopperPlateBalanceConstraint__Area"][:, PSY.get_name(area)], digits = 5)) / base_power
                 energy_price_uc[zone, 1, :] =
-                    abs.(round.(dual_values_uc["NodalBalanceActiveConstraint__ACBus"][:, PSY.get_name(bus)], digits = 5)) / base_power
+                    abs.(round.(dual_values_uc["CopperPlateBalanceConstraint__Area"][:, PSY.get_name(area)], digits = 5)) / base_power
                 if md_market_bool == true
                     energy_price_md[zone, 1, :] =
-                        abs.(round.(dual_values_md["NodalBalanceActiveConstraint__ACBus"][:, PSY.get_name(bus)], digits = 5)) / base_power
+                        abs.(round.(dual_values_md["CopperPlateBalanceConstraint__Area"][:, PSY.get_name(area)], digits = 5)) / base_power
                     
-                    energy_voll_md[zone, 1, :] = abs.(round.(result_variables_md["SystemBalanceSlackUp__ACBus"][:, string(PSY.get_number(bus))], digits = 5)) / base_power
+                    energy_voll_md[zone, 1, :] = abs.(round.(result_variables_md["SystemBalanceSlackUp__ACBus"][:, PSY.get_name(area)], digits = 5)) / base_power
                 else
                     energy_price_md[zone, 1, :] = zeros(data_length_md)
                 end
-                energy_voll[zone, 1, :] = abs.(round.(result_variables_ed["SystemBalanceSlackUp__ACBus"][:, string(PSY.get_number(bus))], digits = 5)) / base_power
-                energy_voll_uc[zone, 1, :] = abs.(round.(result_variables_uc["SystemBalanceSlackUp__ACBus"][:, string(PSY.get_number(bus))], digits = 5)) / base_power
+                energy_voll[zone, 1, :] = abs.(round.(result_variables_ed["SystemBalanceSlackUp__ACBus"][:, PSY.get_name(area)], digits = 5)) / base_power
+                energy_voll_uc[zone, 1, :] = abs.(round.(result_variables_uc["SystemBalanceSlackUp__ACBus"][:, PSY.get_name(area)], digits = 5)) / base_power
                 # energy_voll[zone, 1, :] += abs.(round.(result_variables_ed["SystemBalanceSlackDown__ACBus"][:, string(PSY.get_number(bus))], digits = 5)) / base_power
             else
                 energy_price_uc[zone, 1, :] =
                     abs.(round.(dual_values_uc["NodalBalanceActiveConstraint__ACBus"][:, PSY.get_name(bus)], digits = 5)) / base_power
-                energy_voll_uc[zone, 1, :] = abs.(round.(result_variables_uc["SystemBalanceSlackUp__ACBus"][:, string(PSY.get_number(bus))], digits = 5)) / base_power
+                energy_voll_uc[zone, 1, :] = abs.(round.(result_variables_uc["SystemBalanceSlackUp__ACBus"][:, PSY.get_name(area)], digits = 5)) / base_power
             end
         end
     end

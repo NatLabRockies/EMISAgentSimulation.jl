@@ -80,7 +80,7 @@ function line_rating(line::Union{PSY.Line,PSY.MonitoredLine})
     return(forward_capacity = rate , backward_capacity = rate)
 end
 
-function line_rating(line::PSY.TwoTerminalHVDCLine)
+function line_rating(line::PSY.TwoTerminalGenericHVDCLine)
     forward_capacity = getfield(PSY.get_active_power_limits_from(line), :max)
     backward_capacity = getfield(PSY.get_active_power_limits_to(line), :max)
     return(forward_capacity = forward_capacity, backward_capacity = backward_capacity)
@@ -351,7 +351,7 @@ function make_pras_system(sys::PSY.System;
             pv_gs_DA= [g for g in reg_ren_comps if (PSY.get_prime_mover_type(g) == PSY.PrimeMovers.PVe)] 
             reg_gen_comps = availability_flag ? get_available_components_in_aggregation_topology(PSY.Generator, sys, region) :
                                                 PSY.get_components_in_aggregation_topology(PSY.Generator, sys, region)
-            gs= [g for g in reg_gen_comps if (typeof(g) != PSY.HydroEnergyReservoir && PSY.get_max_active_power(g)!=0 && 
+            gs= [g for g in reg_gen_comps if (typeof(g) != PSY.HydroTurbine && PSY.get_max_active_power(g)!=0 && 
                                               PSY.IS.get_uuid(g) ∉ union(dup_uuids,PSY.IS.get_uuid.(wind_gs_DA),PSY.IS.get_uuid.(pv_gs_DA)))] 
             push!(gens,gs)
             push!(reg_wind_gens_DA,wind_gs_DA)
@@ -381,7 +381,7 @@ function make_pras_system(sys::PSY.System;
         for (idx,region) in enumerate(regions)
             reg_gen_comps = availability_flag ? get_available_components_in_aggregation_topology(PSY.Generator, sys, region) :
                                                 PSY.get_components_in_aggregation_topology(PSY.Generator, sys, region)
-            gs= [g for g in reg_gen_comps if (typeof(g) != PSY.HydroEnergyReservoir && PSY.get_max_active_power(g)!=0 && PSY.IS.get_uuid(g) ∉ dup_uuids)]
+            gs= [g for g in reg_gen_comps if (typeof(g) != PSY.HydroTurbine && PSY.get_max_active_power(g)!=0 && PSY.IS.get_uuid(g) ∉ dup_uuids)]
             push!(gens,gs)
             idx==1 ? start_id[idx] = 1 : start_id[idx] =start_id[idx-1]+length(gens[idx-1])
             region_gen_idxs[idx] = range(start_id[idx], length=length(gens[idx]))
@@ -412,7 +412,7 @@ function make_pras_system(sys::PSY.System;
     for (idx,region) in enumerate(regions)
         reg_gen_stor_comps = availability_flag ? get_available_components_in_aggregation_topology(PSY.StaticInjection, sys, region) :
                                                  PSY.get_components_in_aggregation_topology(PSY.StaticInjection, sys, region)
-        gs= [g for g in reg_gen_stor_comps if (typeof(g) == PSY.HydroEnergyReservoir || typeof(g)==PSY.HybridSystem)]
+        gs= [g for g in reg_gen_stor_comps if (typeof(g) == PSY.HydroTurbine || typeof(g)==PSY.HybridSystem)]
         push!(gen_stors,gs)
         idx==1 ? start_id[idx] = 1 : start_id[idx] =start_id[idx-1]+length(gen_stors[idx-1])
         region_genstor_idxs[idx] = range(start_id[idx], length=length(gen_stors[idx]))
@@ -689,7 +689,7 @@ function make_pras_system(sys::PSY.System;
     μ_genstors = Matrix{Float64}(undef, n_genstors, N);  
 
     for (idx,g_s) in enumerate(gen_stor)
-        if(typeof(g_s) ==PSY.HydroEnergyReservoir)
+        if(typeof(g_s) ==PSY.HydroTurbine)
             if (PSY.has_time_series(g_s))
                 if ("inflow" in PSY.get_name.(PSY.get_time_series_multiple(g_s)))
                     gen_stor_charge_cap_array[idx,:] = floor.(Int,get_forecast_values(first(PSY.get_time_series_multiple(g_s, name = "inflow")))
@@ -737,7 +737,7 @@ function make_pras_system(sys::PSY.System;
         end
         
         if (~outage_flag)
-            if (typeof(g_s) ==PSY.HydroEnergyReservoir)
+            if (typeof(g_s) ==PSY.HydroTurbine)
                 p_m = string(PSY.get_prime_mover_type(g_s))
                 p_m_idx = findall(x -> x == p_m, getfield.(outage_values,:prime_mover))
 

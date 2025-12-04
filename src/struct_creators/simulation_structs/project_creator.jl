@@ -114,23 +114,6 @@ function add_investor_project_availability!(test_system_dir::String,
                 if get_type(tech) == "WT"
                     # gens_in_zone = filter(g -> (first("$(bus)", 1) == first(g, 1)) && (occursin("wind", lowercase(g)) || occursin("wt", lowercase(g))),
                     #                                 names(system_availability_data))
-                    for g in gennames
-                        @info "generator name from availability data: $g"
-                        gen = PSY.get_component(PSY.StaticInjection, sys_UC, g)
-                        gen_name = PSY.get_name(gen)
-                        @info "Checking generator: $gen_name"
-                        gen_bus = PSY.get_bus(gen)
-                        bus_number = PSY.get_number(gen_bus)
-                        @info "Generator bus number: $bus_number"
-                        @info first("$(bus)", 1)
-                        @info first(string(bus_number), 1)
-                        prime_mover_type = PSY.get_prime_mover_type(gen)
-                        @info "Prime mover type: $prime_mover_type"
-                        if (first("$(bus)", 1) == first(string(bus_number), 1)) &&
-                           occursin("WT", string(prime_mover_type))
-                            @info "Generator $gen_name matches criteria and will be included."
-                        end
-                    end
                     gens_in_zone = filter(g -> (first("$(bus)", 1) == first(string(PSY.get_number(PSY.get_bus(PSY.get_component(PSY.StaticInjection, sys_UC,g)))), 1)) &&
                                                 occursin("WT", string(PSY.get_prime_mover_type(PSY.get_component(PSY.StaticInjection, sys_UC,g)))),
                                                     gennames)
@@ -149,6 +132,7 @@ function add_investor_project_availability!(test_system_dir::String,
                 end
 
                 if length(gens_in_zone) < 1
+                    @info "project name: $(project_name), bus: $(bus), type: $(get_type(tech))"
                     error("Similar renewable generator in zone not found")
                 else
                     for g in gens_in_zone
