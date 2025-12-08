@@ -524,47 +524,47 @@ function create_md_template(inertia_product)
                 duals = [PSI.RequirementConstraint],
             )
         )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Synchronous",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Primary",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Synchronous",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Primary",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
 
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.VariableReserve{PSY.ReserveUp},
-        #         EMISEx.InertiaReserve,
-        #         "Inertia",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.VariableReserve{PSY.ReserveUp},
-        #         EMISEx.CleanEnergyReserve,
-        #         "Clean_Energy",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.VariableReserve{PSY.ReserveUp},
+                EMISEx.InertiaReserve,
+                "Inertia",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.VariableReserve{PSY.ReserveUp},
+                EMISEx.CleanEnergyReserve,
+                "Clean_Energy",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
     else
         template = PSI.ProblemTemplate(
             PSI.NetworkModel(
@@ -613,37 +613,37 @@ function create_md_template(inertia_product)
                 duals = [PSI.RequirementConstraint],
             )
         )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Synchronous",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Primary",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Synchronous",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Primary",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
 
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.VariableReserve{PSY.ReserveUp},
-        #         EMISEx.CleanEnergyReserve,
-        #         "Clean_Energy",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.VariableReserve{PSY.ReserveUp},
+                EMISEx.CleanEnergyReserve,
+                "Clean_Energy",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
     end
 
     return template
@@ -694,46 +694,46 @@ function create_uc_template(inertia_product)
                 duals = [PSI.RequirementConstraint],
             )
         )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Synchronous",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Primary",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.VariableReserve{PSY.ReserveUp},
-        #         EMISEx.InertiaReserve,
-        #         "Inertia",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.VariableReserve{PSY.ReserveUp},
-        #         EMISEx.CleanEnergyReserve,
-        #         "Clean_Energy",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Synchronous",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Primary",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.VariableReserve{PSY.ReserveUp},
+                EMISEx.InertiaReserve,
+                "Inertia",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.VariableReserve{PSY.ReserveUp},
+                EMISEx.CleanEnergyReserve,
+                "Clean_Energy",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
     else
         template = PSI.ProblemTemplate(
             PSI.NetworkModel(
@@ -778,39 +778,39 @@ function create_uc_template(inertia_product)
         )
 
 
-        ## NY_change: need to re-enable these
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Synchronous",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Primary",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
+        # NY_change: need to re-enable these
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Synchronous",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Primary",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
 
 
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.VariableReserve{PSY.ReserveUp},
-        #         EMISEx.CleanEnergyReserve,
-        #         "Clean_Energy",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.VariableReserve{PSY.ReserveUp},
+                EMISEx.CleanEnergyReserve,
+                "Clean_Energy",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
     end
 
     return template
@@ -865,36 +865,36 @@ function create_ed_template(inertia_product)
                 duals = [PSI.RequirementConstraint],
             )
         )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Synchronous",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Primary",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.VariableReserve{PSY.ReserveUp},
-        #         EMISEx.InertiaReserve,
-        #         "Inertia",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Synchronous",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Primary",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.VariableReserve{PSY.ReserveUp},
+                EMISEx.InertiaReserve,
+                "Inertia",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
     else
         template = PSI.ProblemTemplate(
             PSI.NetworkModel(
@@ -938,26 +938,26 @@ function create_ed_template(inertia_product)
                 duals = [PSI.RequirementConstraint],
             )
         )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Synchronous",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Primary",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Synchronous",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Primary",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
     end
 
     return template

@@ -85,7 +85,12 @@ function create_rts_sys(rts_dir::String,
     # prune_system_devices!(sys_UC, pruned_unit)
     # prune_system_devices!(sys_ED, pruned_unit)
 
-    ntp_ts_data_dir = joinpath(rts_dir, "..", "..", "Feb2024_ERCOT_2011_MARKET_Test_NGUO_LDES", "NTP_TimeSeries_Data", "input_processing")
+    rts_parent_dir = dirname(rts_dir)
+    rts_parent2_dir = dirname(rts_parent_dir)
+    ntp_ts_data_dir = joinpath(dirname(rts_parent2_dir),
+                                "Feb2024_ERCOT_2011_MARKET_Test_NGUO_LDES",
+                                "NTP_TimeSeries_Data", 
+                                "input_processing")
 
     sys_MDs = Vector{PSY.System}()
     sys_UCs = Vector{PSY.System}()
@@ -103,17 +108,29 @@ function create_rts_sys(rts_dir::String,
     end
 
     for sim_year in 1:simulation_years
+        MD_sys_filename = joinpath(rts_dir,
+                                   "constructed_systems",
+                                    pcm_scenario,
+                                    "sim_year_$(sim_year)",
+                                    "MD_sys_EMIS_$(MD_horizon)hor_$(MD_interval)int.json")
+        MD_num_forecast_filename = joinpath(rts_dir,
+                                           "constructed_systems",
+                                            pcm_scenario,
+                                            "sim_year_$(sim_year)",
+                                            "MD_num_forecast_$(MD_horizon)hor_$(MD_interval)int.txt")
 
-        MD_sys_filename = joinpath(rts_dir, "constructed_systems", pcm_scenario, "sim_year_$(sim_year)", "MD_sys_EMIS_$(MD_horizon)hor_$(MD_interval)int.json")
-        MD_num_forecast_filename = joinpath(rts_dir, "constructed_systems", pcm_scenario, "sim_year_$(sim_year)", "MD_num_forecast_$(MD_horizon)hor_$(MD_interval)int.txt")
-
-        loadyear = 2020+sim_year
+        loadyear = 2020 + sim_year
         weatheryear = loadyear
 
+        #TODO: Always create an MD system for PSY5 system
+        # remove when all systems are converted
         if !(isfile(MD_sys_filename) && isfile(MD_num_forecast_filename))
             println("MD json file doesn't exist. Creating required data.")   
+
+            @info "Creating PSY5 MD system for sim year $(sim_year)"
             dir_exists(dirname(MD_sys_filename))         
-            sys_MD_initial = PSY.System(joinpath(rts_dir,"DA_sys_zonal.json"), time_series_directory = scratch_dir);
+            ercot_sys_dir = joinpath(dirname(dirname(rts_dir)), "PSY5_ERCOT_Test_System")
+            sys_MD_initial = PSY.System(joinpath(ercot_sys_dir, "DA_sys_zonal.json"), time_series_directory = scratch_dir);
             # create MD system
             create_sys_w_updated_ts(
                 ntp_ts_data_dir,
@@ -131,15 +148,16 @@ function create_rts_sys(rts_dir::String,
                 nothing,
                 MD_num_forecast_filename,
             )
-        end        
-        push!(sys_MDs, PSY.System(MD_sys_filename, time_series_directory = scratch_dir));
+        end  
+        @info MD_sys_filename     
 
+        push!(sys_MDs, PSY.System(MD_sys_filename, time_series_directory = scratch_dir));
 
         UC_filename = joinpath(rts_dir, "constructed_systems", pcm_scenario, "sim_year_$(sim_year)", "DA_sys_EMIS_$(UC_horizon)hor_$(UC_interval)int_$(MD_horizon)mdhor_$(MD_interval)mdint.json")
         if !(isfile(UC_filename))
             println("UC json file doesn't exist. Creating required json file.")  
             dir_exists(dirname(UC_filename))   
-            sys_UC_initial = PSY.System(joinpath(rts_dir, "DA_sys_zonal.json"), time_series_directory = scratch_dir);
+            sys_UC_initial = PSY.System(joinpath(ercot_sys_dir, "DA_sys_zonal.json"), time_series_directory = scratch_dir);
             create_sys_w_updated_ts(
                 ntp_ts_data_dir,
                 sys_UC_initial,
@@ -160,7 +178,6 @@ function create_rts_sys(rts_dir::String,
         push!(sys_UCs, PSY.System(UC_filename, time_series_directory = scratch_dir));
 
         for scenario in scenarios
-
             if scenario == "scenario_1"
                 supercc_scenario_ed = "baseline"
             elseif scenario == "scenario_2"
@@ -171,11 +188,16 @@ function create_rts_sys(rts_dir::String,
                 "Not a pre-defined scenario."
             end
 
-            ED_filename = joinpath(rts_dir, "constructed_systems", scenario, "sim_year_$(sim_year)", "RT_sys_EMIS_$(ED_horizon)hor_$(ED_interval)int_$(MD_horizon)mdhor_$(MD_interval)mdint.json")
+            ED_filename = joinpath(rts_dir,
+                                  "constructed_systems",
+                                   scenario,
+                                  "sim_year_$(sim_year)",
+                                  "RT_sys_EMIS_$(ED_horizon)hor_$(ED_interval)int_$(MD_horizon)mdhor_$(MD_interval)mdint.json")
+
             if !isfile(ED_filename)
                 println("ED json file doesn't exist. Creating required json file.")  
                 dir_exists(dirname(ED_filename))   
-                sys_ED_initial = PSY.System(joinpath(rts_dir,"DA_sys_zonal.json"), time_series_directory = scratch_dir);
+                sys_ED_initial = PSY.System(joinpath(ercot_sys_dir, "DA_sys_zonal.json"), time_series_directory = scratch_dir);
                 create_sys_w_updated_ts(
                     ntp_ts_data_dir,
                     sys_ED_initial,
@@ -198,7 +220,7 @@ function create_rts_sys(rts_dir::String,
         sys_EDs = sys_EDs_dict[pcm_scenario]
 
         # ERCOT specific items
-        removegen_name = ["AUSTIN_1","AUSTIN_2"]
+        removegen_name = ["AUSTIN_1", "AUSTIN_2"]
         for sys in [sys_MDs[sim_year], sys_UCs[sim_year], sys_EDs[sim_year]]
             for d in PSY.get_components(PSY.Generator, sys)
                 if d.name in removegen_name
@@ -236,8 +258,10 @@ function create_rts_sys(rts_dir::String,
     sys_PRAS = Dict{String, PSY.System}()
 
     for scenario in scenarios
-        PRAS_filename = joinpath(rts_dir, "constructed_systems", scenario, "sim_year_1", "PRAS_sys_EMIS_$(ED_horizon)hor_$(ED_interval)int_$(MD_horizon)mdhor_$(MD_interval)mdint.json")
+        PRAS_filename = joinpath(rts_dir, 
+                                "constructed_systems", scenario, "sim_year_1", "PRAS_sys_EMIS_$(ED_horizon)hor_$(ED_interval)int_$(MD_horizon)mdhor_$(MD_interval)mdint.json")
         if !isfile(PRAS_filename)
+            @info "Creating PRAS system for scenario $(scenario) - PSY5"
             println("PRAS json file doesn't exist. Creating required json file.")  
             create_PRAS_sys_json(sys_EDs_dict[scenario], PRAS_filename)
         end
@@ -485,7 +509,7 @@ function create_sys_w_updated_ts(
             push!(revisedts, datetimeindex => rtseries)
         end
 
-        # conver to deterministic time series
+        # convert to deterministic time series
         revisedts_deterministic = PSY.Deterministic(;
             name="max_active_power",
             data=revisedts,

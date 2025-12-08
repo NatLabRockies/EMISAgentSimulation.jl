@@ -26,7 +26,6 @@ function construct_ordc(sys::PSY.System,
     load_n_vg_df_rt = read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Net Load Data", "load_n_vg_data_rt.csv"))
     zones = chop.(filter(n -> occursin("load", n), names(load_n_vg_df)), head = 5, tail = 0)
 
-
     num_rt_intervals = round(Int, DataFrames.nrow(load_n_vg_df_rt)/DataFrames.nrow(load_n_vg_df))
 
     renewable_generators = filter(g -> typeof(g) == RenewableGenEMIS{Existing}, generators)
@@ -75,7 +74,6 @@ function construct_ordc(sys::PSY.System,
                 append!(timeblock_hours[timeblock], collect(start_hour:24))
             end
         end
-
 
         ordc_df = load_n_vg_df[:, 1:4]
         ordc_df_rt = load_n_vg_df_rt[:, 1:4]
@@ -339,10 +337,10 @@ function add_psy_ordc!(simulation_dir::String,
 
                 if type in ["MD", "UC", "ED"]
                     ### TODO: ORDC timeseries is not available now
-                    # product_data_ts = process_ordc_data_for_siip(product_ts_raw)
-                    # forecast = PSY.SingleTimeSeries("variable_cost", TimeSeries.TimeArray(time_stamps, product_data_ts))
-                    # key = PSY.add_time_series!(sys, reserve, forecast)
-                    # PSY.set_variable_cost!(sys, reserve, key)
+                    product_data_ts = process_ordc_data_for_siip(product_ts_raw)
+                    forecast = PSY.SingleTimeSeries("variable_cost", TimeSeries.TimeArray(time_stamps, product_data_ts))
+                    key = PSY.add_time_series!(sys, reserve, forecast)
+                    PSY.set_variable_cost!(sys, reserve, key)
 
                     product_single = product_ts_raw[1]
                     tuples = split.(chop.(split(chop(product_single, head = 1, tail = 2), "), "), head = 1, tail = 0), ", ")

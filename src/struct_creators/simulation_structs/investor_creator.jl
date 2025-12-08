@@ -8,6 +8,8 @@ function create_investors(simulation_data::AgentSimulationData)
     investor_names = readdir(dir_name)
     investors = Vector{Investor}(undef, length(investor_names))
     test_system_dir = get_sys_dir(get_case(simulation_data))
+    @info "dir_name: $dir_name"
+    
     for i = 1:length(investor_names)
         investor_dir = joinpath(dir_name, "$(investor_names[i])")
 

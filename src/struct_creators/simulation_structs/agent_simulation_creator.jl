@@ -3,7 +3,6 @@ This function populates and returns the AgentSimulationData struct.
 """
 ### NY_change
 function gather_data(case::CaseDefinition)
-
     data_dir = get_data_dir(case)
     test_system_dir = get_sys_dir(case)
     start_year = get_start_year(case)
@@ -23,11 +22,9 @@ function gather_data(case::CaseDefinition)
 
     zones = String[]
     zonal_lines = ZonalLine[]
-
     annual_growth_past_first = []
 
     scenarios = string.(get_all_scenario_names(data_dir))
-
     representative_periods = Dict(scenario => Dict{Int64, Union{Dict{Int64,Int64}, OrderedCollections.OrderedDict{Int64, Int64}}}() for scenario in scenarios)
     test_sys_hour_weight = Dict(scenario => Dict{Int64, Vector{Float64}}() for scenario in scenarios)
     rep_hour_weight = Dict(scenario => Dict{Int64, Vector{Float64}}() for scenario in scenarios)                    
@@ -47,7 +44,6 @@ function gather_data(case::CaseDefinition)
             @assert base_year <= start_year
 
             annual_growth_df_past = filter(row -> row.year < start_year && row.year >= base_year, annual_growth_df)
-
             annual_growth_past = AxisArrays.AxisArray(collect(transpose(Matrix(annual_growth_df_past[:, 2:end]))),
                                 names(annual_growth_df_past)[2:end],
                                 1:DataFrames.nrow(annual_growth_df_past))
@@ -62,20 +58,20 @@ function gather_data(case::CaseDefinition)
             chron_weights[scenario][sim_year], 
             system_peak_load[scenario][sim_year],
             test_sys_hour_weight[scenario][sim_year],
-            zonal_lines = read_test_system(
-                data_dir,
-                test_system_dir,
-                get_base_dir(case),
-                scenario,
-                test_system_load_da,
-                test_system_load_rt,
-                base_year,
-                annual_growth_past,
-                start_year,
-                sim_year,
-                rep_period_interval,
-                n_rep_periods,
-                rep_checkpoint)
+            zonal_lines = read_test_system(data_dir,
+                                            test_system_dir,
+                                            get_base_dir(case),
+                                            scenario,
+                                            test_system_load_da,
+                                            test_system_load_rt,
+                                            base_year,
+                                            annual_growth_past,
+                                            start_year,
+                                            sim_year,
+                                            rep_period_interval,
+                                            n_rep_periods,
+                                            rep_checkpoint
+                )
 
             if isnothing(zones)
                 zones = ["zone_1"]
@@ -84,7 +80,6 @@ function gather_data(case::CaseDefinition)
             if isnothing(zonal_lines)
                 zonal_lines = [ZonalLine("line_1", zones[1], zones[1], 0.0)]
             end
-
         end
     end
 
@@ -92,9 +87,15 @@ function gather_data(case::CaseDefinition)
     
     if get_siip_market_clearing(case)
         base_power = 100.0
-        sys_MDs, sys_UCs, sys_EDs, sys_PRAS, MD_horizon, MD_interval, UC_horizon, UC_interval, ED_horizon, ED_interval = 
-        create_rts_sys(test_system_dir, base_power, data_dir, get_scratch_dir(case), scenarios, pcm_scenario, simulation_years, get_da_resolution(case), get_rt_resolution(case),
-        get_md_horizon(case), get_md_interval(case), get_uc_horizon(case), get_uc_interval(case), get_ed_horizon(case), get_ed_interval(case),
+        sys_MDs, sys_UCs, sys_EDs, sys_PRAS, MD_horizon,
+        MD_interval, UC_horizon, UC_interval, ED_horizon,
+        ED_interval = create_rts_sys(test_system_dir, base_power, data_dir,
+                                     get_scratch_dir(case), scenarios, pcm_scenario, 
+                                     simulation_years, get_da_resolution(case),
+                                     get_rt_resolution(case),
+                                     get_md_horizon(case), get_md_interval(case),
+                                     get_uc_horizon(case), get_uc_interval(case),
+                                     get_ed_horizon(case), get_ed_interval(case),
             )
     else
         sys_MD = nothing
@@ -144,11 +145,9 @@ function gather_data(case::CaseDefinition)
         end
     end
 
-    
     resource_adequacy = Dict(s => ResourceAdequacy(ra_targets, zeros(simulation_years), [ra_metrics for i in 1:simulation_years]) for s in scenarios)
     
     results_dir = make_results_dir(case)
-
     simulation_data = AgentSimulationData(case,
                                         results_dir,
                                         sys_MDs,
@@ -180,11 +179,11 @@ function gather_data(case::CaseDefinition)
     ### NY_change: didn't work for only 1 scenario
     sys_UC_list, data_dirs, investors_list, representative_periods_list, rep_period_intervals, cases, iteration_years, rolling_horizons, simulation_years_list = repeat_arguments(num_scenarios, deepcopy(sys_UCs[1]), data_dir, investors, representative_periods, rep_period_interval, case, iteration_year, rolling_horizon, simulation_years)
     @time Distributed.pmap(parallelize_ordc_construction, zip(scenarios, sys_UC_list, data_dirs, investors_list, representative_periods_list, rep_period_intervals, cases, iteration_years, rolling_horizons, simulation_years_list))
-    # for sim_year in collect(iteration_year:min(iteration_year + rolling_horizon - 1, simulation_years))
-    #     construct_ordc(deepcopy(sys_UCs[1]), data_dir, scenarios[1], sim_year, investors, 0, representative_periods[scenarios[1]][sim_year], rep_period_interval, get_ordc_curved(case), get_ordc_unavailability_method(case), get_reserve_penalty(case))
-    # end
     
-
+    for sim_year in collect(iteration_year:min(iteration_year + rolling_horizon - 1, simulation_years))
+        construct_ordc(deepcopy(sys_UCs[1]), data_dir, scenarios[1], sim_year, investors, 0, representative_periods[scenarios[1]][sim_year], rep_period_interval, get_ordc_curved(case), get_ordc_unavailability_method(case), get_reserve_penalty(case))
+    end
+    
     for y in 1:simulation_years
         # convert_thermal_clean_energy!(sys_MDs[y])
         # convert_thermal_clean_energy!(sys_UCs[y])
