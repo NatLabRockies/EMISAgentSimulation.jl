@@ -209,7 +209,7 @@ end
 function process_ordc_data_for_siip(raw_data::Union{Vector{String}, PooledArrays.PooledVector{String, UInt32, Vector{UInt32}}})
     T = length(raw_data)
 
-    product_da_ts = Vector{PSY.PiecewiseStepData}()
+    product_da_ts = Vector{PSY.PiecewiseStepData}(undef, T)
 
     # for t = 1:T
     #     tuples = split.(chop.(split(chop(raw_data[t], head = 1, tail = 2), "), "), head = 1, tail = 0), ", ")
@@ -230,12 +230,12 @@ function process_ordc_data_for_siip(raw_data::Union{Vector{String}, PooledArrays
     for t = 1:T
         tuples = split.(chop.(split(chop(raw_data[t], head = 1, tail = 2), "), "), head = 1, tail = 0), ", ")
         # (price, quantity) pairs
-        product_da_ts[t] = [(parse.(Float64, tuple)[2], parse.(Float64, tuple)[1]) for tuple in tuples]
-        l = length(product_da_ts[t])
+        product_da = [(parse.(Float64, tuple)[2], parse.(Float64, tuple)[1]) for tuple in tuples]
+        l = length(product_da)
         prices = zeros(Float64, l - 1)
         quantities = zeros(Float64, l)
-        prices = [point[1] for point in product_da_ts[t]][2:end]
-        quantities = [point[2] for point in product_da_ts[t]]
+        prices = [point[1] for point in product_da][2:end]
+        quantities = [point[2] for point in product_da]
         # reconstruct as (quantity, price) pairs for PiecewiseStepCurve
         product_da_ts[t] = PSY.PiecewiseStepData(quantities, prices)
         # l = length(product_da_ts[t])
