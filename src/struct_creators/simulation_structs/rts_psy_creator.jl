@@ -129,7 +129,7 @@ function create_rts_sys(rts_dir::String,
 
             @info "Creating PSY5 MD system for sim year $(sim_year)"
             dir_exists(dirname(MD_sys_filename))         
-            ercot_sys_dir = joinpath(dirname(dirname(rts_dir)), "PSY5_ERCOT_Test_System")
+            ercot_sys_dir = joinpath(dirname(rts_dir), "PSY5_ERCOT_Test_System")
             sys_MD_initial = PSY.System(joinpath(ercot_sys_dir, "DA_sys_zonal.json"), time_series_directory = scratch_dir);
             # create MD system
             create_sys_w_updated_ts(
