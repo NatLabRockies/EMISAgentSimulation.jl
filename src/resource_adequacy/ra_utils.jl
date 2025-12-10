@@ -88,6 +88,7 @@ function add_capacity_market_device_forecast!(sys_PRAS::PSY.System,
     #                                                 )))
     sys_interval = PSY.get_forecast_interval(sys_PRAS)
     sys_horizon = PSY.get_forecast_horizon(sys_PRAS)
+    sys_horizon = Dates.Hour(sys_horizon).value
     forecast_count = PSY.get_forecast_window_count(sys_PRAS)
     sys_resolution = PSY.get_time_series_resolutions(sys_PRAS)[1]
     start_datetime = PSY.get_forecast_initial_timestamp(sys_PRAS)

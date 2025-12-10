@@ -652,6 +652,7 @@ function add_psy_clean_energy_constraint!(sys::PSY.System,
     sys_horizon = PSY.get_forecast_horizon(sys)
     forecast_count = PSY.get_forecast_window_count(sys)
     sys_resolution = PSY.get_time_series_resolutions(sys)[1]
+    sys_resolution = Dates.Hour(sys_resolution).value
     start_datetime = PSY.get_forecast_initial_timestamp(sys)
     finish_datetime = start_datetime + Dates.Hour((forecast_count * sys_interval/sys_resolution + (sys_horizon - sys_interval/sys_resolution) - 1))
     time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);

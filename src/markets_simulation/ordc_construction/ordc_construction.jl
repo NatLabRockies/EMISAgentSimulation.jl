@@ -280,6 +280,7 @@ function add_psy_ordc!(simulation_dir::String,
 
     sys_interval = PSY.get_forecast_interval(sys)
     sys_horizon = PSY.get_forecast_horizon(sys)
+    sys_horizon = Dates.Hour(sys_horizon).value
     forecast_count = PSY.get_forecast_window_count(sys)
     sys_resolution = PSY.get_time_series_resolutions(sys)[1]
     start_datetime = PSY.get_forecast_initial_timestamp(sys)
