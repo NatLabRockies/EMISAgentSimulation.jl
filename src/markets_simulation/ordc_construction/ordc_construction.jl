@@ -268,12 +268,15 @@ function add_psy_ordc!(simulation_dir::String,
     da_products = split(read_data(joinpath(simulation_dir, "markets_data", "reserve_products.csv"))[1,"da_products"], "; ")
     rt_products = split(read_data(joinpath(simulation_dir, "markets_data", "reserve_products.csv"))[1,"rt_products"], "; ")
 
-    sys_interval = sys.data.time_series_params.forecast_params.interval
-    sys_horizon = sys.data.time_series_params.forecast_params.horizon
-    forecast_count = sys.data.time_series_params.forecast_params.count
-    sys_resolution = sys.data.time_series_params.resolution
-    start_datetime = sys.data.time_series_params.forecast_params.initial_timestamp
-    finish_datetime = start_datetime + Dates.Hour((forecast_count * sys_interval/sys_resolution + (sys_horizon - sys_interval/sys_resolution) - 1))
+    sys_interval = PSY.get_forecast_interval(sys)
+    sys_horizon = PSY.get_forecast_horizon(sys)
+    forecast_count = PSY.get_forecast_window_count(sys)
+    ##TODO: check resolution getter
+    sys_resolution = first(PSY.get_time_series_resolutions(sys))
+    start_datetime = PSY.get_forecast_initial_timestamp(sys)
+
+    ##TODO: check sys_horizon calculation
+    finish_datetime = start_datetime + Dates.Hour((forecast_count * sys_interval/sys_resolution + (1e-3*sys_horizon.value/3600 - sys_interval/sys_resolution) - 1))
     # start_datetime = Dates.DateTime("2019-01-01T00:00:00")
     # finish_datetime = start_datetime + Dates.Hour(8759)
     time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
@@ -329,6 +332,7 @@ function add_psy_ordc!(simulation_dir::String,
                 #     )))
 
                 # time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
+
                 if type == "ED"
                     product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year)", "Reserves", "$(product)_REAL_TIME.csv"))[:, product]
                 elseif type in ["UC", "MD"]
@@ -336,12 +340,20 @@ function add_psy_ordc!(simulation_dir::String,
                 end
 
                 if type in ["MD", "UC", "ED"]
-                    ### TODO: ORDC timeseries is not available now
-                    product_data_ts = process_ordc_data_for_siip(product_ts_raw)
-                    forecast = PSY.SingleTimeSeries("variable_cost", TimeSeries.TimeArray(time_stamps, product_data_ts))
-                    key = PSY.add_time_series!(sys, reserve, forecast)
-                    PSY.set_variable_cost!(sys, reserve, key)
+                    ### TODO: Check ORDC data processing
+                    product_data_ts = process_ordc_data_for_siip(product_ts_raw)                  
+                    ts_dict = Dict(time_stamps .=> product_data_ts)
 
+                    ts = PSY.Deterministic(;
+                                            name = "variable_cost",
+                                            data = ts_dict,
+                                            resolution = sys_resolution,
+                                        )
+
+                    # Add Time Series to the ORDCs
+                    ts_key = add_time_series!(sys, reserve, ts)
+                    set_variable!(reserve, ts_key)
+                    
                     product_single = product_ts_raw[1]
                     tuples = split.(chop.(split(chop(product_single, head = 1, tail = 2), "), "), head = 1, tail = 0), ", ")
                     tuples_value = [(parse.(Float64, tuple)[2], parse.(Float64, tuple)[1]) for tuple in tuples]
@@ -350,8 +362,6 @@ function add_psy_ordc!(simulation_dir::String,
                     cost_curve = PSY.CostCurve(piecewisecurve)
                     PSY.set_variable_cost!(sys, reserve, cost_curve)
                 end
-
-
         end
     end
 
