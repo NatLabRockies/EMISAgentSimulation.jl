@@ -349,9 +349,10 @@ function add_psy_ordc!(simulation_dir::String,
             if type in ["MD", "UC", "ED"]
                 ### TODO: ORDC timeseries is not available now
                 product_data_ts = process_ordc_data_for_siip(product_ts_raw)
+                product_data_ts = [product_data_ts;product_data_ts[1:additional_timestep]]
                 forecast = PSY.SingleTimeSeries("variable_cost", TimeSeries.TimeArray(time_stamps, product_data_ts))
-                # key = PSY.add_time_series!(sys, reserve, forecast)
-                PSY.set_variable_cost!(sys, reserve, key)
+                # PSY.add_time_series!(sys, reserve, forecast)
+                PSY.set_variable_cost!(sys, reserve, forecast)
 
                 # product_single = product_ts_raw[1]
                 # tuples = split.(chop.(split(chop(product_single, head = 1, tail = 2), "), "), head = 1, tail = 0), ", ")
