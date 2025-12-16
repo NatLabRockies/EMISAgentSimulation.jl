@@ -207,7 +207,7 @@ end
 function process_ordc_data_for_siip(raw_data::Union{Vector{String}, PooledArrays.PooledVector{String, UInt32, Vector{UInt32}}})
     T = length(raw_data)
 
-    product_da_ts = Vector{Vector{Tuple{Float64, Float64}}}(undef, T)
+    product_da_ts = Vector{PSY.PiecewiseStepData}(undef, T)
 
     # for t = 1:T
     #     tuples = split.(chop.(split(chop(raw_data[t], head = 1, tail = 2), "), "), head = 1, tail = 0), ", ")
@@ -224,18 +224,26 @@ function process_ordc_data_for_siip(raw_data::Union{Vector{String}, PooledArrays
     #      end
     # end
 
-    # reconstruct the ORDC curve to be (total $, total quantity) pair
+    # reconstruct the ORDC curve to be a PiecewiseStepCurve of n power points and n -1 price points
     for t = 1:T
-        tuples = split.(chop.(split(chop(raw_data[t], head = 1, tail = 2), "), "), head = 1, tail = 0), ", ")[2:end]
-        product_da_ts[t] = [(parse.(Float64, tuple)[2], parse.(Float64, tuple)[1]) for tuple in tuples]
-        l = length(product_da_ts[t])
-        for i in 1:l
-            if i == 1
-                product_da_ts[t][i] = (product_da_ts[t][i][1] * product_da_ts[t][i][2], product_da_ts[t][i][2])
-            else
-                product_da_ts[t][i] = (product_da_ts[t][i-1][1] + product_da_ts[t][i][1] * (product_da_ts[t][i][2] - product_da_ts[t][i-1][2]), product_da_ts[t][i][2])
-            end
-        end
+        tuples = split.(chop.(split(chop(raw_data[t], head = 1, tail = 2), "), "), head = 1, tail = 0), ", ")
+        # (price, quantity) pairs
+        product_da = [(parse.(Float64, tuple)[2], parse.(Float64, tuple)[1]) for tuple in tuples]
+        l = length(product_da)
+        prices = zeros(Float64, l - 1)
+        quantities = zeros(Float64, l)
+        prices = [point[1] for point in product_da][2:end]
+        quantities = [point[2] for point in product_da]
+        # reconstruct as (quantity, price) pairs for PiecewiseStepCurve
+        product_da_ts[t] = PSY.PiecewiseStepData(quantities, prices)
+        # l = length(product_da_ts[t])
+        # for i in 1:l
+        #     if i == 1
+        #         product_da_ts[t][i] = (product_da_ts[t][i][1] * product_da_ts[t][i][2], product_da_ts[t][i][2])
+        #     else
+        #         product_da_ts[t][i] = (product_da_ts[t][i-1][1] + product_da_ts[t][i][1] * (product_da_ts[t][i][2] - product_da_ts[t][i-1][2]), product_da_ts[t][i][2])
+        #     end
+        # end
     end
 
     return product_da_ts
@@ -270,13 +278,11 @@ function add_psy_ordc!(simulation_dir::String,
 
     sys_interval = PSY.get_forecast_interval(sys)
     sys_horizon = PSY.get_forecast_horizon(sys)
+    sys_horizon = Dates.Hour(sys_horizon).value
     forecast_count = PSY.get_forecast_window_count(sys)
-    ##TODO: check resolution getter
-    sys_resolution = first(PSY.get_time_series_resolutions(sys))
+    sys_resolution = PSY.get_time_series_resolutions(sys)[1]
     start_datetime = PSY.get_forecast_initial_timestamp(sys)
-
-    ##TODO: check sys_horizon calculation
-    finish_datetime = start_datetime + Dates.Hour((forecast_count * sys_interval/sys_resolution + (1e-3*sys_horizon.value/3600 - sys_interval/sys_resolution) - 1))
+    finish_datetime = start_datetime + Dates.Hour((forecast_count * sys_interval/sys_resolution + (sys_horizon - sys_interval/sys_resolution) - 1))
     # start_datetime = Dates.DateTime("2019-01-01T00:00:00")
     # finish_datetime = start_datetime + Dates.Hour(8759)
     time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
@@ -296,72 +302,66 @@ function add_psy_ordc!(simulation_dir::String,
                 product_data[1, "timescale (min)"] * 60,
             )
 
-                PSY.add_service!(sys, reserve, PSY.get_components(PSY.ThermalStandard, sys))
+            PSY.add_service!(sys, reserve, PSY.get_components(PSY.ThermalStandard, sys))
 
-                # for component in PSY.get_components(PSYE.ThermalCleanEnergy, sys)
-                #     PSY.add_service!(component, reserve, sys)
-                # end
+            # for component in PSY.get_components(PSYE.ThermalCleanEnergy, sys)
+            #     PSY.add_service!(component, reserve, sys)
+            # end
 
-                for component in PSY.get_components(ThermalFastStartSIIP, sys)
+            for component in PSY.get_components(ThermalFastStartSIIP, sys)
+                PSY.add_service!(component, reserve, sys)
+            end
+
+            if occursin("Hydro", eligible_categories)
+                for component in PSY.get_components(PSY.HydroDispatch, sys)
                     PSY.add_service!(component, reserve, sys)
                 end
-
-                if occursin("Hydro", eligible_categories)
-                    for component in PSY.get_components(PSY.HydroDispatch, sys)
-                        PSY.add_service!(component, reserve, sys)
-                    end
-                    for component in PSY.get_components(PSY.HydroTurbine, sys)
-                        PSY.add_service!(component, reserve, sys)
-                    end
+                for component in PSY.get_components(PSY.HydroTurbine, sys)
+                    PSY.add_service!(component, reserve, sys)
                 end
-                if occursin("Wind", eligible_categories)
-                    for component in PSY.get_components(PSY.RenewableDispatch, sys)
-                        PSY.add_service!(component, reserve, sys)
-                    end
+            end
+            if occursin("Wind", eligible_categories)
+                for component in PSY.get_components(PSY.RenewableDispatch, sys)
+                    PSY.add_service!(component, reserve, sys)
                 end
-                if occursin("Battery", eligible_categories)
-                    for component in PSY.get_components(PSY.EnergyReservoirStorage, sys)
-                        PSY.add_service!(component, reserve, sys)
-                    end
+            end
+            if occursin("Battery", eligible_categories)
+                for component in PSY.get_components(PSY.EnergyReservoirStorage, sys)
+                    PSY.add_service!(component, reserve, sys)
                 end
+            end
 
-                # time_stamps = TS.timestamp(PSY.get_data(PSY.get_time_series(
-                #     PSY.SingleTimeSeries,
-                #     first(PSY.get_components(PSY.ElectricLoad, sys)),
-                #     "max_active_power"
-                #     )))
+            # time_stamps = TS.timestamp(PSY.get_data(PSY.get_time_series(
+            #     PSY.SingleTimeSeries,
+            #     first(PSY.get_components(PSY.ElectricLoad, sys)),
+            #     "max_active_power"
+            #     )))
 
-                # time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
+            # time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
+            if type == "ED"
+                product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year)", "Reserves", "$(product)_REAL_TIME.csv"))[:, product]
+            elseif type in ["UC", "MD"]
+                product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year)", "Reserves", "$(product).csv"))[:, product]
+            end
 
-                if type == "ED"
-                    product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year)", "Reserves", "$(product)_REAL_TIME.csv"))[:, product]
-                elseif type in ["UC", "MD"]
-                    product_ts_raw = read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(iteration_year)", "Reserves", "$(product).csv"))[:, product]
-                end
+            if type in ["MD", "UC", "ED"]
+                ### TODO: ORDC timeseries is not available now
+                product_data_ts = process_ordc_data_for_siip(product_ts_raw)
+                product_data_ts = [product_data_ts;product_data_ts[1:additional_timestep]]
+                forecast = PSY.SingleTimeSeries("variable_cost", TimeSeries.TimeArray(time_stamps, product_data_ts))
+                # PSY.add_time_series!(sys, reserve, forecast)
+                PSY.set_variable_cost!(sys, reserve, forecast)
 
-                if type in ["MD", "UC", "ED"]
-                    ### TODO: Check ORDC data processing
-                    product_data_ts = process_ordc_data_for_siip(product_ts_raw)                  
-                    ts_dict = Dict(time_stamps .=> product_data_ts)
+                # product_single = product_ts_raw[1]
+                # tuples = split.(chop.(split(chop(product_single, head = 1, tail = 2), "), "), head = 1, tail = 0), ", ")
+                # tuples_value = [(parse.(Float64, tuple)[2], parse.(Float64, tuple)[1]) for tuple in tuples]
 
-                    ts = PSY.Deterministic(;
-                                            name = "variable_cost",
-                                            data = ts_dict,
-                                            resolution = sys_resolution,
-                                        )
+                # piecewisecurve = PSY.PiecewiseIncrementalCurve(0.0, [0.0, tuples_value[2][2]], [tuples_value[2][1]])
+                # cost_curve = PSY.CostCurve(piecewisecurve)
+                # PSY.set_variable_cost!(sys, reserve, cost_curve)
+            end
 
-                    # Add Time Series to the ORDCs
-                    ts_key = add_time_series!(sys, reserve, ts)
-                    set_variable!(reserve, ts_key)
-                    
-                    product_single = product_ts_raw[1]
-                    tuples = split.(chop.(split(chop(product_single, head = 1, tail = 2), "), "), head = 1, tail = 0), ", ")
-                    tuples_value = [(parse.(Float64, tuple)[2], parse.(Float64, tuple)[1]) for tuple in tuples]
 
-                    piecewisecurve = PSY.PiecewiseIncrementalCurve(0.0, [0.0, tuples_value[2][2]], [tuples_value[2][1]])
-                    cost_curve = PSY.CostCurve(piecewisecurve)
-                    PSY.set_variable_cost!(sys, reserve, cost_curve)
-                end
         end
     end
 

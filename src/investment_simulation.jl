@@ -94,26 +94,29 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
         sys_PRAS_list, active_projects_list, capacity_forward_years_list, resource_adequacies, peak_loads, static_capacity_bools, iteration_years, simulation_years_list, data_dirs, rt_resolutions, results_dirs, outage_dirs = repeat_arguments(num_scenarios, sys_PRAS, active_projects, capacity_forward_years, get_resource_adequacy(simulation), get_peak_load(simulation), get_static_capacity_market(case), iteration_year, simulation_years, get_data_dir(case), get_rt_resolution(case), get_results_dir(simulation), get_outage_dir(case))
 
         # Parallelize the processing of scenarios using Distributed.pmap
-        @time resource_adequacy_tuples = Distributed.pmap(parallelize_update_delta_irm!, zip(scenario_names, sys_PRAS_list, active_projects_list, capacity_forward_years_list, resource_adequacies, peak_loads, static_capacity_bools, iteration_years, simulation_years_list, data_dirs, rt_resolutions, results_dirs, outage_dirs))
+        # @time resource_adequacy_tuples = Distributed.pmap(parallelize_update_delta_irm!, zip(scenario_names, sys_PRAS_list, active_projects_list, capacity_forward_years_list, resource_adequacies, peak_loads, static_capacity_bools, iteration_years, simulation_years_list, data_dirs, rt_resolutions, results_dirs, outage_dirs))
         
         # scenario_1 = scenario_names[1]
-        # resource_adequacy = update_delta_irm!(
-        #     sys_PRAS[scenario_1],
-        #     active_projects,
-        #     capacity_forward_years,
-        #     get_resource_adequacy(simulation)[scenario_1],
-        #     get_peak_load(simulation)[scenario_1][min(iteration_year + capacity_forward_years - 1, simulation_years)],
-        #     get_static_capacity_market(case),
-        #     scenario_1,
-        #     iteration_year,
-        #     get_data_dir(case),
-        #     get_rt_resolution(case),
-        #     get_results_dir(simulation),
-        #     get_outage_dir(case),
-        #     simulation_years
-        # )
-        # resource_adequacy_tuples = [(scenario_1, resource_adequacy)]
-        
+        resource_adequacy_tuples = []
+        for scenario in scenario_names
+            resource_adequacy = update_delta_irm!(
+                sys_PRAS[scenario],
+                active_projects,
+                capacity_forward_years,
+                get_resource_adequacy(simulation)[scenario],
+                get_peak_load(simulation)[scenario][min(iteration_year + capacity_forward_years - 1, simulation_years)],
+                get_static_capacity_market(case),
+                scenario,
+                iteration_year,
+                get_data_dir(case),
+                get_rt_resolution(case),
+                get_results_dir(simulation),
+                get_outage_dir(case),
+                simulation_years
+            )
+            push!(resource_adequacy_tuples, (scenario, resource_adequacy))
+        end
+
         set_resource_adequacy!(simulation, Dict(key => value for (key, value) in resource_adequacy_tuples))
 
         create_investor_predictions(investors,

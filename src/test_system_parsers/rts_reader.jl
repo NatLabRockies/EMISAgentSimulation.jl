@@ -33,9 +33,6 @@ function read_rts(data_dir::String,
     # zone_numbers = names(test_system_load_da)[5:end]
     # zones = names(test_system_load_da)[5:end]
 
-    ### NY_change: there is no reserve product in NY system
-    ### NY_change: but it maybe easier to have reserve timeseries be all zero for CEM purposes
-    ### NY_change: although sienna system does not have reserves
     reserve_params_df = read_data(joinpath(test_system_dir, "RTS_Data", "SourceData", "reserves.csv"))
 
     reserve_products = reserve_params_df[:, "Reserve Product"]
@@ -47,7 +44,6 @@ function read_rts(data_dir::String,
     for product in reserve_products
         test_system_reserves_data[product] = test_system_load_da[:, 1:4]
         test_system_reserves_data[product][:, product] = zeros(data_rows)
-        ### NY_change: zero out all reserve timeseries
         data = DataFrames.DataFrame(CSV.File(joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Reserves", "DAY_AHEAD_regional_$(product).csv")))
         for d in 1:Int(data_rows/24)
             for h in 1:24

@@ -86,11 +86,12 @@ function add_capacity_market_device_forecast!(sys_PRAS::PSY.System,
     #                                                 first(PSY.get_components(PSY.ElectricLoad, sys_PRAS)),
     #                                                 "max_active_power"
     #                                                 )))
-    sys_interval = sys_PRAS.data.time_series_params.forecast_params.interval
-    sys_horizon = sys_PRAS.data.time_series_params.forecast_params.horizon
-    forecast_count = sys_PRAS.data.time_series_params.forecast_params.count
-    sys_resolution = sys_PRAS.data.time_series_params.resolution
-    start_datetime = sys_PRAS.data.time_series_params.forecast_params.initial_timestamp
+    sys_interval = PSY.get_forecast_interval(sys_PRAS)
+    sys_horizon = PSY.get_forecast_horizon(sys_PRAS)
+    sys_horizon = Dates.Hour(sys_horizon).value
+    forecast_count = PSY.get_forecast_window_count(sys_PRAS)
+    sys_resolution = PSY.get_time_series_resolutions(sys_PRAS)[1]
+    start_datetime = PSY.get_forecast_initial_timestamp(sys_PRAS)
     finish_datetime = start_datetime + Dates.Hour((forecast_count * sys_interval/sys_resolution + (sys_horizon - sys_interval/sys_resolution) - 1))
     time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
 
