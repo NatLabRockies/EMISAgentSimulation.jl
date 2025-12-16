@@ -21,7 +21,6 @@ function create_investors(simulation_data::AgentSimulationData)
 
         # Read Investor Characteristics
         characteristics = read_data(joinpath(investor_dir, "characteristics.csv"))
-
         forecast_type = get_forecast_type(get_case(simulation_data))
 
         if forecast_type == "perfect"
@@ -150,7 +149,13 @@ function create_investors(simulation_data::AgentSimulationData)
             for sim_year in collect(1:horizon)
                 println(scenario)
                 println(sim_year)          
-                add_investor_project_availability!(test_system_dir, simulation_data_dir, scenario, sim_year, projects, sys_UC)
+                add_investor_project_availability!(test_system_dir,
+                                                   simulation_data_dir,
+                                                   scenario,
+                                                   sim_year,
+                                                   projects,
+                                                   sys_UC
+                                                   )
             end
         end
 

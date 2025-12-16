@@ -47,47 +47,11 @@ function create_rts_sys(rts_dir::String,
                         ED_horizon::Int64,
                         ED_interval::Int64,)
 
-    # da_products = split(read_data(joinpath(simulation_dir, "markets_data", "reserve_products.csv"))[1,"da_products"], "; ")
-    #
-    # rts_src_dir = joinpath(rts_dir, "RTS_Data", "SourceData")
-    # rts_siip_dir = joinpath(rts_dir, "RTS_Data", "FormattedData", "SIIP");
-    #
-    # rawsys = PSY.PowerSystemTableData(
-    #         rts_src_dir,
-    #         base_power,
-    #         joinpath(rts_siip_dir, "user_descriptors.yaml"),
-    #         timeseries_metadata_file = joinpath(rts_siip_dir, "timeseries_pointers.json"),
-    #         );
-    #
-    # sys_UC = PSY.System(rawsys; time_series_resolution = Dates.Minute(da_resolution));
-    #
-    # services_UC = get_system_services(sys_UC)
-    #
-    # for service in services_UC
-    #     if !(PSY.get_name(service) in da_products)
-    #         PSY.remove_component!(sys_UC, service)
-    #     end
-    # end
-    #
-    # rt_products = split(read_data(joinpath(simulation_dir, "markets_data", "reserve_products.csv"))[1,"rt_products"], "; ")
-    #
-    # sys_ED = PSY.System(rawsys; time_series_resolution = Dates.Minute(rt_resolution));
-    #
-    # services_ED = get_system_services(sys_ED)
-    #
-    # for service in services_ED
-    #     if !(PSY.get_name(service) in rt_products)
-    #         PSY.remove_component!(sys_ED, service)
-    #     end
-    # end
-    #
-    # pruned_unit = specify_pruned_units()
-    # prune_system_devices!(sys_UC, pruned_unit)
-    # prune_system_devices!(sys_ED, pruned_unit)
-
+    hpc_analysis_runs_dir = dirname(rts_dir)
+    psy5_sys_dir = joinpath(dirname(rts_dir), "PSY5_RTS-GMLC")
+    sys_name = "RTS_GMLC_DA_sys"                            
     rts_parent_dir = dirname(rts_dir)
-    rts_parent2_dir = dirname(rts_parent_dir)
-    ntp_ts_data_dir = joinpath(dirname(rts_parent2_dir),
+    ntp_ts_data_dir = joinpath(dirname(rts_parent_dir),
                                 "Feb2024_ERCOT_2011_MARKET_Test_NGUO_LDES",
                                 "NTP_TimeSeries_Data", 
                                 "input_processing")
@@ -124,13 +88,12 @@ function create_rts_sys(rts_dir::String,
 
         #TODO: Always create an MD system for PSY5 system
         # remove when all systems are converted
-        if !(isfile(MD_sys_filename) && isfile(MD_num_forecast_filename))
+        # if !(isfile(MD_sys_filename) && isfile(MD_num_forecast_filename))
             println("MD json file doesn't exist. Creating required data.")   
 
             @info "Creating PSY5 MD system for sim year $(sim_year)"
             dir_exists(dirname(MD_sys_filename))         
-            ercot_sys_dir = joinpath(dirname(rts_dir), "PSY5_ERCOT_Test_System")
-            sys_MD_initial = PSY.System(joinpath(ercot_sys_dir, "DA_sys_zonal.json"), time_series_directory = scratch_dir);
+            sys_MD_initial = PSY.System(joinpath(psy5_sys_dir, "$(sys_name).json"), time_series_directory = scratch_dir);
             # create MD system
             create_sys_w_updated_ts(
                 ntp_ts_data_dir,
@@ -139,7 +102,7 @@ function create_rts_sys(rts_dir::String,
                 loadyear,
                 "dayahead",
                 supercc_scenario,
-                75.0, #GW
+                75.0, # GW
                 MD_horizon, # hours
                 MD_interval, # hours
                 MD_sys_filename,
@@ -148,16 +111,15 @@ function create_rts_sys(rts_dir::String,
                 nothing,
                 MD_num_forecast_filename,
             )
-        end  
+        # end  
         @info MD_sys_filename     
-
         push!(sys_MDs, PSY.System(MD_sys_filename, time_series_directory = scratch_dir));
 
         UC_filename = joinpath(rts_dir, "constructed_systems", pcm_scenario, "sim_year_$(sim_year)", "DA_sys_EMIS_$(UC_horizon)hor_$(UC_interval)int_$(MD_horizon)mdhor_$(MD_interval)mdint.json")
-        if !(isfile(UC_filename))
+        # if !(isfile(UC_filename))
             println("UC json file doesn't exist. Creating required json file.")  
             dir_exists(dirname(UC_filename))   
-            sys_UC_initial = PSY.System(joinpath(ercot_sys_dir, "DA_sys_zonal.json"), time_series_directory = scratch_dir);
+            sys_UC_initial = PSY.System(joinpath(psy5_sys_dir, "$(sys_name).json"), time_series_directory = scratch_dir);
             create_sys_w_updated_ts(
                 ntp_ts_data_dir,
                 sys_UC_initial,
@@ -165,7 +127,7 @@ function create_rts_sys(rts_dir::String,
                 loadyear,
                 "dayahead",
                 supercc_scenario,
-                75.0, #GW
+                75.0, # GW
                 UC_horizon, # hours
                 UC_interval, # hours
                 UC_filename,
@@ -174,7 +136,7 @@ function create_rts_sys(rts_dir::String,
                 MD_interval,
                 MD_num_forecast_filename,
             )
-        end
+        # end
         push!(sys_UCs, PSY.System(UC_filename, time_series_directory = scratch_dir));
 
         for scenario in scenarios
@@ -194,10 +156,10 @@ function create_rts_sys(rts_dir::String,
                                   "sim_year_$(sim_year)",
                                   "RT_sys_EMIS_$(ED_horizon)hor_$(ED_interval)int_$(MD_horizon)mdhor_$(MD_interval)mdint.json")
 
-            if !isfile(ED_filename)
+            # if !isfile(ED_filename)
                 println("ED json file doesn't exist. Creating required json file.")  
                 dir_exists(dirname(ED_filename))   
-                sys_ED_initial = PSY.System(joinpath(ercot_sys_dir, "DA_sys_zonal.json"), time_series_directory = scratch_dir);
+                sys_ED_initial = PSY.System(joinpath(psy5_sys_dir, "$(sys_name).json"), time_series_directory = scratch_dir);
                 create_sys_w_updated_ts(
                     ntp_ts_data_dir,
                     sys_ED_initial,
@@ -214,7 +176,7 @@ function create_rts_sys(rts_dir::String,
                     MD_interval,
                     MD_num_forecast_filename,
                 )
-            end
+            # end
             push!(sys_EDs_dict[scenario], PSY.System(ED_filename, time_series_directory = scratch_dir));
         end
         sys_EDs = sys_EDs_dict[pcm_scenario]
@@ -280,7 +242,6 @@ function remove_vre_gens!(sys::PSY.System)
         end
     end
 end
-
 
 function create_sys_w_updated_ts(
     data_dir::String,
@@ -349,11 +310,15 @@ function create_sys_w_updated_ts(
     for component in get_components(x -> has_time_series(x, Deterministic), HydroDispatch, sys_MD)
         forecast = get_time_series(Deterministic, component, "max_active_power")
 
+        
         reconstruct_single_ts = Float64[]
-        for (key, value) in forecast.data
-            append!(reconstruct_single_ts, value[1:sys_MD_initial_interval])
-        end
+        append!(reconstruct_single_ts, forecast_ts[1:sys_MD_initial_interval])
         append!(reconstruct_single_ts, reconstruct_single_ts[1:additional_timestep])
+
+        # for (key, value) in forecast.data
+        #     append!(reconstruct_single_ts, value[1:sys_MD_initial_interval])
+        # end
+        # append!(reconstruct_single_ts, reconstruct_single_ts[1:additional_timestep])
 
         dates = range(DateTime("2018-01-01T00:00:00"), step = sys_MD_res, length = 8760 + additional_timestep)
         # using Timeseries
