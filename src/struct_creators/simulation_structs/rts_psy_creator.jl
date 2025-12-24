@@ -48,8 +48,13 @@ function create_rts_sys(rts_dir::String,
                         ED_interval::Int64,)
 
     hpc_analysis_runs_dir = dirname(rts_dir)
-    psy5_sys_dir = joinpath(dirname(rts_dir), "PSY5_RTS-GMLC")
-    sys_name = "RTS_GMLC_DA_sys"                            
+    # sys_dir = "PSY5_RTS-GMLC"
+    # sys_name = "RTS_GMLC_DA_sys"                      
+
+    sys_dir = "RTS_PSY5_ERCOT"
+    sys_name = "DA_sys_zonal"                      
+          
+    psy5_sys_dir = joinpath(dirname(rts_dir), sys_dir)
     rts_parent_dir = dirname(rts_dir)
     ntp_ts_data_dir = joinpath(dirname(rts_parent_dir),
                                 "Feb2024_ERCOT_2011_MARKET_Test_NGUO_LDES",
@@ -87,13 +92,13 @@ function create_rts_sys(rts_dir::String,
         weatheryear = loadyear
 
         #TODO: Always create an MD system for PSY5 system
-        # remove when all systems are converted
-        # if !(isfile(MD_sys_filename) && isfile(MD_num_forecast_filename))
+        if !(isfile(MD_sys_filename) && isfile(MD_num_forecast_filename))
             println("MD json file doesn't exist. Creating required data.")   
 
             @info "Creating PSY5 MD system for sim year $(sim_year)"
             dir_exists(dirname(MD_sys_filename))         
-            sys_MD_initial = PSY.System(joinpath(psy5_sys_dir, "$(sys_name).json"), time_series_directory = scratch_dir);
+            sys_MD_initial = PSY.System(joinpath(psy5_sys_dir, "$(sys_name).json"),
+                                        time_series_directory = scratch_dir);
             # create MD system
             create_sys_w_updated_ts(
                 ntp_ts_data_dir,
@@ -111,13 +116,13 @@ function create_rts_sys(rts_dir::String,
                 nothing,
                 MD_num_forecast_filename,
             )
-        # end  
-        @info MD_sys_filename     
-        push!(sys_MDs, PSY.System(MD_sys_filename, time_series_directory = scratch_dir));
+        end  
+        @info MD_sys_filename
+        push!(sys_MDs, PSY.System(name = "$(pcm_scenario)_sim_year_$(sim_year)_MD", MD_sys_filename, time_series_directory = scratch_dir));
 
         UC_filename = joinpath(rts_dir, "constructed_systems", pcm_scenario, "sim_year_$(sim_year)", "DA_sys_EMIS_$(UC_horizon)hor_$(UC_interval)int_$(MD_horizon)mdhor_$(MD_interval)mdint.json")
-        # if !(isfile(UC_filename))
-            println("UC json file doesn't exist. Creating required json file.")  
+        if !(isfile(UC_filename))
+            @warn("UC json file doesn't exist. Creating required json file.")  
             dir_exists(dirname(UC_filename))   
             sys_UC_initial = PSY.System(joinpath(psy5_sys_dir, "$(sys_name).json"), time_series_directory = scratch_dir);
             create_sys_w_updated_ts(
@@ -136,8 +141,8 @@ function create_rts_sys(rts_dir::String,
                 MD_interval,
                 MD_num_forecast_filename,
             )
-        # end
-        push!(sys_UCs, PSY.System(UC_filename, time_series_directory = scratch_dir));
+        end
+        push!(sys_UCs, PSY.System(name = "$(pcm_scenario)_sim_year_$(sim_year)_UC", UC_filename, time_series_directory = scratch_dir));
 
         for scenario in scenarios
             if scenario == "scenario_1"
@@ -156,8 +161,8 @@ function create_rts_sys(rts_dir::String,
                                   "sim_year_$(sim_year)",
                                   "RT_sys_EMIS_$(ED_horizon)hor_$(ED_interval)int_$(MD_horizon)mdhor_$(MD_interval)mdint.json")
 
-            # if !isfile(ED_filename)
-                println("ED json file doesn't exist. Creating required json file.")  
+            if !isfile(ED_filename)
+                @warn("ED json file doesn't exist. Creating required json file.")  
                 dir_exists(dirname(ED_filename))   
                 sys_ED_initial = PSY.System(joinpath(psy5_sys_dir, "$(sys_name).json"), time_series_directory = scratch_dir);
                 create_sys_w_updated_ts(
@@ -176,8 +181,9 @@ function create_rts_sys(rts_dir::String,
                     MD_interval,
                     MD_num_forecast_filename,
                 )
-            # end
-            push!(sys_EDs_dict[scenario], PSY.System(ED_filename, time_series_directory = scratch_dir));
+            end
+            push!(sys_EDs_dict[scenario],
+                 PSY.System(name = "$(pcm_scenario)_sim_year_$(sim_year)_ED", ED_filename, time_series_directory = scratch_dir));
         end
         sys_EDs = sys_EDs_dict[pcm_scenario]
 
@@ -218,16 +224,15 @@ function create_rts_sys(rts_dir::String,
     end
 
     sys_PRAS = Dict{String, PSY.System}()
-
     for scenario in scenarios
         PRAS_filename = joinpath(rts_dir, 
                                 "constructed_systems", scenario, "sim_year_1", "PRAS_sys_EMIS_$(ED_horizon)hor_$(ED_interval)int_$(MD_horizon)mdhor_$(MD_interval)mdint.json")
         if !isfile(PRAS_filename)
             @info "Creating PRAS system for scenario $(scenario) - PSY5"
-            println("PRAS json file doesn't exist. Creating required json file.")  
+            @warn("PRAS json file doesn't exist. Creating required json file.")  
             create_PRAS_sys_json(sys_EDs_dict[scenario], PRAS_filename)
         end
-        sys_PRAS[scenario] = PSY.System(PRAS_filename, time_series_directory = scratch_dir)
+        sys_PRAS[scenario] = PSY.System(name = "$(scenario)_PRAS", PRAS_filename, time_series_directory = scratch_dir)
     end
     
     return sys_MDs, sys_UCs, sys_EDs, sys_PRAS, MD_horizon, MD_interval, UC_horizon, UC_interval, ED_horizon, ED_interval
@@ -288,7 +293,7 @@ function create_sys_w_updated_ts(
     # first_ts_temp_MD = first(PSY.get_time_series_multiple(sys_MD))
     # start_datetime_MD = PSY.IS.get_initial_timestamp(first_ts_temp_MD)
     start_datetime_MD = PSY.get_forecast_initial_timestamp(sys_MD)
-    sys_MD_res = PSY.get_time_series_resolutions(sys_MD)[1]
+    sys_MD_res = first(PSY.get_time_series_resolutions(sys_MD))
     sys_MD_initial_interval = Int(PSY.get_forecast_interval(sys_MD).value / sys_MD_res.value)
 
     # if not the first stage, I think finish_datetime_MD needs to be first stage's number_of_forecast * interval + (horizon - interval) -- all from first stage (need to pass down these parameters)
@@ -308,31 +313,24 @@ function create_sys_w_updated_ts(
     additional_timestep = Int(horizon - (first_stage_total-(interval*(length(timestep)-1))) + (first_stage_total - 8760))
 
     for component in get_components(x -> has_time_series(x, Deterministic), HydroDispatch, sys_MD)
+        @info "Adding time series for $(PSY.get_name(component))"
         forecast = get_time_series(Deterministic, component, "max_active_power")
-
-        
         reconstruct_single_ts = Float64[]
-        append!(reconstruct_single_ts, forecast_ts[1:sys_MD_initial_interval])
+
+        for (key, value) in forecast.data
+            append!(reconstruct_single_ts, value[1:sys_MD_initial_interval])
+        end
+
         append!(reconstruct_single_ts, reconstruct_single_ts[1:additional_timestep])
-
-        # for (key, value) in forecast.data
-        #     append!(reconstruct_single_ts, value[1:sys_MD_initial_interval])
-        # end
-        # append!(reconstruct_single_ts, reconstruct_single_ts[1:additional_timestep])
-
         dates = range(DateTime("2018-01-01T00:00:00"), step = sys_MD_res, length = 8760 + additional_timestep)
-        # using Timeseries
-        # const TS = TimeSeries
         data = TS.TimeArray(dates, reconstruct_single_ts)
         single_time_series = SingleTimeSeries("max_active_power", data)
-
         add_time_series!(sys_MD, component, single_time_series)
     end
 
     remove_time_series!(sys_MD, Deterministic)
-
     for component in get_components(x -> has_time_series(x, SingleTimeSeries), HydroDispatch, sys_MD)
-
+        @info "Adding Deterministic time series for $(PSY.get_name(component))"
         revisedts = DataStructures.SortedDict{DateTime,Vector{Float64}}()
         newtsdata = values(get_time_series(SingleTimeSeries, component, "max_active_power").data)
 
@@ -350,15 +348,10 @@ function create_sys_w_updated_ts(
             resolution=Dates.Hour(1),
             scaling_factor_multiplier=get_max_active_power
         )
-
-        # remove old time series
-        # remove_time_series!(sys_MD, Deterministic, d, "max_active_power")
-        # add new time series to dataset
         add_time_series!(sys_MD, component, revisedts_deterministic)
     end
 
     remove_time_series!(sys_MD, SingleTimeSeries)
-
     #-----------------------------------------------------------
     # Replacing wind & solar time series  !! In NATURAL_UNITS !!
     #-----------------------------------------------------------
@@ -737,7 +730,6 @@ function create_PRAS_sys_json(
     end
     remove_time_series!(sys_PRAS, Deterministic)
 
-
     for (key, devices) in ts_objects
         for component in devices
             revisedts = DataStructures.SortedDict{DateTime,Vector{Float64}}()
@@ -750,7 +742,7 @@ function create_PRAS_sys_json(
                 push!(revisedts, datetimeindex => rtseries)
             end
     
-            # conver to deterministic time series
+            # convert to deterministic time series
             revisedts_deterministic = PSY.Deterministic(;
                 name="max_active_power",
                 data=revisedts,
@@ -785,9 +777,7 @@ function create_PRAS_sys_json(
     end
 
     remove_time_series!(sys_PRAS, SingleTimeSeries)
-    
     to_json(sys_PRAS, output_file, force=true)
-
     return
 end
 
