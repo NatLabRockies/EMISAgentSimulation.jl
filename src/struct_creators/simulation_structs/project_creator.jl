@@ -88,6 +88,10 @@ function add_investor_project_availability!(test_system_dir::String,
     system_availability_data_rt = DataFrames.DataFrame(CSV.File(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Availability", "REAL_TIME_availability.csv")))
     gennames = names(system_availability_data)[5:length(names(system_availability_data))] #################
 
+    # Remove generators that return nothing
+    gennames = filter(g -> PSY.get_component(PSY.StaticInjection, sys_UC, g) != nothing,
+                        gennames)
+
     psy_gens = PSY.get_name.(PSY.get_components(PSY.Generator, sys_UC))
 
     gen_diff = setdiff(gennames, psy_gens)
