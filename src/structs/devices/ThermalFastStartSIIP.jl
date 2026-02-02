@@ -59,7 +59,7 @@ mutable struct ThermalFastStartSIIP <: PSY.ThermalGen
     reactive_power_limits::Union{Nothing, NamedTuple{(:min, :max), Tuple{Float64, Float64}}}
     "ramp up and ramp down limits in MW (in component base per unit) per minute"
     ramp_limits::Union{Nothing, NamedTuple{(:up, :down), Tuple{Float64, Float64}}}
-    operation_cost::PSY.OperationalCost
+    operation_cost::Union{PSY.ThermalGenerationCost, PSY.MarketBidCost}
     "Base power of the unit in MVA"
     base_power::Float64
     "Minimum up and Minimum down time limits in hours"
@@ -123,17 +123,17 @@ PSY.get_status(value::ThermalFastStartSIIP) = value.status
 """Get [`ThermalFastStartSIIP`](@ref) `bus`."""
 PSY.get_bus(value::ThermalFastStartSIIP) = value.bus
 """Get [`ThermalFastStartSIIP`](@ref) `active_power`."""
-PSY.get_active_power(value::ThermalFastStartSIIP) = PSY.get_value(value, value.active_power)
+PSY.get_active_power(value::ThermalFastStartSIIP) = PSY.get_value(value, Val(:active_power), Val(:mva))
 """Get [`ThermalFastStartSIIP`](@ref) `reactive_power`."""
-PSY.get_reactive_power(value::ThermalFastStartSIIP) = PSY.get_value(value, value.reactive_power)
+PSY.get_reactive_power(value::ThermalFastStartSIIP) = PSY.get_value(value, Val(:reactive_power), Val(:mva))
 """Get [`ThermalFastStartSIIP`](@ref) `rating`."""
-PSY.get_rating(value::ThermalFastStartSIIP) = PSY.get_value(value, value.rating)
+PSY.get_rating(value::ThermalFastStartSIIP) = PSY.get_value(value, Val(:rating), Val(:mva))
 """Get [`ThermalFastStartSIIP`](@ref) `active_power_limits`."""
-PSY.get_active_power_limits(value::ThermalFastStartSIIP) = PSY.get_value(value, value.active_power_limits)
+PSY.get_active_power_limits(value::ThermalFastStartSIIP) = PSY.get_value(value, Val(:active_power_limits), Val(:mva))
 """Get [`ThermalFastStartSIIP`](@ref) `reactive_power_limits`."""
-PSY.get_reactive_power_limits(value::ThermalFastStartSIIP) = PSY.get_value(value, value.reactive_power_limits)
+PSY.get_reactive_power_limits(value::ThermalFastStartSIIP) = PSY.get_value(value, Val(:reactive_power_limits), Val(:mva))
 """Get [`ThermalFastStartSIIP`](@ref) `ramp_limits`."""
-PSY.get_ramp_limits(value::ThermalFastStartSIIP) = PSY.get_value(value, value.ramp_limits)
+PSY.get_ramp_limits(value::ThermalFastStartSIIP) = PSY.get_value(value, Val(:ramp_limits), Val(:mva))
 """Get [`ThermalFastStartSIIP`](@ref) `operation_cost`."""
 PSY.get_operation_cost(value::ThermalFastStartSIIP) = value.operation_cost
 """Get [`ThermalFastStartSIIP`](@ref) `base_power`."""
@@ -167,17 +167,17 @@ PSY.set_status!(value::ThermalFastStartSIIP, val) = value.status = val
 """Set [`ThermalFastStartSIIP`](@ref) `bus`."""
 PSY.set_bus!(value::ThermalFastStartSIIP, val) = value.bus = val
 """Set [`ThermalFastStartSIIP`](@ref) `active_power`."""
-PSY.set_active_power!(value::ThermalFastStartSIIP, val) = value.active_power = set_value(value, val)
+PSY.set_active_power!(value::ThermalFastStartSIIP, val) = value.active_power = PSY.set_value(value, Val(:active_power), val, Val(:mva))
 """Set [`ThermalFastStartSIIP`](@ref) `reactive_power`."""
-PSY.set_reactive_power!(value::ThermalFastStartSIIP, val) = value.reactive_power = set_value(value, val)
+PSY.set_reactive_power!(value::ThermalFastStartSIIP, val) = value.reactive_power = PSY.set_value(value, Val(:reactive_power), val, Val(:mva))
 """Set [`ThermalFastStartSIIP`](@ref) `rating`."""
-PSY.set_rating!(value::ThermalFastStartSIIP, val) = value.rating = set_value(value, val)
+PSY.set_rating!(value::ThermalFastStartSIIP, val) = value.rating = PSY.set_value(value, Val(:rating), val, Val(:mva))
 """Set [`ThermalFastStartSIIP`](@ref) `active_power_limits`."""
-PSY.set_active_power_limits!(value::ThermalFastStartSIIP, val) = value.active_power_limits = set_value(value, val)
+PSY.set_active_power_limits!(value::ThermalFastStartSIIP, val) = value.active_power_limits = PSY.set_value(value, Val(:active_power_limits), val, Val(:mva))
 """Set [`ThermalFastStartSIIP`](@ref) `reactive_power_limits`."""
-PSY.set_reactive_power_limits!(value::ThermalFastStartSIIP, val) = value.reactive_power_limits = set_value(value, val)
+PSY.set_reactive_power_limits!(value::ThermalFastStartSIIP, val) = value.reactive_power_limits = PSY.set_value(value, Val(:reactive_power_limits), val, Val(:mva))
 """Set [`ThermalFastStartSIIP`](@ref) `ramp_limits`."""
-PSY.set_ramp_limits!(value::ThermalFastStartSIIP, val) = value.ramp_limits = set_value(value, val)
+PSY.set_ramp_limits!(value::ThermalFastStartSIIP, val) = value.ramp_limits = PSY.set_value(value, Val(:ramp_limits), val, Val(:mva))
 """Set [`ThermalFastStartSIIP`](@ref) `operation_cost`."""
 PSY.set_operation_cost!(value::ThermalFastStartSIIP, val) = value.operation_cost = val
 """Set [`ThermalFastStartSIIP`](@ref) `base_power`."""
