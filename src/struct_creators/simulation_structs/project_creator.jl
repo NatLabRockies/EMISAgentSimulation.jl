@@ -88,6 +88,10 @@ function add_investor_project_availability!(test_system_dir::String,
     system_availability_data_rt = DataFrames.DataFrame(CSV.File(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Availability", "REAL_TIME_availability.csv")))
     gennames = names(system_availability_data)[5:length(names(system_availability_data))] #################
 
+    # Remove generators that return nothing
+    gennames = filter(g -> PSY.get_component(PSY.StaticInjection, sys_UC, g) != nothing,
+                        gennames)
+
     psy_gens = PSY.get_name.(PSY.get_components(PSY.Generator, sys_UC))
 
     gen_diff = setdiff(gennames, psy_gens)
@@ -268,6 +272,10 @@ function create_investment_data(size::Float64,
     queue_cost_data = get_queue_cost_data(simulation_data)
     queue_cost = create_project_queuecost(size, queue_cost_data, lag_bool)
     queue_time = length(queue_cost)
+    @info "queue_cost_data: $(queue_cost_data)"
+    @info "queue_cost: $(queue_cost)"
+    @info "queue_time: $(queue_time)"
+    
     construction_year = decision_year + (queue_time + projectdata["Lagtime"]) * lag_bool
 
     capex_years = projectdata["Capex Years"]
@@ -296,9 +304,12 @@ function create_investment_data(size::Float64,
         preference_multiplier = ones(max_horizon)
     end
 
+    @info "project_capex: $(project_capex)"
     investment_cost, discount_rate = calculate_capcost_and_wacc(project_capex, category, investor_dir, online_year)
 
     investment_cost = investment_cost * size * 1000.0
+    @info "investment_cost: $(investment_cost)"
+    @info "queue_time: $(queue_time)"
 
     effective_investment_cost = investment_cost[queue_time + 1]
     fixedOM_cost = projectdata["Fixed OM Cost per MW"] * size
@@ -816,24 +827,35 @@ function create_project(projectdata::DataFrames.DataFrameRow,
 
     base_power = size
     carbon_tax = get_carbon_tax(simulation_data)
+    products = create_products(simulation_data, projectdata)
 
-    products = create_products(simulation_data,
-                               projectdata)
-
-    decision_year,
-    construction_year,
-    retirement_year,
-    end_life_year,
-    finance_data = create_investment_data(size, projectdata, investor_dir, simulation_data, products, investor_name, scenario_names, lag_bool)
+    decision_year, construction_year, retirement_year, end_life_year,
+    finance_data = create_investment_data(size, 
+                                         projectdata,
+                                         investor_dir,
+                                         simulation_data,
+                                         products,
+                                         investor_name,
+                                         scenario_names,
+                                         lag_bool
+                                         )
 
     sys_UC = first(get_system_UCs(simulation_data))
-
-    project = create_tech_type(name, projectdata, size, base_power, decision_year, construction_year, retirement_year, end_life_year, products, finance_data, sys_UC, carbon_tax)
-
+    project = create_tech_type(name, 
+                               projectdata,
+                               size,
+                               base_power,
+                               decision_year,
+                               construction_year,
+                               retirement_year,
+                               end_life_year,
+                               products,
+                               finance_data,
+                               sys_UC,
+                               carbon_tax,
+                               )
     return project
 end
-
-
 
 """
 This function returns a Project struct based on CSV data and PSY data.
@@ -847,11 +869,8 @@ function create_project(projectdata::DataFrames.DataFrameRow,
                           lag_bool::Bool) where T <: Union{PSY.Generator, PSY.Storage}
 
     name = get_name(device)
-
     base_power = PSY.get_base_power(device)
-
     size = get_device_size(device) * base_power
-
     products = create_products(simulation_data,
                                projectdata)
 
@@ -860,8 +879,6 @@ function create_project(projectdata::DataFrames.DataFrameRow,
     retirement_year,
     end_life_year,
     finance_data = create_investment_data(size, projectdata, investor_dir, simulation_data, products, investor_name, scenario_names, lag_bool)
-
     project = create_tech_type(name, device, projectdata, size, base_power, decision_year, construction_year, retirement_year, end_life_year, products, finance_data)
-
     return project
 end
