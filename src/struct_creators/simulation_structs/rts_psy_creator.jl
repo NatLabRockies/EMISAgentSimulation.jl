@@ -47,44 +47,6 @@ function create_rts_sys(rts_dir::String,
                         ED_horizon::Int64,
                         ED_interval::Int64,)
 
-    # da_products = split(read_data(joinpath(simulation_dir, "markets_data", "reserve_products.csv"))[1,"da_products"], "; ")
-    #
-    # rts_src_dir = joinpath(rts_dir, "RTS_Data", "SourceData")
-    # rts_siip_dir = joinpath(rts_dir, "RTS_Data", "FormattedData", "SIIP");
-    #
-    # rawsys = PSY.PowerSystemTableData(
-    #         rts_src_dir,
-    #         base_power,
-    #         joinpath(rts_siip_dir, "user_descriptors.yaml"),
-    #         timeseries_metadata_file = joinpath(rts_siip_dir, "timeseries_pointers.json"),
-    #         );
-    #
-    # sys_UC = PSY.System(rawsys; time_series_resolution = Dates.Minute(da_resolution));
-    #
-    # services_UC = get_system_services(sys_UC)
-    #
-    # for service in services_UC
-    #     if !(PSY.get_name(service) in da_products)
-    #         PSY.remove_component!(sys_UC, service)
-    #     end
-    # end
-    #
-    # rt_products = split(read_data(joinpath(simulation_dir, "markets_data", "reserve_products.csv"))[1,"rt_products"], "; ")
-    #
-    # sys_ED = PSY.System(rawsys; time_series_resolution = Dates.Minute(rt_resolution));
-    #
-    # services_ED = get_system_services(sys_ED)
-    #
-    # for service in services_ED
-    #     if !(PSY.get_name(service) in rt_products)
-    #         PSY.remove_component!(sys_ED, service)
-    #     end
-    # end
-    #
-    # pruned_unit = specify_pruned_units()
-    # prune_system_devices!(sys_UC, pruned_unit)
-    # prune_system_devices!(sys_ED, pruned_unit)
-
     ntp_ts_data_dir = joinpath(rts_dir, "..", "..", "Feb2024_ERCOT_2011_MARKET_Test_NGUO_LDES", "NTP_TimeSeries_Data", "input_processing")
 
     sys_MDs = Vector{PSY.System}()
@@ -122,7 +84,7 @@ function create_rts_sys(rts_dir::String,
                 loadyear,
                 "dayahead",
                 supercc_scenario,
-                75.0, #GW
+                75.0, # GW
                 MD_horizon, # hours
                 MD_interval, # hours
                 MD_sys_filename,
@@ -147,7 +109,7 @@ function create_rts_sys(rts_dir::String,
                 loadyear,
                 "dayahead",
                 supercc_scenario,
-                75.0, #GW
+                75.0, # GW
                 UC_horizon, # hours
                 UC_interval, # hours
                 UC_filename,
@@ -183,7 +145,7 @@ function create_rts_sys(rts_dir::String,
                     loadyear,
                     "realtime",
                     supercc_scenario_ed,
-                    75.0, #GW
+                    75.0, # GW
                     ED_horizon, # hours
                     ED_interval, # hours
                     ED_filename,
@@ -450,7 +412,8 @@ function create_sys_w_updated_ts(
         loadscaler = loadscaler_rt
     end
 
-    for d in get_components(StandardLoad, sys_MD)
+    sys_loads = Union{StandardLoad, PowerLoad}
+    for d in get_components(sys_loads, sys_MD)
         # println("Processing region: $(get_name(get_bus(d)))")
         #create dictionary
         # revisedts = Dict{DateTime, Array{Float64}}()
@@ -462,7 +425,7 @@ function create_sys_w_updated_ts(
         baseload = get_max_active_power(d)
 
         # Get the loads in the zone and caculate the proportion that this load represents
-        loads_in_zone = PSY.get_components(x -> PSY.get_area(PSY.get_bus(x)) == zone, StandardLoad, sys_MD)
+        loads_in_zone = PSY.get_components(x -> PSY.get_area(PSY.get_bus(x)) == zone, sys_loads, sys_MD)
         zonal_load_sum = sum(get_max_active_power.(loads_in_zone))
         proportion = baseload / zonal_load_sum
         
@@ -485,7 +448,7 @@ function create_sys_w_updated_ts(
             push!(revisedts, datetimeindex => rtseries)
         end
 
-        # conver to deterministic time series
+        # convert to deterministic time series
         revisedts_deterministic = PSY.Deterministic(;
             name="max_active_power",
             data=revisedts,
@@ -691,6 +654,8 @@ function create_PRAS_sys_json(
 )
     sys_PRAS = deepcopy(first(sys_EDs))
 
+    sys_loads = Union{StandardLoad, PowerLoad}
+
     start_datetime_PRAS = PSY.get_forecast_initial_timestamp(sys_PRAS)
     sys_PRAS_res = PSY.get_time_series_resolutions(sys_PRAS)[1]
     sys_PRAS_interval = Int(PSY.get_forecast_interval(sys_PRAS).value / sys_PRAS_res.value)
@@ -702,7 +667,7 @@ function create_PRAS_sys_json(
     ts_objects = Dict{String, Any}()
 
     ts_objects["gens"] = collect(PSY.get_components(x -> has_time_series(x, Deterministic) && PSY.get_prime_mover_type(x) in [PrimeMovers.PVe, PrimeMovers.WT, PrimeMovers.HY], Generator, sys_PRAS))
-    ts_objects["loads"] = collect(PSY.get_components(x -> has_time_series(x, Deterministic), PowerLoad, sys_PRAS))
+    ts_objects["loads"] = collect(PSY.get_components(x -> has_time_series(x, Deterministic), sys_loads, sys_PRAS))
 
     for (key, devices) in ts_objects
         for component_PRAS in devices
@@ -808,6 +773,8 @@ function create_PRAS_sys_NY_json(
 )
     sys_PRAS = deepcopy(first(sys_EDs))
 
+    sys_loads = Union{StandardLoad, PowerLoad}
+
     first_ts_temp_PRAS = first(PSY.get_time_series_multiple(sys_PRAS))
     start_datetime_PRAS = PSY.IS.get_initial_timestamp(first_ts_temp_PRAS)
     sys_PRAS_res = PSY.get_time_series_resolutions(sys_PRAS)[1]
@@ -818,7 +785,7 @@ function create_PRAS_sys_NY_json(
 
     # ts_objects["gens"] = collect(PSY.get_components(x -> PSY.get_prime_mover_type(x) in [PrimeMovers.PVe, PrimeMovers.WT, PrimeMovers.HY], Generator, sys_PRAS))
     ts_objects["gens"] = collect(PSY.get_components(x -> PSY.has_time_series(x) == true, Generator, sys_PRAS))
-    ts_objects["loads"] = collect(PSY.get_components(StandardLoad, sys_PRAS))
+    ts_objects["loads"] = collect(PSY.get_components(sys_loads, sys_PRAS))
 
     for (key, devices) in ts_objects
         if key == "gens"
