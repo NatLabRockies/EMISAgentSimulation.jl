@@ -28,7 +28,7 @@ function specify_pruned_units()
     pruned_unit[PSY.EnergyReservoirStorage] = ["313_STORAGE_1"]
 
     return pruned_unit
-    end
+end
 
 
 function create_rts_sys(rts_dir::String,
@@ -227,7 +227,7 @@ function create_sys_w_updated_ts(
     loadyear::Int64,
     market_stage::String, # dayahead, realtime
     scenario::String,
-    loadscaler_base::Float64, #GW
+    loadscaler_base::Float64, # GW
     horizon::Int64, # hours
     interval::Int64, # hours
     output_file::String,
@@ -303,6 +303,7 @@ function create_sys_w_updated_ts(
     end
 
     remove_time_series!(sys_MD, Deterministic)
+    remove_time_series!(sys_MD, DeterministicSingleTimeSeries)
 
     for component in get_components(x -> has_time_series(x, SingleTimeSeries), HydroDispatch, sys_MD)
 
@@ -564,84 +565,9 @@ function create_sys_w_updated_ts_ny(
     first_stage_number_of_forecast_filename::Union{Nothing, String}=nothing, # (only need input if first_stage is false)
 )
 
-    # df_bus_origin = CSV.read(joinpath(data_dir, "config", "bus_config.csv"), DataFrame)
-
-    # #--------------------------------------------
-    # # Load Forecasts !!!!!!!!!!!!! CHECK SYSTEM BASE !!!!!!!!!
-    # #--------------------------------------------
-
-    # first_ts_temp_MD = first(PSY.get_time_series_multiple(sys_MD))
-    # start_datetime_MD = PSY.IS.get_initial_timestamp(first_ts_temp_MD);
-    # sys_MD_res = PSY.get_time_series_resolutions(sys_MD)[1]
-    # finish_datetime_MD = start_datetime_MD + Dates.Hour(8759*sys_MD_res);
-    # # timestep here indicate how many MD periods are being constructed
-    # timestep = StepRange(start_datetime_MD, sys_MD_res*interval, finish_datetime_MD);
-
-    # profile = DataFrame(CSV.File(joinpath(data_dir, "load_profile", "Baseload", "Baseload_$(loadyear).csv")))
-    # profile[:, "time"] = StepRange(start_datetime_MD, sys_MD_res, finish_datetime_MD)
-
-    # ######### aggregate nodal load to zonal node #########
-    # valid_buses = string.(df_bus_origin.busIdx)
-    # bus_cols = intersect(names(profile), valid_buses)
-
-    # df_long = stack(profile, bus_cols, variable_name=:busIdx, value_name=:load)
-    # df_long.busIdx = parse.(Int, df_long.busIdx)
-
-    # df_with_zone = leftjoin(df_long, df_bus_origin[:, [:busIdx, :zone]], on=:busIdx)
-    # grouped = combine(groupby(df_with_zone, [:time, :zone]), :load => sum => :zonal_load)
-    # zonal_load_profile = unstack(grouped, :time, :zone, :zonal_load)
-
-    # for d in get_components(StandardLoad, sys_MD)
-    #     # println("Processing region: $(get_name(get_bus(d)))")
-    #     #create dictionary
-    #     # revisedts = Dict{DateTime, Array{Float64}}()
-    #     revisedts = DataStructures.SortedDict{DateTime,Vector}()
-
-    #     newtsdata = zonal_load_profile[!, PSY.get_name(PSY.get_bus(d))]
-    #     baseload = get_max_active_power(d)
-    #     newtsdata = newtsdata./baseload
-    #     # newtsdata = newtsdata.*1000
-    #     # newtsdata = newtsdata./loadscaler # scale 2021 to 75GW peak
-
-    #     for t in 1:length(timestep)
-    #         rtseries=[]
-    #         datetimeindex = timestep[t]
-    #         if t < 8760/interval
-    #             rtseries = newtsdata[(interval*(t-1)+1):(interval*(t-1)+horizon)]
-    #         elseif t == ceil(Int, 8760/interval)
-    #             rtseries = [newtsdata[(interval*(t-1)+1):8760];newtsdata[1:horizon-(8760-(interval*(t-1)))]]
-    #         else
-    #             # simply use the end of the previous timeseries as the new start
-    #             new_start = horizon-(8760-(interval*(ceil(Int, 8760/interval)-1)))
-    #             rtseries = newtsdata[new_start+(t-ceil(Int, 8760/interval)-1)*interval+1:new_start+(t-ceil(Int, 8760/interval)-1)*interval+horizon]
-    #         end
-    #         push!(revisedts, datetimeindex => rtseries)
-    #     end
-
-    #     # conver to deterministic time series
-    #     revisedts_deterministic = PSY.Deterministic(;
-    #         name="max_active_power",
-    #         data=revisedts,
-    #         resolution=Dates.Hour(1),
-    #         scaling_factor_multiplier=get_max_active_power
-    #     )
-
-    #     # remove old time series
-    #     # remove_time_series!(sys_DA, Deterministic, d, "max_active_power")
-    #     # add new time series to dataset
-    #     add_time_series!(sys_MD, d, revisedts_deterministic)
-    # end
-
     sys_MD = initial_sys
     PSY.set_units_base_system!(sys_MD, PSY.IS.UnitSystem.SYSTEM_BASE)
     to_json(sys_MD, output_file, force=true)
-
-    # number_of_forecast = sys_MD.data.time_series_params.forecast_params.count
-    # if first_stage
-    #     open(first_stage_number_of_forecast_filename, "w") do file
-    #         write(first_stage_number_of_forecast_filename, string(number_of_forecast))
-    #     end
-    # end
 
     return
 
@@ -653,7 +579,6 @@ function create_PRAS_sys_json(
     output_file::String
 )
     sys_PRAS = deepcopy(first(sys_EDs))
-
     sys_loads = Union{StandardLoad, PowerLoad}
 
     start_datetime_PRAS = PSY.get_forecast_initial_timestamp(sys_PRAS)
@@ -665,7 +590,6 @@ function create_PRAS_sys_json(
     timestep = StepRange(start_datetime_PRAS, sys_PRAS_res * sys_PRAS_interval, finish_datetime_PRAS);
 
     ts_objects = Dict{String, Any}()
-
     ts_objects["gens"] = collect(PSY.get_components(x -> has_time_series(x, Deterministic) && PSY.get_prime_mover_type(x) in [PrimeMovers.PVe, PrimeMovers.WT, PrimeMovers.HY], Generator, sys_PRAS))
     ts_objects["loads"] = collect(PSY.get_components(x -> has_time_series(x, Deterministic), sys_loads, sys_PRAS))
 
@@ -712,12 +636,13 @@ function create_PRAS_sys_json(
         add_time_series!(sys_PRAS, service_PRAS, single_time_series)
     end
     remove_time_series!(sys_PRAS, Deterministic)
-
+    remove_time_series!(sys_PRAS, DeterministicSingleTimeSeries)
 
     for (key, devices) in ts_objects
         for component in devices
             revisedts = DataStructures.SortedDict{DateTime,Vector{Float64}}()
             newtsdata = values(get_time_series(SingleTimeSeries, component, "max_active_power").data)
+
     
             for t in 1:length(timestep)
                 rtseries=Vector{Float64}()
@@ -726,14 +651,14 @@ function create_PRAS_sys_json(
                 push!(revisedts, datetimeindex => rtseries)
             end
     
-            # conver to deterministic time series
+            # convert to deterministic time series
             revisedts_deterministic = PSY.Deterministic(;
                 name="max_active_power",
                 data=revisedts,
                 resolution=Dates.Hour(1),
                 scaling_factor_multiplier=get_max_active_power
-            )
-    
+            )    
+            
             add_time_series!(sys_PRAS, component, revisedts_deterministic)
         end
     end
@@ -760,7 +685,8 @@ function create_PRAS_sys_json(
         add_time_series!(sys_PRAS, service, revisedts_deterministic)
     end
 
-    remove_time_series!(sys_PRAS, SingleTimeSeries)
+    # remove_time_series!(sys_PRAS, SingleTimeSeries)
+    remove_time_series!(sys_PRAS, Deterministic)
     
     to_json(sys_PRAS, output_file, force=true)
 
