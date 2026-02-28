@@ -92,9 +92,15 @@ function gather_data(case::CaseDefinition)
     
     if get_siip_market_clearing(case)
         base_power = 100.0
-        sys_MDs, sys_UCs, sys_EDs, sys_PRAS, MD_horizon, MD_interval, UC_horizon, UC_interval, ED_horizon, ED_interval = 
-        create_rts_sys(test_system_dir, base_power, data_dir, get_scratch_dir(case), scenarios, pcm_scenario, simulation_years, get_da_resolution(case), get_rt_resolution(case),
-        get_md_horizon(case), get_md_interval(case), get_uc_horizon(case), get_uc_interval(case), get_ed_horizon(case), get_ed_interval(case),
+        sys_MDs, sys_UCs, sys_EDs, sys_PRAS,
+        MD_horizon, MD_interval, UC_horizon,
+        UC_interval, ED_horizon, ED_interval = create_rts_sys(test_system_dir, base_power, data_dir,
+                                                get_scratch_dir(case), scenarios, pcm_scenario,
+                                                simulation_years, get_da_resolution(case),
+                                                get_rt_resolution(case), get_md_horizon(case),
+                                                get_md_interval(case), get_uc_horizon(case),
+                                                get_uc_interval(case), get_ed_horizon(case),
+                                                get_ed_interval(case),
             )
     else
         sys_MD = nothing
@@ -136,7 +142,6 @@ function gather_data(case::CaseDefinition)
     ra_target_file = joinpath(data_dir, "markets_data", "resource_adequacy_targets.csv")
     ra_targets = Dict{String, Float64}()
     ra_metrics = Dict{String, Float64}()
-
 
     if isfile(ra_target_file)
         for row in eachrow(read_data(ra_target_file))
@@ -213,14 +218,19 @@ function gather_data(case::CaseDefinition)
     
     for scenario in scenarios
         #convert_thermal_clean_energy!(sys_PRAS[scenario])
+        PSY.transform_single_time_series!(sys_PRAS[scenario], Dates.Hour(Int(ED_horizon * 60 / get_rt_resolution(case))), Dates.Hour(ED_interval))   
+
         convert_thermal_fast_start!(sys_PRAS[scenario])
-        add_psy_ordc!(data_dir, markets_dict, sys_PRAS[scenario], "PRAS", scenario, 1, get_da_resolution(case), get_rt_resolution(case), get_reserve_penalty(case))
+        
+        add_psy_ordc!(data_dir, markets_dict, sys_PRAS[scenario],
+                     "PRAS", scenario, 1, get_da_resolution(case),
+                      get_rt_resolution(case), get_reserve_penalty(case))
 
         if markets_dict[:Inertia]
             add_psy_inertia!(data_dir, sys_PRAS[scenario], "PRAS", get_reserve_penalty(case), system_peak_load)
         end
 
-        PSY.transform_single_time_series!(sys_PRAS[scenario], Dates.Hour(Int(ED_horizon * 60 / get_rt_resolution(case))), Dates.Hour(ED_interval))   
+        
     end
  
     # Adding representative days availability data
