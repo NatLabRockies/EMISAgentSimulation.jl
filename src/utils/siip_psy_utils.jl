@@ -703,31 +703,18 @@ function add_psy_clean_energy_constraint!(sys::PSY.System,
 
 end
 
-function calculate_total_load(sys::PSY.System, time_resolution::Int64)
+function calculate_total_load(sys::PSY.System, time_resolution::Int64, period_of_interest::UnitRange{Int64})
     total_load = 0.0
 
-    # sys_interval = sys.data.time_series_params.forecast_params.interval
-    # sys_resolution = sys.data.time_series_params.resolution
-
-    nodal_loads = PSY.get_components(PSY.StandardLoad, sys)
+    nodal_loads = PSY.get_components(PSY_LOADS)
     for load in nodal_loads
-        # zone = "zone_$(PSY.get_name(PSY.get_area(PSY.get_bus(load))))"
         ts_data = PSY.get_data(PSY.get_time_series(
-                                                  PSY.SingleTimeSeries,
-                                                  load,
-                                                  "max_active_power"
-                                                  )
+                                PSY.SingleTimeSeries,
+                                load,
+                                "max_active_power")
                               )
-        # loadts_raw=PSY.get_data(PSY.get_time_series(PSY.Deterministic,
-        #                                        load,
-        #                                        "max_active_power"
-        #                                         ))
-        # ts_data =[]
-        # for timestep in keys(loadts_raw)
-        #     ts_data=[ts_data;loadts_raw[timestep][1:Int(sys_interval/sys_resolution)]]
-        # end
-        total_load += sum(TS.values(ts_data[1:8760*15]) * PSY.get_max_active_power(load)) * time_resolution / 60
 
+        total_load += sum(TS.values(ts_data[period_of_interest]) * PSY.get_max_active_power(load)) * time_resolution / DEFAULT_TIME_RESOLUTION
     end
     return total_load
 end
