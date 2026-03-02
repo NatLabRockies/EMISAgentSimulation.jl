@@ -1,0 +1,4 @@
+const PSY_LOADS = Union{PSY.StandardLoad, PSY.PowerLoad}
+
+const DEFAULT_TIME_RESOLUTION = 60
+const DEFAULT_HOURS_PER_YEAR = 8760
