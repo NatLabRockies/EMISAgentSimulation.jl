@@ -85,7 +85,8 @@ function create_rts_sys(rts_dir::String,
     # prune_system_devices!(sys_UC, pruned_unit)
     # prune_system_devices!(sys_ED, pruned_unit)
 
-    ntp_ts_data_dir = joinpath(rts_dir, "..", "..", "Feb2024_ERCOT_2011_MARKET_Test_CAVRAAM", "NTP_TimeSeries_Data", "input_processing")
+    # ntp_ts_data_dir = joinpath(rts_dir, "..", "..", "Feb2024_ERCOT_2011_MARKET_Test_CAVRAAM", "NTP_TimeSeries_Data", "input_processing")
+    ntp_ts_data_dir = joinpath(rts_dir, "nys_psy")
 
     sys_MDs = Vector{PSY.System}()
     sys_UCs = Vector{PSY.System}()
@@ -107,13 +108,14 @@ function create_rts_sys(rts_dir::String,
         MD_sys_filename = joinpath(rts_dir, "constructed_systems", pcm_scenario, "sim_year_$(sim_year)", "MD_sys_EMIS_$(MD_horizon)hor_$(MD_interval)int.json")
         MD_num_forecast_filename = joinpath(rts_dir, "constructed_systems", pcm_scenario, "sim_year_$(sim_year)", "MD_num_forecast_$(MD_horizon)hor_$(MD_interval)int.txt")
 
-        loadyear = 2020+sim_year
+        # NY - 22 year load data starts from 1998
+        loadyear = 1997+sim_year
         weatheryear = loadyear
 
         if !(isfile(MD_sys_filename) && isfile(MD_num_forecast_filename))
             println("MD json file doesn't exist. Creating required data.")   
             dir_exists(dirname(MD_sys_filename))         
-            sys_MD_initial = PSY.System(joinpath(rts_dir,"nys2019_zonal.json"), time_series_directory = scratch_dir);
+            sys_MD_initial = PSY.System(joinpath(rts_dir, "nys_psy", "nys2019_zonal.json"), time_series_directory = scratch_dir);
             # create MD system
             create_sys_w_updated_ts_ny(
                 ntp_ts_data_dir,
@@ -139,7 +141,7 @@ function create_rts_sys(rts_dir::String,
         if !(isfile(UC_filename))
             println("UC json file doesn't exist. Creating required json file.")  
             dir_exists(dirname(UC_filename))   
-            sys_UC_initial = PSY.System(joinpath(rts_dir, "nys2019_zonal.json"), time_series_directory = scratch_dir);
+            sys_UC_initial = PSY.System(joinpath(rts_dir, "nys_psy", "nys2019_zonal.json"), time_series_directory = scratch_dir);
             create_sys_w_updated_ts_ny(
                 ntp_ts_data_dir,
                 sys_UC_initial,
@@ -175,7 +177,7 @@ function create_rts_sys(rts_dir::String,
             if !isfile(ED_filename)
                 println("ED json file doesn't exist. Creating required json file.")  
                 dir_exists(dirname(ED_filename))   
-                sys_ED_initial = PSY.System(joinpath(rts_dir,"nys2019_zonal.json"), time_series_directory = scratch_dir);
+                sys_ED_initial = PSY.System(joinpath(rts_dir, "nys_psy", "nys2019_zonal.json"), time_series_directory = scratch_dir);
                 create_sys_w_updated_ts_ny(
                     ntp_ts_data_dir,
                     sys_ED_initial,
@@ -658,6 +660,46 @@ function create_sys_w_updated_ts_ny(
 
     sys_MD = initial_sys
     PSY.set_units_base_system!(sys_MD, PSY.IS.UnitSystem.SYSTEM_BASE)
+    ###### update load time series ######
+    #--------------------------------------------
+
+    zonal_load_profile = CSV.read(joinpath(data_dir, "..", "nygrid2sienna", "load_profile_zonal", "Baseload", "Baseload_$(loadyear).csv"), DataFrame) 
+
+    for d in get_components(StandardLoad, sys_MD)
+        bus_name = PSY.get_name(PSY.get_bus(d))
+        newtsdata = zonal_load_profile[!, bus_name]
+        first_ts_temp_MD = first(PSY.get_time_series_multiple(sys_MD))
+        start_timestamp = PSY.IS.get_initial_timestamp(first_ts_temp_MD)
+        end_timestamp = start_timestamp + Dates.Hour(8760 - 1)
+        timestamps = start_timestamp:Hour(1):end_timestamp
+
+        # remove old time series
+        remove_time_series!(sys_MD, SingleTimeSeries, d, "max_active_power")
+
+        if maximum(newtsdata) == 0.0
+            PSY.add_time_series!(
+                sys_MD,
+                d,
+                PSY.SingleTimeSeries(
+                    "max_active_power",
+                    TS.TimeArray(timestamps, newtsdata / minimum(newtsdata)),
+                    scaling_factor_multiplier=PSY.get_max_active_power,
+                )
+            )
+        else
+            PSY.add_time_series!(
+                sys_MD,
+                d,
+                PSY.SingleTimeSeries(
+                    "max_active_power",
+                    TS.TimeArray(timestamps, newtsdata / maximum(newtsdata)),
+                    scaling_factor_multiplier=PSY.get_max_active_power,
+                )
+            )
+        end
+
+    end
+
     to_json(sys_MD, output_file, force=true)
 
     # number_of_forecast = sys_MD.data.time_series_params.forecast_params.count

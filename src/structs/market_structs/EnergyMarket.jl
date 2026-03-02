@@ -10,7 +10,8 @@ struct EnergyMarket{Z, T}
     price_cap::AxisArrays.AxisArray{Float64, 1}       # $/MWh
 
     function EnergyMarket{}(demand::AxisArrays.AxisArray{Float64, 2}, price_cap::AxisArrays.AxisArray{Float64, 1})
-        @assert all(demand .>= 0)
+        ## NY Change to accommodate negative loads
+        # @assert all(demand .>= 0)
         @assert all(price_cap .>= 0)
         Z = size(demand, 1)
         T = size(demand, 2)

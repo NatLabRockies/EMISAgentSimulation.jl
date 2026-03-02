@@ -234,7 +234,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
         end
 
         for scenario in keys(sys_PRAS)
-            ra_metrics, shortfall = calculate_RA_metrics(deepcopy(sys_PRAS[scenario]),false,get_results_dir(simulation), get_outage_dir(case), iteration_year)
+            ra_metrics, shortfall = calculate_RA_metrics(deepcopy(sys_PRAS[scenario]),false,get_results_dir(simulation), get_outage_dir(case), iteration_year, total_horizon)
             FileIO.save(joinpath(get_results_dir(simulation), "shortfall_data_$(scenario)_year$(iteration_year).jld2"), "shortfall_data", shortfall)
             println(ra_metrics)
             set_metrics!(get_resource_adequacy(simulation)[scenario], iteration_year, ra_metrics)

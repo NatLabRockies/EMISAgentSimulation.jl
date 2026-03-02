@@ -124,7 +124,9 @@ function update_annual_cashflow!(project::Union{Project{Retired}, Project{Existi
 
     finance_data = get_finance_data(project)
     annual_revenue = sum(get_realized_profit(finance_data)[:, iteration_year])
-    
+
+    @info "length of profit array for $(get_name(project)): $(size(get_realized_profit(finance_data), 2))"
+
     annual_cashflow = annual_revenue - get_fixed_OM_cost(finance_data)
     set_annual_cashflow!(finance_data, iteration_year, get_annual_cashflow(finance_data)[iteration_year] + annual_cashflow)
     return

@@ -232,7 +232,8 @@ This function does nothing if Device is not of RenewableGen type.
 function add_device_forecast_PRAS!(sys::PSY.System,
                                    device::D,
                                    availability_raw_rt::Vector{Float64},
-                                   rt_resolution::Int64) where D <: Union{PSY.ThermalGen, PSY.HydroGen, PSY.Storage}
+                                   rt_resolution::Int64,
+                                   simulation_years::Int64) where D <: Union{PSY.ThermalGen, PSY.HydroGen, PSY.Storage}
 
     return
 end
@@ -244,12 +245,12 @@ This function adds forecast timeseries to PRAS System if Device is of RenewableG
 function add_device_forecast_PRAS!(sys::PSY.System,
                                    device::D,
                                    availability_raw_rt::Vector{Float64},
-                                   rt_resolution::Int64
+                                   rt_resolution::Int64,
+                                   simulation_years::Int64
                                     ) where D <: PSY.RenewableGen
 
-    
-    start_datetime = Dates.DateTime("2019-01-01T00:00:00")                          
-    timestamp = range(start_datetime, step = Hour(1), length = 8760 * 15)   
+    start_datetime = Dates.DateTime("2019-01-01T00:00:00")
+    timestamp = range(start_datetime, step = Hour(1), length = 8760 * simulation_years)
     value_ts = availability_raw_rt
     data = TS.TimeArray(timestamp, value_ts)
     single_time_series = PSY.SingleTimeSeries("max_active_power", data, scaling_factor_multiplier=get_max_active_power)
@@ -673,7 +674,7 @@ function add_psy_clean_energy_constraint!(sys::PSY.System,
 
 end
 
-function calculate_total_load(sys::PSY.System, time_resolution::Int64)
+function calculate_total_load(sys::PSY.System, time_resolution::Int64, simulation_years::Int64)
     total_load = 0.0
 
     # sys_interval = sys.data.time_series_params.forecast_params.interval
@@ -696,7 +697,7 @@ function calculate_total_load(sys::PSY.System, time_resolution::Int64)
         # for timestep in keys(loadts_raw)
         #     ts_data=[ts_data;loadts_raw[timestep][1:Int(sys_interval/sys_resolution)]]
         # end
-        total_load += sum(TS.values(ts_data[1:8760*15]) * PSY.get_max_active_power(load)) * time_resolution / 60
+        total_load += sum(TS.values(ts_data[1:8760*simulation_years]) * PSY.get_max_active_power(load)) * time_resolution / 60
 
     end
     return total_load

@@ -222,7 +222,7 @@ function finish_construction!(projects::Vector{<: Project{<: BuildPhase}},
                 availability_raw_rt = availability_df_rt[:, Symbol("$(type)_$(zone)")]
             end
 
-            add_device_forecast_PRAS!(sys_PRAS[scenario], PSY.get_component(typeof(PSY_project_PRAS), sys_PRAS[scenario], PSY.get_name(PSY_project_PRAS)), availability_raw_rt, rt_resolution)
+            add_device_forecast_PRAS!(sys_PRAS[scenario], PSY.get_component(typeof(PSY_project_PRAS), sys_PRAS[scenario], PSY.get_name(PSY_project_PRAS)), availability_raw_rt, rt_resolution, simulation_years)
 
             if type == "NU_ST" || type == "RE_CT" || typeof(PSY_project_PRAS) == PSY.RenewableDispatch || typeof(PSY_project_PRAS) == PSY.HydroEnergyReservoir || typeof(PSY_project_PRAS) == PSY.HydroDispatch
                 if type == "RE_CT"
