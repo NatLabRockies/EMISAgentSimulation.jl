@@ -334,7 +334,7 @@ function calculate_derating_factors(
         rt_resolution,
         simulation)
 
-    system_period_of_interest = range(1, length = 8760 * 15)
+    system_period_of_interest = range(1, length = 8760 * simulation_years)
     correlated_outage_csv_location = joinpath(outage_dir, "ThermalFOR_2011.csv")
 
     # create "Base" PRAS system to be used for calculation of ELCC or EFC.

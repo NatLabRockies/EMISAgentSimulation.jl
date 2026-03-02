@@ -81,8 +81,8 @@ function add_investor_project_availability!(test_system_dir::String,
                                             projects::Vector{Project},
                                             sys_UC::Union{Nothing, PSY.System})
                                                                                
-    pv_availability_file = CSV.read(joinpath(test_system_dir, "RTS_Data", "upv_availability.csv"), DataFrame)
-    wind_availability_file = CSV.read(joinpath(test_system_dir, "RTS_Data", "wind_availability.csv"), DataFrame)
+    pv_availability_file = CSV.read(joinpath(test_system_dir, "RTS_Data", scenario, "year_$(sim_year)", "upv_availability.csv"), DataFrame)
+    wind_availability_file = CSV.read(joinpath(test_system_dir, "RTS_Data", scenario, "year_$(sim_year)", "wind_availability.csv"), DataFrame)
 
     system_availability_data = DataFrames.DataFrame(CSV.File(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Availability", "DAY_AHEAD_availability.csv")))
     system_availability_data_rt = DataFrames.DataFrame(CSV.File(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Availability", "REAL_TIME_availability.csv")))
@@ -326,6 +326,8 @@ function create_investment_data(size::Float64,
     expected_utility = zeros(num_profit_years)
 
     annual_cashflow = zeros(num_profit_years)
+
+    @info("num_profit_years: $num_profit_years")
 
     finance_data = Finance(investment_cost,
                            effective_investment_cost,
@@ -798,6 +800,7 @@ function create_project(projectdata::DataFrames.DataFrameRow,
                           lag_bool::Bool)
 
     name = String(projectdata["GEN_UID"])
+    @info "Creating project: $name"
 
     unit_type = String(projectdata["Unit Type"])
     size_raw = projectdata["Size"]

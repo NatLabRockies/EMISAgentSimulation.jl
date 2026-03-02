@@ -15,11 +15,12 @@ function calculate_RA_metrics(sys::PSY.System,
                               exportoutage::Bool,
                               base_dir::String,
                               outage_dir::String,
-                              iteration_year::Int64;
+                              iteration_year::Int64,
+                              simulation_years::Int64;
                               samples::Int64 = 100,
                               seed::Int64 = 42)
 
-    system_period_of_interest = range(1, length = 8760 * 15);
+    system_period_of_interest = range(1, length = 8760 * simulation_years);
     correlated_outage_csv_location = joinpath(outage_dir, "ThermalFOR_scenario_1_new.csv")
     # pras_system = make_pras_system(sys,
     #                                 system_model="Single-Node",
@@ -30,11 +31,16 @@ function calculate_RA_metrics(sys::PSY.System,
     #                                 availability_flag=true,
     #                                 outage_csv_location = correlated_outage_csv_location);
 
-    total_load = calculate_total_load(sys, 60)
+    sys_PRAS = deepcopy(sys)
+    sys_PRAS = add_outages_to_psy_system!(sys_PRAS, outage_dir, iteration_year, simulation_years)
+    num_generators = length(PSY.get_components(PSY.Generator, sys_PRAS))
+    @info "Number of generators in PRAS system: $num_generators"
+
+    total_load = calculate_total_load(sys_PRAS, 60, simulation_years)
 
     ra_metrics = Dict{String, Float64}()
     # seed = 3
-    shortfall, gens_avail= @time PRAS.assess(sys, PSY.Area, PRAS.SequentialMonteCarlo(samples = samples, seed = seed),  PRAS.Shortfall(),  PRAS.GeneratorAvailability()) 
+    shortfall, gens_avail= @time PRAS.assess(sys_PRAS, PSY.Area, PRAS.SequentialMonteCarlo(samples = samples, seed = seed),  PRAS.Shortfall(),  PRAS.GeneratorAvailability()) 
     @info "Finished PRAS simulation... "
     eue_overall = PRAS.EUE(shortfall)
     lole_overall = PRAS.LOLE(shortfall)
@@ -50,7 +56,7 @@ function calculate_RA_metrics(sys::PSY.System,
         CSV.write(joinpath(outage_csv_location,"1/Generator_year$(iteration_year+1).csv"), df_outage,writeheader = true)
     end
 
-    ra_metrics["LOLE"] = val(lole_overall) / 15
+    ra_metrics["LOLE"] = val(lole_overall) / simulation_years
     ra_metrics["NEUE"] = val(eue_overall) * 1e6 / total_load
 
     PSY.set_units_base_system!(sys, PSY.IS.UnitSystem. DEVICE_BASE)
@@ -135,7 +141,7 @@ function add_capacity_market_project!(capacity_market_system::PSY.System,
         availability_raw_rt = availability_df_rt[:, Symbol("$(type)_$(zone)")]
     end
 
-    add_device_forecast_PRAS!(capacity_market_system, PSY_project, availability_raw_rt, rt_resolution)
+    add_device_forecast_PRAS!(capacity_market_system, PSY_project, availability_raw_rt, rt_resolution, simulation_years)
 
     return
 end
@@ -253,7 +259,7 @@ function update_delta_irm!(initial_system::PSY.System,
 
         @time begin
         if !isempty(ra_targets)
-            ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, results_dir, outage_dir, iteration_year)
+            ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, results_dir, outage_dir, iteration_year, simulation_years)
             #println(ra_metrics)
             adequacy_conditions_met, scarcity_conditions_met = check_ra_conditions(ra_targets, ra_metrics)
 
@@ -280,7 +286,7 @@ function update_delta_irm!(initial_system::PSY.System,
                         count += 1
                     end
                     
-                    ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, results_dir, outage_dir, iteration_year)
+                    ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, results_dir, outage_dir, iteration_year, simulation_years)
                     #println(ra_metrics)
                     adequacy_conditions_met, scarcity_conditions_met = check_ra_conditions(ra_targets, ra_metrics)
                 end
@@ -293,7 +299,7 @@ function update_delta_irm!(initial_system::PSY.System,
                         removed_capacity = get_device_size(removed_project) * PSY.get_base_power(removed_project)
                         total_removed_capacity += removed_capacity
                         PSY.remove_component!(capacity_market_system, removed_project)
-                        ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, results_dir, outage_dir, iteration_year)
+                        ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, results_dir, outage_dir, iteration_year, simulation_years)
                         #println(ra_metrics)
                         adequacy_conditions_met, scarcity_conditions_met = check_ra_conditions(ra_targets, ra_metrics)
                         count += 1
@@ -327,6 +333,7 @@ function create_base_system(initial_system::PSY.System,
     simulation::Union{AgentSimulation,AgentSimulationData})
 
     capacity_market_year = iteration_year + capacity_forward_years - 1
+    simulation_years = get_total_horizon(get_case(simulation))
 
     capacity_market_system = create_capacity_mkt_system(initial_system,
                                                         active_projects,
@@ -335,7 +342,7 @@ function create_base_system(initial_system::PSY.System,
                                                         iteration_year,
                                                         simulation_dir,
                                                         rt_resolution,
-                                                        get_total_horizon(get_case(simulation)))
+                                                        simulation_years)
 
     ra_targets = get_targets(resource_adequacy)
     println(ra_targets)
@@ -350,7 +357,7 @@ function create_base_system(initial_system::PSY.System,
 
     @time begin
     if !isempty(ra_targets)
-        ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, get_results_dir(simulation), outage_dir, iteration_year;samples = 100)
+        ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, get_results_dir(simulation), outage_dir, iteration_year, simulation_years;samples = 100)
 
         println(ra_metrics)
         adequacy_conditions_met, scarcity_conditions_met = check_ra_conditions(ra_targets, ra_metrics)
@@ -377,7 +384,7 @@ function create_base_system(initial_system::PSY.System,
                     count += 1
                 end
                 
-                ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false,get_results_dir(simulation), outage_dir, iteration_year;samples = 100)
+                ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false,get_results_dir(simulation), outage_dir, iteration_year, simulation_years;samples = 100)
                 println("Added Capacity")
                 println(ra_metrics)
                 adequacy_conditions_met, scarcity_conditions_met = check_ra_conditions(ra_targets, ra_metrics)
@@ -392,7 +399,7 @@ function create_base_system(initial_system::PSY.System,
                     removed_capacity = get_device_size(removed_project) * PSY.get_base_power(removed_project)
                     total_removed_capacity += removed_capacity
                     PSY.remove_component!(capacity_market_system, removed_project)
-                    ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false,get_results_dir(simulation), outage_dir, iteration_year;samples = 100)
+                    ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false,get_results_dir(simulation), outage_dir, iteration_year, simulation_years;samples = 100)
                     println("Removed Capacity")
                     println(ra_metrics)
                     adequacy_conditions_met, scarcity_conditions_met = check_ra_conditions(ra_targets, ra_metrics)
@@ -405,4 +412,110 @@ function create_base_system(initial_system::PSY.System,
     end
 
     return capacity_market_system
+end
+
+
+function add_outages_to_psy_system!(sys_PRAS::PSY.System,
+    outage_dir::String,
+    iteration_year::Int64,
+    simulation_years::Int64)
+
+    lambda_ts = CSV.read(joinpath(outage_dir, "gen_lambdas.csv"), DataFrames.DataFrame)
+    mu_ts = CSV.read(joinpath(outage_dir, "gen_mus.csv"), DataFrames.DataFrame)
+
+    first_ts_temp_PRAS = first(PSY.get_time_series_multiple(sys_PRAS))
+    start_datetime_PRAS = PSY.IS.get_initial_timestamp(first_ts_temp_PRAS)
+    sys_PRAS_res = PSY.get_time_series_resolutions(sys_PRAS)[1]
+    finish_datetime_PRAS = start_datetime_PRAS + Dates.Hour(((simulation_years * 8760) - 1) * sys_PRAS_res)
+    timestep = StepRange(start_datetime_PRAS, sys_PRAS_res, finish_datetime_PRAS);
+
+    # Default values for λ and µ
+    # Outage probability (λ) and recovery probability (µ) 
+    λ = 0.04
+    µ = 1.0
+
+    num_generators = length(PSY.get_components(PSY.Generator, sys_PRAS))
+    @info "Adding outage information to $(num_generators) generators in the system..."
+
+    for gen in PSY.get_components(PSY.Generator, sys_PRAS)
+        gen_name = PSY.get_name(gen)
+
+        # remove fuel cost time series
+        remove_time_series!(sys_PRAS, SingleTimeSeries, gen, "fuel_cost")
+
+        outage = PSY.GeometricDistributionForcedOutage(;
+        mean_time_to_recovery = 1 - µ,
+        outage_transition_probability = λ,
+        )
+
+        outage_probability_values = Float64[]
+        recovery_probability_values = Float64[]
+
+        PSY.add_supplemental_attribute!(sys_PRAS, gen, outage)
+
+        if gen_name in names(lambda_ts)
+            outage_probability_values = lambda_ts[!, Symbol(gen_name)]
+            outage_probability_values = outage_probability_values[1:length(timestep)]
+        end
+        if gen_name in names(mu_ts)
+            recovery_probability_values = mu_ts[!, Symbol(gen_name)]
+            recovery_probability_values = recovery_probability_values[1:length(timestep)]
+        end
+
+        if length(outage_probability_values) > 0
+            outage_probability_ts = TS.TimeArray(timestep, outage_probability_values)
+            ts = SingleTimeSeries(; name = "outage_probability", data = outage_probability_ts)
+            PSY.add_time_series!(sys_PRAS, outage, ts)
+        end
+        if length(recovery_probability_values) > 0
+            recovery_probability_ts = TS.TimeArray(timestep, recovery_probability_values)
+            ts = SingleTimeSeries(; name = "recovery_probability", data = recovery_probability_ts)
+            PSY.add_time_series!(sys_PRAS, outage, ts)
+        end
+
+    end
+
+    load_df = DataFrame()
+    base_year = 1998
+    for load_year in base_year:base_year + simulation_years - 1
+        zone_load_profile = CSV.read("/projects/gmlcmarkets/Phase2_EMIS_Analysis/Jul2025_NY_IMPACT_Test_PGHOSH/RTS-GMLC_NY/nygrid2sienna/load_profile_zonal/Baseload/Baseload_$(load_year).csv", DataFrame)
+        load_df = vcat(load_df, zone_load_profile)
+        # load_year = 2019
+    end
+
+    for load in PSY.get_components(PSY.StandardLoad, sys_PRAS)
+        name = PSY.get_name(load)
+        bus_name = PSY.get_name(PSY.get_bus(load))
+        remove_time_series!(sys_PRAS, SingleTimeSeries, load, "max_active_power")
+        if bus_name in names(load_df)
+            load_profile = load_df[!, bus_name]
+            load_profile = load_profile[1:length(timestep)]
+            if maximum(load_profile) == 0.0
+                PSY.add_time_series!(
+                    sys_PRAS,
+                    load,
+                    PSY.SingleTimeSeries(
+                        "max_active_power",
+                        TS.TimeArray(timestep, load_profile / minimum(load_profile)),
+                        scaling_factor_multiplier=PSY.get_max_active_power,
+                    )
+                )
+            else
+                PSY.add_time_series!(
+                    sys_PRAS,
+                    load,
+                    PSY.SingleTimeSeries(
+                        "max_active_power",
+                        TS.TimeArray(timestep, load_profile / maximum(load_profile)),
+                        scaling_factor_multiplier=PSY.get_max_active_power,
+                    )
+                )
+            end
+        else
+            @warn "Load profile for $(bus_name) not found in outage directory."
+        end
+    end
+
+
+    return sys_PRAS
 end
