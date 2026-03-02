@@ -45,7 +45,9 @@ function create_rts_sys(rts_dir::String,
                         UC_horizon::Int64,
                         UC_interval::Int64,
                         ED_horizon::Int64,
-                        ED_interval::Int64,)
+                        ED_interval::Int64,
+                        outage_dir::Union{Nothing, String}=nothing,
+                        )
 
     ntp_ts_data_dir = joinpath(rts_dir, "..", "..", "Feb2024_ERCOT_2011_MARKET_Test_NGUO_LDES", "NTP_TimeSeries_Data", "input_processing")
 
@@ -65,11 +67,10 @@ function create_rts_sys(rts_dir::String,
     end
 
     for sim_year in 1:simulation_years
-
         MD_sys_filename = joinpath(rts_dir, "constructed_systems", pcm_scenario, "sim_year_$(sim_year)", "MD_sys_EMIS_$(MD_horizon)hor_$(MD_interval)int.json")
         MD_num_forecast_filename = joinpath(rts_dir, "constructed_systems", pcm_scenario, "sim_year_$(sim_year)", "MD_num_forecast_$(MD_horizon)hor_$(MD_interval)int.txt")
 
-        loadyear = 2020+sim_year
+        loadyear = DEFAULT_LOAD_YEAR + sim_year
         weatheryear = loadyear
 
         if !(isfile(MD_sys_filename) && isfile(MD_num_forecast_filename))
@@ -84,7 +85,7 @@ function create_rts_sys(rts_dir::String,
                 loadyear,
                 "dayahead",
                 supercc_scenario,
-                75.0, # GW
+                DEFAULT_RTS_LOAD, # GW
                 MD_horizon, # hours
                 MD_interval, # hours
                 MD_sys_filename,
@@ -92,10 +93,10 @@ function create_rts_sys(rts_dir::String,
                 nothing,
                 nothing,
                 MD_num_forecast_filename,
+                outage_dir,
             )
         end        
         push!(sys_MDs, PSY.System(MD_sys_filename, time_series_directory = scratch_dir));
-
 
         UC_filename = joinpath(rts_dir, "constructed_systems", pcm_scenario, "sim_year_$(sim_year)", "DA_sys_EMIS_$(UC_horizon)hor_$(UC_interval)int_$(MD_horizon)mdhor_$(MD_interval)mdint.json")
         if !(isfile(UC_filename))
@@ -109,7 +110,7 @@ function create_rts_sys(rts_dir::String,
                 loadyear,
                 "dayahead",
                 supercc_scenario,
-                75.0, # GW
+                DEFAULT_RTS_LOAD, # GW
                 UC_horizon, # hours
                 UC_interval, # hours
                 UC_filename,
@@ -117,6 +118,7 @@ function create_rts_sys(rts_dir::String,
                 MD_horizon,
                 MD_interval,
                 MD_num_forecast_filename,
+                outage_dir,
             )
         end
         push!(sys_UCs, PSY.System(UC_filename, time_series_directory = scratch_dir));
@@ -145,7 +147,7 @@ function create_rts_sys(rts_dir::String,
                     loadyear,
                     "realtime",
                     supercc_scenario_ed,
-                    75.0, # GW
+                    DEFAULT_RTS_LOAD, # GW
                     ED_horizon, # hours
                     ED_interval, # hours
                     ED_filename,
@@ -153,6 +155,7 @@ function create_rts_sys(rts_dir::String,
                     MD_horizon,
                     MD_interval,
                     MD_num_forecast_filename,
+                    outage_dir,
                 )
             end
             push!(sys_EDs_dict[scenario], PSY.System(ED_filename, time_series_directory = scratch_dir));
@@ -212,8 +215,6 @@ end
 function remove_vre_gens!(sys::PSY.System)
     for gen in get_all_techs(sys)
         if typeof(gen) == PSY.RenewableDispatch
-            #println(PSY.get_name(gen))
-            #println(PSY.get_ext(gen))
             PSY.remove_component!(sys, gen)
         end
     end
@@ -235,6 +236,7 @@ function create_sys_w_updated_ts(
     first_stage_horizon::Union{Nothing, Integer}=nothing, # hour (only need input if first_stage is false)
     first_stage_interval::Union{Nothing, Integer}=nothing, # hour (only need input if first_stage is false)
     first_stage_number_of_forecast_filename::Union{Nothing, String}=nothing, # (only need input if first_stage is false)
+    outages_dir::Union{Nothing, String}=nothing,
 )
 
     #--------------------------------------------
@@ -270,7 +272,7 @@ function create_sys_w_updated_ts(
 
     # if not the first stage, I think finish_datetime_MD needs to be first stage's number_of_forecast * interval + (horizon - interval) -- all from first stage (need to pass down these parameters)
     if first_stage == true
-        finish_datetime_MD = start_datetime_MD + Dates.Hour(8759*sys_MD_res)
+        finish_datetime_MD = start_datetime_MD + Dates.Hour((DEFAULT_HOURS_PER_YEAR - 1) * sys_MD_res)
     else
         first_stage_number_of_forecast = 0
         open(first_stage_number_of_forecast_filename, "r") do file
@@ -280,9 +282,10 @@ function create_sys_w_updated_ts(
     end
     
     # timestep here indicate how many MD periods are being constructed
-    timestep = StepRange(start_datetime_MD, sys_MD_res*interval, finish_datetime_MD);
+    timestep = StepRange(start_datetime_MD, sys_MD_res * interval, finish_datetime_MD);
     first_stage_total = Int((finish_datetime_MD - start_datetime_MD) / sys_MD_res + 1)
-    additional_timestep = Int(horizon - (first_stage_total-(interval*(length(timestep)-1))) + (first_stage_total - 8760))
+    additional_timestep = Int(horizon - (first_stage_total-(interval*(length(timestep)-1))) + (first_stage_total - DEFAULT_HOURS_PER_YEAR))
+    dates = range(DateTime("2018-01-01T00:00:00"), step = sys_MD_res, length = DEFAULT_HOURS_PER_YEAR + additional_timestep)
 
     for component in get_components(x -> has_time_series(x, Deterministic), HydroDispatch, sys_MD)
         forecast = get_time_series(Deterministic, component, "max_active_power")
@@ -293,9 +296,6 @@ function create_sys_w_updated_ts(
         end
         append!(reconstruct_single_ts, reconstruct_single_ts[1:additional_timestep])
 
-        dates = range(DateTime("2018-01-01T00:00:00"), step = sys_MD_res, length = 8760 + additional_timestep)
-        # using Timeseries
-        # const TS = TimeSeries
         data = TS.TimeArray(dates, reconstruct_single_ts)
         single_time_series = SingleTimeSeries("max_active_power", data)
 
@@ -325,9 +325,6 @@ function create_sys_w_updated_ts(
             scaling_factor_multiplier=get_max_active_power
         )
 
-        # remove old time series
-        # remove_time_series!(sys_MD, Deterministic, d, "max_active_power")
-        # add new time series to dataset
         add_time_series!(sys_MD, component, revisedts_deterministic)
     end
 
@@ -376,14 +373,14 @@ function create_sys_w_updated_ts(
         for t in 1:length(timestep)
             rtseries = Vector{Float64}()
             datetimeindex = timestep[t]
-            if t < 8760/interval
+            if t < DEFAULT_HOURS_PER_YEAR/interval
                 rtseries = newtsdata[(interval*(t-1)+1):(interval*(t-1)+horizon)]
-            elseif t == ceil(Int, 8760/interval)
-                rtseries = [newtsdata[(interval*(t-1)+1):8760];newtsdata[1:horizon-(8760-(interval*(t-1)))]]
+            elseif t == ceil(Int, DEFAULT_HOURS_PER_YEAR/interval)
+                rtseries = [newtsdata[(interval*(t-1)+1):DEFAULT_HOURS_PER_YEAR];newtsdata[1:horizon-(DEFAULT_HOURS_PER_YEAR-(interval*(t-1)))]]
             else
                 # simply use the end of the previous timeseries as the new start
-                new_start = horizon-(8760-(interval*(ceil(Int, 8760/interval)-1)))
-                rtseries = newtsdata[new_start+(t-ceil(Int, 8760/interval)-1)*interval+1:new_start+(t-ceil(Int, 8760/interval)-1)*interval+horizon]
+                new_start = horizon-(DEFAULT_HOURS_PER_YEAR-(interval*(ceil(Int, DEFAULT_HOURS_PER_YEAR/interval)-1)))
+                rtseries = newtsdata[new_start+(t-ceil(Int, DEFAULT_HOURS_PER_YEAR/interval)-1)*interval+1:new_start+(t-ceil(Int, DEFAULT_HOURS_PER_YEAR/interval)-1)*interval+horizon]
             end
             push!(revisedts, datetimeindex => rtseries)
         end
@@ -413,8 +410,7 @@ function create_sys_w_updated_ts(
         loadscaler = loadscaler_rt
     end
 
-    sys_loads = Union{StandardLoad, PowerLoad}
-    for d in get_components(sys_loads, sys_MD)
+    for d in get_components(PSY_LOADS, sys_MD)
         # println("Processing region: $(get_name(get_bus(d)))")
         #create dictionary
         # revisedts = Dict{DateTime, Array{Float64}}()
@@ -426,7 +422,7 @@ function create_sys_w_updated_ts(
         baseload = get_max_active_power(d)
 
         # Get the loads in the zone and caculate the proportion that this load represents
-        loads_in_zone = PSY.get_components(x -> PSY.get_area(PSY.get_bus(x)) == zone, sys_loads, sys_MD)
+        loads_in_zone = PSY.get_components(x -> PSY.get_area(PSY.get_bus(x)) == zone, PSY_LOADS, sys_MD)
         zonal_load_sum = sum(get_max_active_power.(loads_in_zone))
         proportion = baseload / zonal_load_sum
         
@@ -519,19 +515,38 @@ function create_sys_w_updated_ts(
         add_time_series!(sys_MD, d, revisedts_deterministic)
     end
 
-    # TODO: add outage timeseries
+    # Add fixed outage timeseries
     #--------------------------------------------
-    # Add thermal outage time series
-    # see /lustre/eaglefs/projects/gmlcmarkets/Phase2_EMIS_Analysis/ERCOT_Data_Prep/20221214_outage_example/
-    #--------------------------------------------
-    # outage_csv_location = "/lustre/eaglefs/projects/gmlcmarkets/PowerSystems2PRAS.jl/data/Generated-Outage-Profile-JSON/04371469-18e0-421c-b4e4-44a0f1c1213f/16-Jan-22-14-6-22/"
-    # sys_DA = System(joinpath(data_dir,"DA_sys_EMIS_v0811.json"), time_series_directory = "/tmp/scratch") #365*36
-    # sys_RT = System(joinpath(data_dir,"RT_sys_EMIS_v0811.json"), time_series_directory = "/tmp/scratch") #8760*24
+    if outages_dir != nothing
+        outages_data = DataFrame(CSV.File(outages_dir)) 
 
-    # outage_csv_location = "/home/ysun/gmlcmarkets/Phase2_EMIS_Analysis/ERCOT_Data_Prep/20221214_outage_example/"
-    # outagescenario = 1
+        for gen in get_components(PSY_THERMAL_GENERATORS, sys_MD)
+            gen_name = PSY.get_name(gen)
 
-    # sys_DA, sys_RT = add_csv_time_series!(sys_DA,sys_RT,outage_csv_location,add_scenario = outagescenario); # align outage structure to be the same as PRAS-ED (same value persist 36 times)
+            if gen_name in names(outages_data)
+                @info "Adding outage timeseries for generator $(gen_name)."
+                ts = zeros(length(dates))
+                ts[1:size(outages_data, 1)] = outages_data[!, gen_name]
+                outage_ts = TimeArray(dates, ts)
+
+                transition_data = PSY.FixedForcedOutage(;
+                                    outage_status = 0.0,
+                                    )
+
+                add_supplemental_attribute!(sys_MD, gen, transition_data)
+
+                PSY.add_time_series!(
+                    sys_MD,
+                    transition_data,
+                    PSY.SingleTimeSeries("outage_profile_1", outage_ts),
+                )
+            else
+                @info "No outage timeseries found for generator $(gen_name), skipping."
+            end
+        end
+    else
+        @info "No outages directory provided, skipping outage timeseries update."
+    end
 
     PSY.set_units_base_system!(sys_MD, PSY.IS.UnitSystem.SYSTEM_BASE)
     to_json(sys_MD, output_file, force=true)
@@ -579,7 +594,6 @@ function create_PRAS_sys_json(
     output_file::String
 )
     sys_PRAS = deepcopy(first(sys_EDs))
-    sys_loads = Union{StandardLoad, PowerLoad}
 
     start_datetime_PRAS = PSY.get_forecast_initial_timestamp(sys_PRAS)
     sys_PRAS_res = PSY.get_time_series_resolutions(sys_PRAS)[1]
@@ -591,7 +605,7 @@ function create_PRAS_sys_json(
 
     ts_objects = Dict{String, Any}()
     ts_objects["gens"] = collect(PSY.get_components(x -> has_time_series(x, Deterministic) && PSY.get_prime_mover_type(x) in [PrimeMovers.PVe, PrimeMovers.WT, PrimeMovers.HY], Generator, sys_PRAS))
-    ts_objects["loads"] = collect(PSY.get_components(x -> has_time_series(x, Deterministic), sys_loads, sys_PRAS))
+    ts_objects["loads"] = collect(PSY.get_components(x -> has_time_series(x, Deterministic), PSY_LOADS, sys_PRAS))
 
     for (key, devices) in ts_objects
         for component_PRAS in devices
@@ -698,9 +712,7 @@ function create_PRAS_sys_NY_json(
     output_file::String
 )
     sys_PRAS = deepcopy(first(sys_EDs))
-
-    sys_loads = Union{StandardLoad, PowerLoad}
-
+    
     first_ts_temp_PRAS = first(PSY.get_time_series_multiple(sys_PRAS))
     start_datetime_PRAS = PSY.IS.get_initial_timestamp(first_ts_temp_PRAS)
     sys_PRAS_res = PSY.get_time_series_resolutions(sys_PRAS)[1]
@@ -711,7 +723,7 @@ function create_PRAS_sys_NY_json(
 
     # ts_objects["gens"] = collect(PSY.get_components(x -> PSY.get_prime_mover_type(x) in [PrimeMovers.PVe, PrimeMovers.WT, PrimeMovers.HY], Generator, sys_PRAS))
     ts_objects["gens"] = collect(PSY.get_components(x -> PSY.has_time_series(x) == true, Generator, sys_PRAS))
-    ts_objects["loads"] = collect(PSY.get_components(sys_loads, sys_PRAS))
+    ts_objects["loads"] = collect(PSY.get_components(PSY_LOADS, sys_PRAS))
 
     for (key, devices) in ts_objects
         if key == "gens"
