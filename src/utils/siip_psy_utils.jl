@@ -660,7 +660,7 @@ function add_psy_clean_energy_constraint!(sys::PSY.System,
 
     clean_energy_ts_data = zeros(length(time_stamps))
 
-    nodal_loads = PSY.get_components(PSY.StandardLoad, sys)
+    nodal_loads = PSY.get_components(PSY_LOADS, sys)
     for load in nodal_loads
         load_active_power = PSY.get_max_active_power(load)
         total_active_power += load_active_power
@@ -706,7 +706,7 @@ end
 function calculate_total_load(sys::PSY.System, time_resolution::Int64, period_of_interest::UnitRange{Int64})
     total_load = 0.0
 
-    nodal_loads = PSY.get_components(PSY_LOADS)
+    nodal_loads = PSY.get_components(PSY_LOADS, sys)
     for load in nodal_loads
         ts_data = PSY.get_data(PSY.get_time_series(
                                 PSY.SingleTimeSeries,
@@ -780,7 +780,7 @@ function apply_PSY_past_load_growth!(sys::PSY.System,
                                simulation_dir::String)
 
     # update load timeseries.
-    nodal_loads = PSY.get_components(PSY.StandardLoad, sys)
+    nodal_loads = PSY.get_components(PSY_LOADS, sys)
 
     for load in nodal_loads
         zone = "load_zone_$(PSY.get_name(PSY.get_area(PSY.get_bus(load))))"
