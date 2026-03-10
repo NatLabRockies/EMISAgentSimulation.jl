@@ -50,6 +50,7 @@ function create_rts_sys(rts_dir::String,
                         )
 
     ntp_ts_data_dir = joinpath(rts_dir, "..", "..", "Feb2024_ERCOT_2011_MARKET_Test_NGUO_LDES", "NTP_TimeSeries_Data", "input_processing")
+    runchecks = false
 
     sys_MDs = Vector{PSY.System}()
     sys_UCs = Vector{PSY.System}()
@@ -74,7 +75,7 @@ function create_rts_sys(rts_dir::String,
         weatheryear = loadyear
 
         if !(isfile(MD_sys_filename) && isfile(MD_num_forecast_filename))
-            println("MD json file doesn't exist. Creating required data.")   
+            @info "Simulation year $(sim_year): MD json file doesn't exist, creating PSY system."
             dir_exists(dirname(MD_sys_filename))         
             sys_MD_initial = PSY.System(joinpath(rts_dir,"DA_sys_zonal.json"), time_series_directory = scratch_dir);
             # create MD system
@@ -96,11 +97,11 @@ function create_rts_sys(rts_dir::String,
                 outage_dir,
             )
         end        
-        push!(sys_MDs, PSY.System(MD_sys_filename, time_series_directory = scratch_dir));
+        push!(sys_MDs, PSY.System(MD_sys_filename, time_series_directory = scratch_dir, runchecks = runchecks));
 
         UC_filename = joinpath(rts_dir, "constructed_systems", pcm_scenario, "sim_year_$(sim_year)", "DA_sys_EMIS_$(UC_horizon)hor_$(UC_interval)int_$(MD_horizon)mdhor_$(MD_interval)mdint.json")
         if !(isfile(UC_filename))
-            println("UC json file doesn't exist. Creating required json file.")  
+            @info "Simulation year $(sim_year): UC json file doesn't exist, creating PSY system." 
             dir_exists(dirname(UC_filename))   
             sys_UC_initial = PSY.System(joinpath(rts_dir, "DA_sys_zonal.json"), time_series_directory = scratch_dir);
             create_sys_w_updated_ts(
@@ -121,10 +122,9 @@ function create_rts_sys(rts_dir::String,
                 outage_dir,
             )
         end
-        push!(sys_UCs, PSY.System(UC_filename, time_series_directory = scratch_dir));
+        push!(sys_UCs, PSY.System(UC_filename, time_series_directory = scratch_dir, runchecks = runchecks));
 
         for scenario in scenarios
-
             if scenario == "scenario_1"
                 supercc_scenario_ed = "baseline"
             elseif scenario == "scenario_2"
@@ -137,7 +137,7 @@ function create_rts_sys(rts_dir::String,
 
             ED_filename = joinpath(rts_dir, "constructed_systems", scenario, "sim_year_$(sim_year)", "RT_sys_EMIS_$(ED_horizon)hor_$(ED_interval)int_$(MD_horizon)mdhor_$(MD_interval)mdint.json")
             if !isfile(ED_filename)
-                println("ED json file doesn't exist. Creating required json file.")  
+                @info "Simulation year $(sim_year): ED json file doesn't exist, creating PSY system." 
                 dir_exists(dirname(ED_filename))   
                 sys_ED_initial = PSY.System(joinpath(rts_dir,"DA_sys_zonal.json"), time_series_directory = scratch_dir);
                 create_sys_w_updated_ts(
@@ -158,7 +158,7 @@ function create_rts_sys(rts_dir::String,
                     outage_dir,
                 )
             end
-            push!(sys_EDs_dict[scenario], PSY.System(ED_filename, time_series_directory = scratch_dir));
+            push!(sys_EDs_dict[scenario], PSY.System(ED_filename, time_series_directory = scratch_dir, runchecks = runchecks));
         end
         sys_EDs = sys_EDs_dict[pcm_scenario]
 
@@ -203,10 +203,10 @@ function create_rts_sys(rts_dir::String,
     for scenario in scenarios
         PRAS_filename = joinpath(rts_dir, "constructed_systems", scenario, "sim_year_1", "PRAS_sys_EMIS_$(ED_horizon)hor_$(ED_interval)int_$(MD_horizon)mdhor_$(MD_interval)mdint.json")
         if !isfile(PRAS_filename)
-            println("PRAS json file doesn't exist. Creating required json file.")  
+            @info "Simulation year $(sim_year): PRAS json file doesn't exist, creating PSY system."
             create_PRAS_sys_json(sys_EDs_dict[scenario], PRAS_filename)
         end
-        sys_PRAS[scenario] = PSY.System(PRAS_filename, time_series_directory = scratch_dir)
+        sys_PRAS[scenario] = PSY.System(PRAS_filename, time_series_directory = scratch_dir, runchecks = runchecks)
     end
     
     return sys_MDs, sys_UCs, sys_EDs, sys_PRAS, MD_horizon, MD_interval, UC_horizon, UC_interval, ED_horizon, ED_interval
@@ -523,26 +523,27 @@ function create_sys_w_updated_ts(
         for gen in get_components(PSY_THERMAL_GENERATORS, sys_MD)
             gen_name = PSY.get_name(gen)
 
+            ts = zeros(length(dates))
             if gen_name in names(outages_data)
                 @info "Adding outage timeseries for generator $(gen_name)."
-                ts = zeros(length(dates))
+                
                 ts[1:size(outages_data, 1)] = outages_data[!, gen_name]
-                outage_ts = TimeArray(dates, ts)
-
-                transition_data = PSY.FixedForcedOutage(;
-                                    outage_status = 0.0,
-                                    )
-
-                add_supplemental_attribute!(sys_MD, gen, transition_data)
-
-                PSY.add_time_series!(
-                    sys_MD,
-                    transition_data,
-                    PSY.SingleTimeSeries("outage_profile_1", outage_ts),
-                )
             else
-                @info "No outage timeseries found for generator $(gen_name), skipping."
+                @info "No outage timeseries found for generator $(gen_name), adding default values of 0."
             end
+
+            outage_ts = TimeArray(dates, ts)
+            transition_data = PSY.FixedForcedOutage(;
+                                outage_status = 0.0,
+                                )
+
+            add_supplemental_attribute!(sys_MD, gen, transition_data)
+
+            PSY.add_time_series!(
+                sys_MD,
+                transition_data,
+                PSY.SingleTimeSeries("outage_profile_1", outage_ts),
+            )            
         end
     else
         @info "No outages directory provided, skipping outage timeseries update."
