@@ -15,12 +15,13 @@ function find_project_availability_data(project::P,
 
         availability_df = availability_df_vec[y]
     
+        availability_raw = ones(size(availability_df, 1))
         if in(get_name(project), names(availability_df))
             availability_raw = availability_df[:, Symbol(get_name(project))]
         elseif in("$(type)_$(zone)", names(availability_df))
             availability_raw = availability_df[:, Symbol("$(type)_$(zone)")]
         else
-            error("project availiability data not found!")
+            @warn "No availability data found for project $(get_name(project)) - $(type)_$(zone), using default availability of 1.0"
         end
 
         data_years = unique(availability_df.Year)
@@ -364,7 +365,6 @@ function create_market_project(project::P,
 
     existing_units = 1
     remaining_lag_time = 0
-
 
     market_project = populate_market_project(project,
                                              project_type,
