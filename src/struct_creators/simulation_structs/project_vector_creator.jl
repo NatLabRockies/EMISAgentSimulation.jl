@@ -8,6 +8,7 @@ function create_project_existing(projectdata::Nothing,
                                 investor_name::String,
                                 investor_dir::String,
                                 scenario_names::Vector{String})
+        @info "No data for existing projects for $(investor_name). Returning empty vector."
     return Project{Existing}[]
 end
 
@@ -56,7 +57,6 @@ function create_project_existing(projectdata::DataFrames.DataFrame,
     for i in 1:DataFrames.nrow(projectdata)
 
         device = PSY.get_components_by_name(PSY.Device, sys_UC, projectdata[i, "GEN_UID"])
-
         project_existing[i] = create_project(projectdata[i, :],
                                            device[1],
                                            simulation_data,
@@ -88,6 +88,7 @@ This function returns a vector of project options for the investor.
 """
 function create_project_options(projectdata::DataFrames.DataFrame,
                                    simulation_data::AgentSimulationData,
+                                   sys_UC::PSY.System,
                                    investor_name::String,
                                    investor_dir::String,
                                    scenario_names::Vector{String})
@@ -95,6 +96,7 @@ function create_project_options(projectdata::DataFrames.DataFrame,
     for i in 1:size(projectdata,1)
         project_option[i] = create_project(projectdata[i,:],
                                          simulation_data,
+                                         sys_UC,
                                          investor_name,
                                          investor_dir,
                                          scenario_names,

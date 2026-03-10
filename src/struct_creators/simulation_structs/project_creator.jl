@@ -797,6 +797,7 @@ This function returns a Project struct based only on project's CSV data.
 """
 function create_project(projectdata::DataFrames.DataFrameRow,
                           simulation_data::AgentSimulationData,
+                          sys_UC::PSY.System,
                           investor_name::String,
                           investor_dir::String,
                           scenario_names::Vector{String},
@@ -826,9 +827,11 @@ function create_project(projectdata::DataFrames.DataFrameRow,
     end_life_year,
     finance_data = create_investment_data(size, projectdata, investor_dir, simulation_data, products, investor_name, scenario_names, lag_bool)
 
-    sys_UC = first(get_system_UCs(simulation_data))
+    # sys_UC = first(get_system_UCs(simulation_data))
 
-    project = create_tech_type(name, projectdata, size, base_power, decision_year, construction_year, retirement_year, end_life_year, products, finance_data, sys_UC, carbon_tax)
+    project = create_tech_type(name, projectdata, size, base_power,
+                              decision_year, construction_year, retirement_year,
+                              end_life_year, products, finance_data, sys_UC, carbon_tax)
 
     return project
 end
@@ -859,9 +862,11 @@ function create_project(projectdata::DataFrames.DataFrameRow,
     construction_year,
     retirement_year,
     end_life_year,
-    finance_data = create_investment_data(size, projectdata, investor_dir, simulation_data, products, investor_name, scenario_names, lag_bool)
+    finance_data = create_investment_data(size, projectdata, investor_dir, simulation_data,
+                                          products, investor_name, scenario_names, lag_bool)
 
-    project = create_tech_type(name, device, projectdata, size, base_power, decision_year, construction_year, retirement_year, end_life_year, products, finance_data)
+    project = create_tech_type(name, device, projectdata, size, base_power, decision_year,
+                               construction_year, retirement_year, end_life_year, products, finance_data)
 
     return project
 end

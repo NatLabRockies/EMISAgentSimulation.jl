@@ -17,10 +17,12 @@ function calculate_RA_metrics(sys::PSY.System,
                               outage_dir::String,
                               iteration_year::Int64;
                               samples::Int64 = 100,
-                              seed::Int64 = 42)
+                              seed::Int64 = 42,
+                              simulation_years::Int64 = 15)
 
-    system_period_of_interest = range(1, length = 8760 * 15);
+    system_period_of_interest = range(1, length = DEFAULT_HOURS_PER_YEAR * simulation_years);
     correlated_outage_csv_location = joinpath(outage_dir, "ThermalFOR_scenario_1_new.csv")
+
     # pras_system = make_pras_system(sys,
     #                                 system_model="Single-Node",
     #                                 aggregation="Area",
@@ -30,13 +32,13 @@ function calculate_RA_metrics(sys::PSY.System,
     #                                 availability_flag=true,
     #                                 outage_csv_location = correlated_outage_csv_location);
 
-    #TODO: Add outages to system
-
-    total_load = calculate_total_load(sys, 60)
+    total_load = calculate_total_load(sys, DEFAULT_TIME_RESOLUTION, system_period_of_interest)
 
     ra_metrics = Dict{String, Float64}()
-    # seed = 3
-    shortfall, gens_avail= @time PRAS.assess(sys, PSY.Area, PRAS.SequentialMonteCarlo(samples = samples, seed = seed),  PRAS.Shortfall(),  PRAS.GeneratorAvailability()) 
+    shortfall, gens_avail= @time PRAS.assess(sys, PSY.Area,
+                                 PRAS.SequentialMonteCarlo(samples = samples, seed = seed),
+                                 PRAS.Shortfall(),  PRAS.GeneratorAvailability()) 
+
     @info "Finished PRAS simulation... "
     eue_overall = PRAS.EUE(shortfall)
     lole_overall = PRAS.LOLE(shortfall)
@@ -56,7 +58,6 @@ function calculate_RA_metrics(sys::PSY.System,
     ra_metrics["NEUE"] = val(eue_overall) * 1e6 / total_load
 
     PSY.set_units_base_system!(sys, PSY.IS.UnitSystem. DEVICE_BASE)
-
     return ra_metrics, shortfall
 
 end
@@ -131,11 +132,14 @@ function add_capacity_market_project!(capacity_market_system::PSY.System,
     for sim_year in 1:simulation_years
         availability_df_rt = vcat(availability_df_rt, read_data(joinpath(simulation_dir, "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Availability", "REAL_TIME_availability.csv")))
     end
-
+    
+    availability_raw_rt = ones(size(availability_df_rt, 1))
     if in(get_name(project), names(availability_df_rt))
         availability_raw_rt = availability_df_rt[:, Symbol(get_name(project))]
     elseif in("$(type)_$(zone)", names(availability_df_rt))
         availability_raw_rt = availability_df_rt[:, Symbol("$(type)_$(zone)")]
+    else
+        @warn "No availability data found for$(type)_$(zone), using default availability of 1.0"
     end
 
     add_device_forecast_PRAS!(capacity_market_system, PSY_project, availability_raw_rt, rt_resolution)
@@ -166,7 +170,8 @@ function create_capacity_mkt_system(initial_system::PSY.System,
         if end_life_year >= capacity_market_year && construction_year <= capacity_market_year
             push!(capacity_market_projects, project)
             if !(get_name(project) in PSY.get_name.(get_all_techs(capacity_market_system)))
-                add_capacity_market_project!(capacity_market_system, project, simulation_dir, scenario, capacity_market_year, rt_resolution, simulation_years)
+                add_capacity_market_project!(capacity_market_system, project, simulation_dir, scenario,
+                                             capacity_market_year, rt_resolution, simulation_years)
             end
         end
 
@@ -254,12 +259,15 @@ function update_delta_irm!(initial_system::PSY.System,
         CC_generators = sort!(filter(project -> occursin("CC", string(PSY.get_prime_mover_type(project))), all_capacity_market_projects), by = x -> get_device_size(x))
         append!(removeable_projects, CC_generators)
 
+        @info "Updating delta IRM for scenario: $(scenario) - Year: $(iteration_year)"
         @time begin
         if !isempty(ra_targets)
-            ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, results_dir, outage_dir, iteration_year)
-            #println(ra_metrics)
+            ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system,
+                                                        false, results_dir, outage_dir,
+                                                        iteration_year; simulation_years = simulation_years)
+            println(ra_metrics)
             adequacy_conditions_met, scarcity_conditions_met = check_ra_conditions(ra_targets, ra_metrics)
-
+            @info "Adequacy conditions met: $(adequacy_conditions_met), Scarcity conditions met: $(scarcity_conditions_met)"
             count = 1
             total_added_capacity = 0.0
             total_removed_capacity = 0.0
@@ -267,24 +275,28 @@ function update_delta_irm!(initial_system::PSY.System,
 
             if !(adequacy_conditions_met)
                 while !(adequacy_conditions_met)
-
+                    @info "RA metrics: $(ra_metrics)"
+                    @info "Updating delta IRM for scenario: $(scenario) - Year: $(iteration_year)"
                     scalar = 2
                     ratio = 0
                     for metric in keys(ra_targets)
+                        @info metric
+                        @info "Updating delta IRM for scenario: $(scenario) - Year: $(iteration_year)"
                         ratio += (ra_metrics[metric] - ra_targets[metric]) / ra_targets[metric] 
                     end
                     ratio = max(1, scalar * ratio /  length(keys(ra_targets)))
 
                     for i in 1:ceil(ratio)
+                        @info i
+                        @info "Updating delta IRM for scenario: $(scenario) - Year: $(iteration_year)"
                         incremental_project = deepcopy(first(filter(p -> occursin("new_CT", get_name(p)), active_projects)))
                         set_name!(incremental_project, "addition_CT_project_$(count)")
                         total_added_capacity += get_maxcap(incremental_project)
-                        add_capacity_market_project!(capacity_market_system, incremental_project, simulation_dir, scenario, capacity_market_year, rt_resolution, simulation_years)
+                        add_capacity_market_project!(capacity_market_system, incremental_project, simulation_dir, scenario, capacity_market_year, rt_resolution, simulation_years = simulation_years)
                         count += 1
                     end
                     
-                    ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, results_dir, outage_dir, iteration_year)
-                    #println(ra_metrics)
+                    ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, results_dir, outage_dir, iteration_year; simulation_years = simulation_years)
                     adequacy_conditions_met, scarcity_conditions_met = check_ra_conditions(ra_targets, ra_metrics)
                 end
 
@@ -296,7 +308,7 @@ function update_delta_irm!(initial_system::PSY.System,
                         removed_capacity = get_device_size(removed_project) * PSY.get_base_power(removed_project)
                         total_removed_capacity += removed_capacity
                         PSY.remove_component!(capacity_market_system, removed_project)
-                        ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, results_dir, outage_dir, iteration_year)
+                        ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, results_dir, outage_dir, iteration_year; simulation_years = simulation_years)
                         #println(ra_metrics)
                         adequacy_conditions_met, scarcity_conditions_met = check_ra_conditions(ra_targets, ra_metrics)
                         count += 1
@@ -353,7 +365,7 @@ function create_base_system(initial_system::PSY.System,
 
     @time begin
     if !isempty(ra_targets)
-        ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, get_results_dir(simulation), outage_dir, iteration_year;samples = 100)
+        ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false, get_results_dir(simulation), outage_dir, iteration_year;samples = 100, simulation_years = simulation_years)
 
         println(ra_metrics)
         adequacy_conditions_met, scarcity_conditions_met = check_ra_conditions(ra_targets, ra_metrics)
@@ -380,7 +392,7 @@ function create_base_system(initial_system::PSY.System,
                     count += 1
                 end
                 
-                ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false,get_results_dir(simulation), outage_dir, iteration_year;samples = 100)
+                ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false,get_results_dir(simulation), outage_dir, iteration_year;samples = 100, simulation_years = simulation_years)
                 println("Added Capacity")
                 println(ra_metrics)
                 adequacy_conditions_met, scarcity_conditions_met = check_ra_conditions(ra_targets, ra_metrics)
@@ -395,7 +407,7 @@ function create_base_system(initial_system::PSY.System,
                     removed_capacity = get_device_size(removed_project) * PSY.get_base_power(removed_project)
                     total_removed_capacity += removed_capacity
                     PSY.remove_component!(capacity_market_system, removed_project)
-                    ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false,get_results_dir(simulation), outage_dir, iteration_year;samples = 100)
+                    ra_metrics, shortfall = calculate_RA_metrics(capacity_market_system, false,get_results_dir(simulation), outage_dir, iteration_year;samples = 100, simulation_years = simulation_years)
                     println("Removed Capacity")
                     println(ra_metrics)
                     adequacy_conditions_met, scarcity_conditions_met = check_ra_conditions(ra_targets, ra_metrics)

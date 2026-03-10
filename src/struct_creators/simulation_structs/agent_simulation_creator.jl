@@ -23,9 +23,7 @@ function gather_data(case::CaseDefinition)
 
     zones = String[]
     zonal_lines = ZonalLine[]
-
     annual_growth_past_first = []
-
     scenarios = string.(get_all_scenario_names(data_dir))
 
     representative_periods = Dict(scenario => Dict{Int64, Union{Dict{Int64,Int64}, OrderedCollections.OrderedDict{Int64, Int64}}}() for scenario in scenarios)
@@ -89,9 +87,13 @@ function gather_data(case::CaseDefinition)
     end
 
     markets_dict = get_markets(case)
+    sys_MDs = nothing
+    sys_UCs = nothing
+    sys_EDs = nothing
+    sys_PRAS = Dict{String, PSY.System}()
     
     if get_siip_market_clearing(case)
-        base_power = 100.0
+        base_power = BASE_POWER
         sys_MDs, sys_UCs, sys_EDs, sys_PRAS,
         MD_horizon, MD_interval, UC_horizon,
         UC_interval, ED_horizon, ED_interval = create_rts_sys(test_system_dir, base_power, data_dir,
@@ -100,12 +102,8 @@ function gather_data(case::CaseDefinition)
                                                 get_rt_resolution(case), get_md_horizon(case),
                                                 get_md_interval(case), get_uc_horizon(case),
                                                 get_uc_interval(case), get_ed_horizon(case),
-                                                get_ed_interval(case),
-            )
-    else
-        sys_MD = nothing
-        sys_UC = nothing
-        sys_ED = nothing
+                                                get_ed_interval(case), get_outage_dir(case),
+                                            )
     end
     
     #updating past growth rate in PSY Systems
