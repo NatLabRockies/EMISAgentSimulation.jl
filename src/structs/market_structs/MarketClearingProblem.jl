@@ -47,7 +47,19 @@ struct MarketClearingProblem{Z, T}
         end
         @assert length(zones) ==  Z
         @assert length(inv_periods) == length(carbon_tax)
-        @assert allunique(getproperty.(projects, :name))
+        
+        if !allunique(getproperty.(projects, :name))
+            @warn "Project names in the market clearing problem are not unique. Rmoving duplicate projects."
+            n_projects = length(projects)
+            seen = Set()
+            projects = filter(s -> s.name ∉ seen && (push!(seen, s.name); true), projects);
+            @info "Removed $(n_projects - length(projects)) duplicate projects."
+            @assert allunique(getproperty.(projects, :name))
+        else
+            @assert allunique(getproperty.(projects, :name))
+            @info "Project names in the market clearing problem are unique."
+        end
+        
         new{Z, T}(zones, lines, capital_cost_multiplier, inv_periods, carbon_tax, projects, rep_period_interval, rep_hour_weight, avg_block_size, fixed_block_size, chron_weights)
     end
 
