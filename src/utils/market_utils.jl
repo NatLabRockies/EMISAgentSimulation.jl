@@ -369,7 +369,7 @@ function update_operation_cost!(project::P, sys_UC::PSY.System, carbon_tax::Vect
 
         total_cost_scalar = 1 + carbon_cost_ratio
 
-        if typeof(operation_cost) == PSY.ThermalGenerationCost
+        if typeof(operation_cost) == PSY.ThermalGenerationCost || typeof(operation_cost) == PSY.HydroGenerationCost
             fixed = deepcopy(PSY.get_fixed(operation_cost))
             fixed = fixed * total_cost_scalar
         end
@@ -386,13 +386,14 @@ function update_operation_cost!(project::P, sys_UC::PSY.System, carbon_tax::Vect
             end
         
             new_value_curve = PSY.PiecewisePointCurve(new_value_curve_vec)
-
             cost_curve = PSY.CostCurve(new_value_curve)
 
-            if get_tech(project).type == "CC" || get_tech(project).type == "CT" || get_tech(project).type == "GT" || get_tech(project).type == "ST" || get_tech(project).type == "NU_ST" || get_tech(project).type == "RE_CT" || get_tech(project).type == "IC" || get_tech(project).type == "HY"
+            if get_tech(project).type == "CC" || get_tech(project).type == "CT" || get_tech(project).type == "GT" || get_tech(project).type == "ST" || get_tech(project).type == "NU_ST" || get_tech(project).type == "RE_CT" || get_tech(project).type == "IC"
                 start_up_cost = deepcopy(PSY.get_start_up(operation_cost))
                 shut_down_cost = deepcopy(PSY.get_shut_down(operation_cost))
                 operation_cost = PSY.ThermalGenerationCost(cost_curve, fixed, start_up_cost, shut_down_cost)
+            elseif get_tech(project).type == "HY"
+                operation_cost = PSY.HydroGenerationCost(cost_curve, fixed)
             elseif get_tech(project).type == "WT" || get_tech(project).type == "PVe"
                 operation_cost = PSY.RenewableGenerationCost(cost_curve)
             elseif get_tech(project).type == "BA" || get_tech(project).type == "LDES"
@@ -403,16 +404,18 @@ function update_operation_cost!(project::P, sys_UC::PSY.System, carbon_tax::Vect
 
             new_value_curve = deepcopy(PSY.get_variable(operation_cost).value_curve)
             power_units = deepcopy(PSY.get_variable(operation_cost).power_units)
-            fuel_cost = deepcopy(PSY.get_variable(operation_cost).fuel_cost) * total_cost_scalar
+            fuel_cost = deepcopy(get_fuel_cost(project.tech)) * total_cost_scalar
             vom_cost = deepcopy(PSY.get_variable(operation_cost).vom_cost)
+            cost_curve = PSY.FuelCurve(new_value_curve, power_units, fuel_cost)
 
-            cost_curve = PSY.FuelCurve(new_value_curve, power_units, fuel_cost, vom_cost)
-
-            if get_tech(project).type == "CC" || get_tech(project).type == "CT" || get_tech(project).type == "GT" || get_tech(project).type == "ST" || get_tech(project).type == "NU_ST" || get_tech(project).type == "RE_CT" || get_tech(project).type == "IC" || get_tech(project).type == "HY"
+            if get_tech(project).type == "CC" || get_tech(project).type == "CT" || get_tech(project).type == "GT" || get_tech(project).type == "ST" || get_tech(project).type == "NU_ST" || get_tech(project).type == "RE_CT" || get_tech(project).type == "IC"
                 start_up_cost = deepcopy(PSY.get_start_up(operation_cost))
                 shut_down_cost = deepcopy(PSY.get_shut_down(operation_cost))
                 operation_cost = PSY.ThermalGenerationCost(cost_curve, fixed, start_up_cost, shut_down_cost)
+            elseif get_tech(project).type == "HY"
+                operation_cost = PSY.HydroGenerationCost(cost_curve, fixed)                
             elseif get_tech(project).type == "WT" || get_tech(project).type == "PVe"
+                cost_curve = PSY.CostCurve(new_value_curve)
                 operation_cost = PSY.RenewableGenerationCost(cost_curve)
             elseif get_tech(project).type == "BA" || get_tech(project).type == "LDES"
                 operation_cost = PSY.StorageCost()
