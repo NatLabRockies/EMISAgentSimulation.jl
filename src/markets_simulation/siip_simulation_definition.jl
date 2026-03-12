@@ -979,10 +979,11 @@ function create_problem(template::PSI.ProblemTemplate, sys::PSY.System, type::St
                                     warm_start = true,
                                     calculate_conflict = true,
                                     store_variable_names = true,
-                                    export_pwl_vars=true,
+                                    export_pwl_vars = true,
                                     initialize_model = false,
                                     )
 
+        ##TODO: Need to check this logic, both branches are identical
         elseif type == "ED"
             if !(isempty(inertia_product))
                 problem = PSI.DecisionModel(
@@ -995,7 +996,7 @@ function create_problem(template::PSI.ProblemTemplate, sys::PSY.System, type::St
                                         # horizon =2,
                                         calculate_conflict = true,
                                         store_variable_names = true,
-                                        export_pwl_vars=true,
+                                        export_pwl_vars = true,
                                         initialize_model = false,
                                         )
             else
@@ -1009,7 +1010,7 @@ function create_problem(template::PSI.ProblemTemplate, sys::PSY.System, type::St
                                         # horizon =2,
                                         calculate_conflict = true,
                                         store_variable_names = true,
-                                        export_pwl_vars=true,
+                                        export_pwl_vars = true,
                                         initialize_model = false,
                                         )
             end
@@ -1023,7 +1024,7 @@ function create_problem(template::PSI.ProblemTemplate, sys::PSY.System, type::St
                                     warm_start = true,
                                     calculate_conflict = true,
                                     store_variable_names = true,
-                                    export_pwl_vars=true,
+                                    export_pwl_vars = true,
                                     initialize_model = false,
                                     )
         else
@@ -1061,7 +1062,7 @@ PSY.get_max_output_fraction(value::PSY.ReserveDemandCurve{PSY.ReserveUp}) = 1.0
 This function creates the PSI Simulation and post-processes the results.
 """
 #TODO: Update needed
-function create_simulation( sys_MD::PSY.System,
+function create_simulation(sys_MD::PSY.System,
                             sys_UC::PSY.System,
                             sys_ED::PSY.System,
                             simulation_dir::String,
@@ -1086,22 +1087,37 @@ function create_simulation( sys_MD::PSY.System,
     base_power = PSY.get_base_power(sys_UC)
     reserve_data = read_data(joinpath(simulation_dir, "markets_data", "$(reserve_penalty)_reserve_penalty", "Reg_Up.csv"))
     penalty_price = reserve_data[1, "price_cap"] * base_power
-    PSI.SERVICES_SLACK_COST = penalty_price
+
+    default_service_slack_cost = penalty_price
+    default_balance_slack_cost = BALANCE_SLACK_COST
 
     inertia_product = collect(PSY.get_components_by_name(PSY.Service, sys_ED, "Inertia"))
 
-    if single_stage_bool == false
-        template_uc = create_uc_template(inertia_product)
+    ##TODO: Temporary fix to avoid error when inertia product is not included in the system.
+    for sys in [sys_ED, sys_UC, sys_MD]
+        reg_down = PSY.get_component(PSY.VariableReserve{PSY.ReserveDown}, sys, "Reg_Down")
+        reg_up = PSY.get_component(PSY.VariableReserve{PSY.ReserveUp}, sys, "Reg_Up")
+        for service in [reg_down, reg_up]
+            for device in Iterators.flatten([
+                PSY.get_components(PSY.ThermalStandard, sys),
+                PSY.get_components(PSY.EnergyReservoirStorage, sys),
+                PSY.get_components(PSY.HydroDispatch, sys),
+                PSY.get_components(PSY.HydroTurbine, sys),
+            ])
+                PSY.add_service!(device, service, sys)
+            end
+        end
+    end
+
+    template_uc = create_uc_template(inertia_product)
+    uc_problem = create_problem(template_uc, sys_UC, "UC", solver, inertia_product)
+
+    if !single_stage_bool
         template_ed = create_ed_template(inertia_product)
-        uc_problem = create_problem(template_uc, sys_UC, "UC", solver, inertia_product)
         ed_problem = create_problem(template_ed, sys_ED, "ED", solver, inertia_product)
-    else
-        template_uc = create_uc_template(inertia_product)
-        uc_problem = create_problem(template_uc, sys_UC, "UC", solver, inertia_product)
     end
 
     if md_market_bool == true && single_stage_bool == false
-
         template_md = create_md_template(inertia_product)
         md_problem = create_problem(template_md, sys_MD, "MD", solver, inertia_product)
 
@@ -1121,7 +1137,7 @@ function create_simulation( sys_MD::PSY.System,
                         source = PSI.EnergyVariable,
                         affected_values = [PSI.EnergyVariable],
                         target_period = 24,
-                        penalty_cost = 5000.0,
+                        penalty_cost = PENALTY_COST,
                     ),
                 ],
                 "ED" => [
@@ -1130,7 +1146,7 @@ function create_simulation( sys_MD::PSY.System,
                         source = PSI.EnergyVariable,
                         affected_values = [PSI.EnergyVariable],
                         target_period = 2,
-                        penalty_cost = 5000.0,
+                        penalty_cost = PENALTY_COST,
                     ),
                 ],
                 "ED" => [
@@ -1170,7 +1186,7 @@ function create_simulation( sys_MD::PSY.System,
                         source = PSI.EnergyVariable,
                         affected_values = [PSI.EnergyVariable],
                         target_period = 24,
-                        penalty_cost = 5000.0,
+                        penalty_cost = PENALTY_COST,
                     ),
                 ],
                 "ED" => [
@@ -1179,7 +1195,7 @@ function create_simulation( sys_MD::PSY.System,
                         source = PSI.EnergyVariable,
                         affected_values = [PSI.EnergyVariable],
                         target_period = 2,
-                        penalty_cost = 5000.0,
+                        penalty_cost = PENALTY_COST,
                     ),
                 ],
                 "ED" => [
@@ -1231,7 +1247,7 @@ function create_simulation( sys_MD::PSY.System,
                         source = PSI.EnergyVariable,
                         affected_values = [PSI.EnergyVariable],
                         target_period = 2,
-                        penalty_cost = 5000.0,
+                        penalty_cost = PENALTY_COST,
                     ),
                 ],
                 "ED" => [
@@ -1271,7 +1287,7 @@ function create_simulation( sys_MD::PSY.System,
                         source = PSI.EnergyVariable,
                         affected_values = [PSI.EnergyVariable],
                         target_period = 2,
-                        penalty_cost = 5000.0,
+                        penalty_cost = PENALTY_COST,
                     ),
                 ],
                 "ED" => [
@@ -1311,16 +1327,11 @@ function create_simulation( sys_MD::PSY.System,
 
     # TODO: need to define reserve products for MD
     md_products = split(read_data(joinpath(simulation_dir, "markets_data", "reserve_products.csv"))[1,"da_products"], "; ")
-
     rt_products = split(read_data(joinpath(simulation_dir, "markets_data", "reserve_products.csv"))[1,"rt_products"], "; ")
     da_products = split(read_data(joinpath(simulation_dir, "markets_data", "reserve_products.csv"))[1,"da_products"], "; ")
     
-    default_balance_slack_cost = PSI.BALANCE_SLACK_COST
-    default_service_slack_cost = PSI.SERVICES_SLACK_COST
-
     energy_mkt_data = read_data(joinpath(simulation_dir, "markets_data", "Energy.csv"))
     energy_voll_cost = AxisArrays.AxisArray(energy_mkt_data.price_cap * 1.0, zones)
-
 
     sequence = create_sequence(models, feedforward_dict, single_stage_bool);
 
@@ -1347,6 +1358,7 @@ function create_simulation( sys_MD::PSY.System,
     current_siip_sim[1] = sim
     push!(siip_system, sys_UC)
 
+    @info "Building Sienna simulation..."
     build_out = PSI.build!(sim; serialize = false)
 
     #TODO: not sure if adjust_reserve_voll! function is working.
@@ -1363,14 +1375,13 @@ function create_simulation( sys_MD::PSY.System,
     # push!(siip_system, sys_UC)
     # push!(siip_system, sys_ED)
 
+    @info "Executing Sienna simulation..."
     execute_out = PSI.execute!(sim; enable_progress_bar = true)
-    println("finish sienna run")
-
+    @info "Simulation execution completed."
+    @info "Getting Sienna results..."
     sim_results = PSI.SimulationResults(sim)
-    println("get sienna results")
-
+    
     if single_stage_bool == false
-
         res_uc = PSI.get_decision_problem_results(sim_results, "UC")
         res_ed = PSI.get_decision_problem_results(sim_results, "ED")
 
