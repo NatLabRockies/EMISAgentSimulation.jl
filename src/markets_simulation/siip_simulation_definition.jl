@@ -511,7 +511,7 @@ function create_md_template(inertia_product)
                 PSI.RangeReserve,
                 "Reg_Up",
                 use_slacks=true,
-                duals = [PSI.RequirementConstraint],
+                # duals = [PSI.RequirementConstraint],
             )
         )
         PSI.set_service_model!(
@@ -521,7 +521,7 @@ function create_md_template(inertia_product)
                 PSI.RangeReserve,
                 "Reg_Down",
                 use_slacks=true,
-                duals = [PSI.RequirementConstraint],
+                # duals = [PSI.RequirementConstraint],
             )
         )
         # PSI.set_service_model!(
@@ -600,7 +600,7 @@ function create_md_template(inertia_product)
                 PSI.RangeReserve,
                 "Reg_Up",
                 use_slacks=true,
-                duals = [PSI.RequirementConstraint],
+                # duals = [PSI.RequirementConstraint],
             )
         )
         PSI.set_service_model!(
@@ -610,7 +610,7 @@ function create_md_template(inertia_product)
                 PSI.RangeReserve,
                 "Reg_Down",
                 use_slacks=true,
-                duals = [PSI.RequirementConstraint],
+                # duals = [PSI.RequirementConstraint],
             )
         )
         # PSI.set_service_model!(
@@ -681,7 +681,7 @@ function create_uc_template(inertia_product)
                 PSI.RangeReserve,
                 "Reg_Up",
                 use_slacks=true,
-                duals = [PSI.RequirementConstraint],
+                # duals = [PSI.RequirementConstraint],
             )
         )
         PSI.set_service_model!(
@@ -691,7 +691,7 @@ function create_uc_template(inertia_product)
                 PSI.RangeReserve,
                 "Reg_Down",
                 use_slacks=true,
-                duals = [PSI.RequirementConstraint],
+                # duals = [PSI.RequirementConstraint],
             )
         )
         # PSI.set_service_model!(
@@ -763,7 +763,7 @@ function create_uc_template(inertia_product)
                 PSI.RangeReserve,
                 "Reg_Up",
                 use_slacks=true,
-                duals = [PSI.RequirementConstraint],
+                # duals = [PSI.RequirementConstraint],
             )
         )
         PSI.set_service_model!(
@@ -773,7 +773,7 @@ function create_uc_template(inertia_product)
                 PSI.RangeReserve,
                 "Reg_Down",
                 use_slacks=true,
-                duals = [PSI.RequirementConstraint],
+                # duals = [PSI.RequirementConstraint],
             )
         )
 
@@ -852,7 +852,7 @@ function create_ed_template(inertia_product)
                 PSI.RangeReserve,
                 "Reg_Up",
                 use_slacks=true,
-                duals = [PSI.RequirementConstraint],
+                # duals = [PSI.RequirementConstraint],
             )
         )
         PSI.set_service_model!(
@@ -862,7 +862,7 @@ function create_ed_template(inertia_product)
                 PSI.RangeReserve,
                 "Reg_Down",
                 use_slacks=true,
-                duals = [PSI.RequirementConstraint],
+                # duals = [PSI.RequirementConstraint],
             )
         )
         # PSI.set_service_model!(
@@ -925,7 +925,7 @@ function create_ed_template(inertia_product)
                 PSI.RangeReserve,
                 "Reg_Up",
                 use_slacks=true,
-                duals = [PSI.RequirementConstraint],
+                # duals = [PSI.RequirementConstraint],
             )
         )
         PSI.set_service_model!(
@@ -935,7 +935,7 @@ function create_ed_template(inertia_product)
                 PSI.RangeReserve,
                 "Reg_Down",
                 use_slacks=true,
-                duals = [PSI.RequirementConstraint],
+                # duals = [PSI.RequirementConstraint],
             )
         )
         # PSI.set_service_model!(
