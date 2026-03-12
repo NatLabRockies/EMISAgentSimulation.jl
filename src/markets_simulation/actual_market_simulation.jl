@@ -87,7 +87,7 @@ function create_realized_marketdata(simulation::AgentSimulation,
     reserve_voll_md,
     inertia_voll = energy_mkt_clearing(sys_MD, sys_UC, sys_ED, system, simulation_dir, reserve_penalty, rec_perc_requirement, zones, num_days, pcm_scenario, iteration_year, get_da_resolution(case), get_rt_resolution(case), get_name(case), solver, get_base_dir(case), simulation, current_siip_sim, md_market_bool, single_stage_bool, siip_system, case)
 
-    println("Clean energy requirement for this year is $(get_rec_requirement(simulation)[iteration_year] * 100) percent")
+    @info "Clean energy requirement for this year is $(get_rec_requirement(simulation)[iteration_year] * 100) percent"
     total_production = 0.0
     total_cec_production = 0.0
     day = 0
@@ -117,7 +117,7 @@ function create_realized_marketdata(simulation::AgentSimulation,
         #println("Clean energy contribution for day $(day) is $(round(daily_cec_production * 100.0 / daily_total_production, digits = 2)) percent")
     end
 
-    println("Total Annual clean energy contribution is $(round(total_cec_production * 100.0 / total_production, digits = 2)) percent")
+    @info "Total Annual clean energy contribution is $(round(total_cec_production * 100.0 / total_production, digits = 2)) percent"
 
     cet_achieved_ratio = round(total_cec_production / total_production, digits = 2) / get_rec_requirement(simulation)[iteration_year]
 

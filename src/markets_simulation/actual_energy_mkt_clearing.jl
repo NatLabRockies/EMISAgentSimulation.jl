@@ -18,6 +18,7 @@ function energy_mkt_clearing(sys_UC::Nothing,
                              solver::JuMP.MOI.OptimizerWithAttributes,
                              case,)
     @warn "This functionality has been deprecated. All PCMs are currently run with Sienna."
+    
    
     energy_price,
     reserve_up_price,
