@@ -8,3 +8,10 @@ const DEFAULT_LOAD_YEAR = 2000
 const DEFAULT_RTS_LOAD = 75.0 # GW
 
 const BASE_POWER = 100.0 # MW
+
+# PSI constants
+const BALANCE_SLACK_COST = 1e6
+const SERVICES_SLACK_COST = 1e5
+
+# Simulations constants
+const PENALTY_COST = 5000.0
