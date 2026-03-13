@@ -1,6 +1,45 @@
 # This file contains functions for calling, running and post-processing
 # SIIP PSI Simulation for actual Energy and A/S Market Clearing
 
+# PSI's ServiceModel dispatch for add_constraint_dual! calls get_available_components which
+# returns ALL services of the type (not just the named one), then passes the collection to
+# assign_dual_variable! which only accepts a single D<:PSY.Service. Both are bugs: this
+# override mirrors what construct_service! does — fetch only the named service and register
+# its dual individually.
+function PSI.add_constraint_dual!(
+    container::PSI.OptimizationContainer,
+    sys::PSY.System,
+    model::PSI.ServiceModel{T, D},
+) where {T <: PSY.Service, D <: PSI.AbstractServiceFormulation}
+    if !isempty(PSI.get_duals(model))
+        name = PSI.get_service_name(model)
+        service = PSY.get_component(T, sys, name)
+        (service === nothing || !PSY.get_available(service)) && return
+        for constraint_type in PSI.get_duals(model)
+            PSI.assign_dual_variable!(container, constraint_type, service, D)
+        end
+    end
+    return
+end
+
+# PSI's generic AbstractPowerModel dispatch for add_constraint_dual! fetches ACBus components
+# and registers duals keyed on ACBus. For AreaBalancePowerModel the actual constraint is
+# CopperPlateBalanceConstraint keyed on Area, so we add a more-specific dispatch here.
+function PSI.add_constraint_dual!(
+    container::PSI.OptimizationContainer,
+    sys::PSY.System,
+    model::PSI.NetworkModel{PSI.AreaBalancePowerModel},
+)
+    if !isempty(PSI.get_duals(model))
+        areas = PSY.get_name.(PSI.get_available_components(model, PSY.Area, sys))
+        time_steps = PSI.get_time_steps(container)
+        for constraint_type in PSI.get_duals(model)
+            PSI.add_dual_container!(container, constraint_type, PSY.Area, areas, time_steps)
+        end
+    end
+    return
+end
+
 function adjust_reserve_voll!(sys::PSY.System,
                              problem::PSI.OperationModel,
                              simulation_dir::String,
@@ -474,9 +513,7 @@ This function creates the Unit Commitment template for PSI Simulation.
 #TODO: Update needed
 
 function create_md_template(inertia_product)
-
     if !(isempty(inertia_product))
-
         template = PSI.ProblemTemplate(
             PSI.NetworkModel(
                 PSI.AreaBalancePowerModel,
@@ -511,7 +548,7 @@ function create_md_template(inertia_product)
                 PSI.RangeReserve,
                 "Reg_Up",
                 use_slacks=true,
-                # duals = [PSI.RequirementConstraint],
+                duals = [PSI.RequirementConstraint],
             )
         )
         PSI.set_service_model!(
@@ -521,29 +558,29 @@ function create_md_template(inertia_product)
                 PSI.RangeReserve,
                 "Reg_Down",
                 use_slacks=true,
-                # duals = [PSI.RequirementConstraint],
+                duals = [PSI.RequirementConstraint],
             )
         )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Synchronous",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Primary",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Synchronous",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Primary",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
 
         # PSI.set_service_model!(
         #     template,
@@ -600,7 +637,7 @@ function create_md_template(inertia_product)
                 PSI.RangeReserve,
                 "Reg_Up",
                 use_slacks=true,
-                # duals = [PSI.RequirementConstraint],
+                duals = [PSI.RequirementConstraint],
             )
         )
         PSI.set_service_model!(
@@ -610,29 +647,29 @@ function create_md_template(inertia_product)
                 PSI.RangeReserve,
                 "Reg_Down",
                 use_slacks=true,
-                # duals = [PSI.RequirementConstraint],
+                duals = [PSI.RequirementConstraint],
             )
         )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Synchronous",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Primary",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Synchronous",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Primary",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
 
         # PSI.set_service_model!(
         #     template,
@@ -681,7 +718,7 @@ function create_uc_template(inertia_product)
                 PSI.RangeReserve,
                 "Reg_Up",
                 use_slacks=true,
-                # duals = [PSI.RequirementConstraint],
+                duals = [PSI.RequirementConstraint],
             )
         )
         PSI.set_service_model!(
@@ -691,29 +728,29 @@ function create_uc_template(inertia_product)
                 PSI.RangeReserve,
                 "Reg_Down",
                 use_slacks=true,
-                # duals = [PSI.RequirementConstraint],
+                duals = [PSI.RequirementConstraint],
             )
         )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Synchronous",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Primary",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Synchronous",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Primary",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
         # PSI.set_service_model!(
         #     template,
         #     PSI.ServiceModel(
@@ -763,7 +800,7 @@ function create_uc_template(inertia_product)
                 PSI.RangeReserve,
                 "Reg_Up",
                 use_slacks=true,
-                # duals = [PSI.RequirementConstraint],
+                duals = [PSI.RequirementConstraint],
             )
         )
         PSI.set_service_model!(
@@ -773,32 +810,31 @@ function create_uc_template(inertia_product)
                 PSI.RangeReserve,
                 "Reg_Down",
                 use_slacks=true,
-                # duals = [PSI.RequirementConstraint],
+                duals = [PSI.RequirementConstraint],
             )
         )
 
-
         ## NY_change: need to re-enable these
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Synchronous",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Primary",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Synchronous",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Primary",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
 
 
         # PSI.set_service_model!(
@@ -852,7 +888,7 @@ function create_ed_template(inertia_product)
                 PSI.RangeReserve,
                 "Reg_Up",
                 use_slacks=true,
-                # duals = [PSI.RequirementConstraint],
+                duals = [PSI.RequirementConstraint],
             )
         )
         PSI.set_service_model!(
@@ -862,29 +898,29 @@ function create_ed_template(inertia_product)
                 PSI.RangeReserve,
                 "Reg_Down",
                 use_slacks=true,
-                # duals = [PSI.RequirementConstraint],
+                duals = [PSI.RequirementConstraint],
             )
         )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Synchronous",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Primary",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Synchronous",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Primary",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
         # PSI.set_service_model!(
         #     template,
         #     PSI.ServiceModel(
@@ -925,7 +961,7 @@ function create_ed_template(inertia_product)
                 PSI.RangeReserve,
                 "Reg_Up",
                 use_slacks=true,
-                # duals = [PSI.RequirementConstraint],
+                duals = [PSI.RequirementConstraint],
             )
         )
         PSI.set_service_model!(
@@ -935,29 +971,29 @@ function create_ed_template(inertia_product)
                 PSI.RangeReserve,
                 "Reg_Down",
                 use_slacks=true,
-                # duals = [PSI.RequirementConstraint],
+                duals = [PSI.RequirementConstraint],
             )
         )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Synchronous",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Primary",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
-        # )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Synchronous",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
+        PSI.set_service_model!(
+            template,
+            PSI.ServiceModel(
+                PSY.ReserveDemandCurve{PSY.ReserveUp},
+                PSI.StepwiseCostReserve,
+                "Primary",
+                use_slacks=true,
+                duals = [PSI.RequirementConstraint],
+            )
+        )
     end
 
     return template
@@ -968,7 +1004,6 @@ This function creates the Problem for PSI Simulation.
 """
 
 function create_problem(template::PSI.ProblemTemplate, sys::PSY.System, type::String, solver::JuMP.MOI.OptimizerWithAttributes, inertia_product)
-
         if type == "UC"
             problem = PSI.DecisionModel(
                                     template,
@@ -1038,7 +1073,6 @@ end
 This function creates the Sequences for PSI Simulation.
 """
 function create_sequence(problems::PSI.SimulationModels, feedforward_dict, single_stage_bool)
-
     if single_stage_bool == false
         sequence = PSI.SimulationSequence(
             models = problems,
@@ -1329,8 +1363,8 @@ function create_simulation(sys_MD::PSY.System,
     md_products = split(read_data(joinpath(simulation_dir, "markets_data", "reserve_products.csv"))[1,"da_products"], "; ")
     rt_products = split(read_data(joinpath(simulation_dir, "markets_data", "reserve_products.csv"))[1,"rt_products"], "; ")
     da_products = split(read_data(joinpath(simulation_dir, "markets_data", "reserve_products.csv"))[1,"da_products"], "; ")
-    
     energy_mkt_data = read_data(joinpath(simulation_dir, "markets_data", "Energy.csv"))
+    
     energy_voll_cost = AxisArrays.AxisArray(energy_mkt_data.price_cap * 1.0, zones)
 
     sequence = create_sequence(models, feedforward_dict, single_stage_bool);
@@ -1380,38 +1414,28 @@ function create_simulation(sys_MD::PSY.System,
     @info "Simulation execution completed."
     @info "Getting Sienna results..."
     sim_results = PSI.SimulationResults(sim)
-    
-    if single_stage_bool == false
-        res_uc = PSI.get_decision_problem_results(sim_results, "UC")
+
+    res_uc = PSI.get_decision_problem_results(sim_results, "UC")
+    dual_values_uc = PSI.read_realized_duals(res_uc)
+    result_variables_uc = PSI.read_realized_variables(res_uc)
+    data_length_uc = length(unique(dual_values_uc["CopperPlateBalanceConstraint__Area"].DateTime))
+
+    result_variables_ed = nothing
+    if !single_stage_bool
         res_ed = PSI.get_decision_problem_results(sim_results, "ED")
-
         dual_values_ed = PSI.read_realized_duals(res_ed)
-        dual_values_uc = PSI.read_realized_duals(res_uc)
-
         result_variables_ed = PSI.read_realized_variables(res_ed)
-        result_variables_uc = PSI.read_realized_variables(res_uc)
-
-        data_length_ed = DataFrames.nrow(dual_values_ed["CopperPlateBalanceConstraint__Area"])
-        data_length_uc = DataFrames.nrow(dual_values_uc["CopperPlateBalanceConstraint__Area"])
-    else
-        result_variables_ed = nothing
-
-        res_uc = PSI.get_decision_problem_results(sim_results, "UC")
-        dual_values_uc = PSI.read_realized_duals(res_uc)
-        result_variables_uc = PSI.read_realized_variables(res_uc)
-
-        data_length_uc = DataFrames.nrow(dual_values_uc["CopperPlateBalanceConstraint__Area"])
-        data_length_ed = DataFrames.nrow(dual_values_uc["CopperPlateBalanceConstraint__Area"])
+        data_length_ed = length(unique(dual_values_ed["CopperPlateBalanceConstraint__Area"].DateTime))
     end
 
-    if md_market_bool == true
+    if md_market_bool
         res_md = PSI.get_decision_problem_results(sim_results, "MD")
         dual_values_md = PSI.read_realized_duals(res_md)
         result_variables_md = PSI.read_realized_variables(res_md)
-        data_length_md = DataFrames.nrow(dual_values_md["CopperPlateBalanceConstraint__Area"])
+        data_length_md = length(unique(dual_values_md["CopperPlateBalanceConstraint__Area"].DateTime))
     else
         result_variables_md = nothing
-        data_length_md = DataFrames.nrow(dual_values_uc["CopperPlateBalanceConstraint__Area"])
+        data_length_md = length(unique(dual_values_uc["CopperPlateBalanceConstraint__Area"].DateTime))
     end
 
     energy_price_ed = AxisArrays.AxisArray(zeros(length(zones), 1, data_length_ed), zones, 1:1, 1:data_length_ed)
@@ -1443,8 +1467,8 @@ function create_simulation(sys_MD::PSY.System,
     end
 
     for zone in zones
-        # bus = find_zonal_bus(zone, sys_UC)
-        area = find_zonal_area(zone, sys_UC)
+        # bus = find_zonal_bus(String(zone), sys_UC)
+        area = EAS.find_zonal_area(String(zone), sys_UC)
         # zone_num = parse(Int64, last(zone, 1))
         if isnothing(zone)
             energy_price_ed[zone, 1, :] = zeros(data_length_ed)
@@ -1456,29 +1480,28 @@ function create_simulation(sys_MD::PSY.System,
         else
             if single_stage_bool == false
                 energy_price_ed[zone, 1, :] =
-                    abs.(round.(dual_values_ed["CopperPlateBalanceConstraint__Area"][:, PSY.get_name(area)], digits = 5)) / base_power
+                    abs.(round.(dual_values_ed["CopperPlateBalanceConstraint__Area"][dual_values_ed["CopperPlateBalanceConstraint__Area"].name .== PSY.get_name(area), :value], digits = 5)) / base_power
                 energy_price_uc[zone, 1, :] =
-                    abs.(round.(dual_values_uc["CopperPlateBalanceConstraint__Area"][:, PSY.get_name(area)], digits = 5)) / base_power
+                    abs.(round.(dual_values_uc["CopperPlateBalanceConstraint__Area"][dual_values_uc["CopperPlateBalanceConstraint__Area"].name .== PSY.get_name(area), :value], digits = 5)) / base_power
                 if md_market_bool == true
                     energy_price_md[zone, 1, :] =
-                        abs.(round.(dual_values_md["CopperPlateBalanceConstraint__Area"][:, PSY.get_name(area)], digits = 5)) / base_power
-                    
-                    energy_voll_md[zone, 1, :] = abs.(round.(result_variables_md["SystemBalanceSlackUp__ACBus"][:, PSY.get_name(area)], digits = 5)) / base_power
+                        abs.(round.(dual_values_md["CopperPlateBalanceConstraint__Area"][dual_values_md["CopperPlateBalanceConstraint__Area"].name .== PSY.get_name(area), :value], digits = 5)) / base_power
+                    energy_voll_md[zone, 1, :] = abs.(round.(result_variables_md["SystemBalanceSlackUp__Area"][result_variables_md["SystemBalanceSlackUp__Area"].name .== PSY.get_name(area), :value], digits = 5)) / base_power
                 else
                     energy_price_md[zone, 1, :] = zeros(data_length_md)
                 end
-                energy_voll[zone, 1, :] = abs.(round.(result_variables_ed["SystemBalanceSlackUp__ACBus"][:, PSY.get_name(area)], digits = 5)) / base_power
-                energy_voll_uc[zone, 1, :] = abs.(round.(result_variables_uc["SystemBalanceSlackUp__ACBus"][:, PSY.get_name(area)], digits = 5)) / base_power
+                energy_voll[zone, 1, :] = abs.(round.(result_variables_ed["SystemBalanceSlackUp__Area"][result_variables_ed["SystemBalanceSlackUp__Area"].name .== PSY.get_name(area), :value], digits = 5)) / base_power
+                energy_voll_uc[zone, 1, :] = abs.(round.(result_variables_uc["SystemBalanceSlackUp__Area"][result_variables_uc["SystemBalanceSlackUp__Area"].name .== PSY.get_name(area), :value], digits = 5)) / base_power
                 # energy_voll[zone, 1, :] += abs.(round.(result_variables_ed["SystemBalanceSlackDown__ACBus"][:, string(PSY.get_number(bus))], digits = 5)) / base_power
             else
                 energy_price_uc[zone, 1, :] =
-                    abs.(round.(dual_values_uc["NodalBalanceActiveConstraint__ACBus"][:, PSY.get_name(bus)], digits = 5)) / base_power
-                energy_voll_uc[zone, 1, :] = abs.(round.(result_variables_uc["SystemBalanceSlackUp__ACBus"][:, PSY.get_name(area)], digits = 5)) / base_power
+                    abs.(round.(dual_values_uc["CopperPlateBalanceConstraint__Area"][dual_values_uc["CopperPlateBalanceConstraint__Area"].name .== PSY.get_name(area), :value], digits = 5)) / base_power
+                energy_voll_uc[zone, 1, :] = abs.(round.(result_variables_uc["SystemBalanceSlackUp__Area"][result_variables_uc["SystemBalanceSlackUp__Area"].name .== PSY.get_name(area), :value], digits = 5)) / base_power
             end
         end
     end
 
-    println("recorded sienna energy prices")
+    @info "Recorded sienna energy prices"
 
     #println(any(isnan, energy_price))
     replace!(energy_price_ed, NaN => 0.0)
@@ -1489,36 +1512,37 @@ function create_simulation(sys_MD::PSY.System,
     #println(any(isnan, energy_price))
     #println(Statistics.mean(energy_price))
 
-
-    if single_stage_bool == false
+    if !single_stage_bool
         for service in get_system_services(sys_ED)
             name = PSY.get_name(service)
-            #println(name)
+            @info "Recording prices for service $(name)"
             if typeof(service) == PSY.VariableReserve{PSY.ReserveUp}
                 if name == "Inertia"
-                    inertia_price[1, :] = abs.(round.(dual_values_ed["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
+                    inertia_price[1, :] = abs.(round.(dual_values_ed["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, :value], digits = 5)) / base_power
                     replace!(inertia_price, NaN => 0.0)
-                    scale_voll(inertia_price, rt_resolution)
-                    inertia_voll[1, :] = abs.(round.(result_variables_ed["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
+                    EAS.scale_voll(inertia_price, rt_resolution)
+                    inertia_voll[1, :] = abs.(round.(result_variables_ed["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, :value], digits = 5)) / base_power
                 elseif name == "Clean_Energy"
+                    @info "No price for Clean_Energy product"
                 else
-                    reserve_price_ed[name][1, :] = abs.(round.(dual_values_ed["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
+                    @info "Recording reserve price for $(name) product - $(typeof(service))"
+                    reserve_price_ed[name][1, :] = abs.(round.(dual_values_ed["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, :value], digits = 5)) / base_power
                     replace!(reserve_price_ed[name], NaN => 0.0)
-                    scale_voll(reserve_price_ed[name], rt_resolution)
-                    reserve_voll[name][1, :] = abs.(round.(result_variables_ed["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
-                    #println(reserve_price[name])
+                    EAS.scale_voll(reserve_price_ed[name], rt_resolution)
+                    reserve_voll[name][1, :] = abs.(round.(result_variables_ed["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, :value], digits = 5)) / base_power
                 end
             elseif typeof(service) == PSY.ReserveDemandCurve{PSY.ReserveUp}
-                reserve_price_ed[name][1, :] = abs.(round.(dual_values_ed["RequirementConstraint__ReserveDemandCurve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
+                @info "Recording reserve price for $(name) product - $(typeof(service))"
+                reserve_price_ed[name][1, :] = abs.(round.(dual_values_ed["RequirementConstraint__ReserveDemandCurve__ReserveUp__$(name)"][:, :value], digits = 5)) / base_power
                 replace!(reserve_price_ed[name], NaN => 0.0)
-                scale_voll(reserve_price_ed[name], rt_resolution)
-                #println(reserve_price[name])
+                EAS.scale_voll(reserve_price_ed[name], rt_resolution)
+
             elseif typeof(service) == PSY.VariableReserve{PSY.ReserveDown}
-                reserve_price_ed[name][1, :] = abs.(round.(dual_values_ed["RequirementConstraint__VariableReserve__ReserveDown__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
+                @info "Recording reserve price for $(name) product - $(typeof(service))"
+                reserve_price_ed[name][1, :] = abs.(round.(dual_values_ed["RequirementConstraint__VariableReserve__ReserveDown__$(name)"][:, :value], digits = 5)) / base_power
                 replace!(reserve_price_ed[name], NaN => 0.0)
-                scale_voll(reserve_price_ed[name], rt_resolution)
-                reserve_voll[name][1, :] = abs.(round.(result_variables_ed["ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)")], digits = 5)) / base_power
-                #println(reserve_price[name])
+                EAS.scale_voll(reserve_price_ed[name], rt_resolution)
+                reserve_voll[name][1, :] = abs.(round.(result_variables_ed["ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)"][:, :value], digits = 5)) / base_power
             end
         end
 
@@ -1624,7 +1648,7 @@ function create_simulation(sys_MD::PSY.System,
         end
     end
 
-    println("recorded sienna service prices")
+    @info "Recorded sienna service prices"
 
     sys_techs = get_all_techs(sys_ED)
 
@@ -1688,6 +1712,8 @@ function create_simulation(sys_MD::PSY.System,
     for g in keys(inertia_perc)
         inertia_perc[g] = inertia_perc[g] / PSY.get_base_power(sys_UC)
     end
-    println("recorded all sienna results")
+
+    @info "Recorded all Sienna results"
+
     return energy_price_ed, energy_price_uc, energy_price_md, reserve_price_ed, reserve_price_uc, reserve_price_md, inertia_price, capacity_factors_md, capacity_factors_uc, capacity_factors_ed, reserve_perc_md, reserve_perc_uc, reserve_perc_ed, inertia_perc, start_up_costs, shut_down_costs, energy_voll, energy_voll_uc, energy_voll_md, reserve_voll, reserve_voll_uc, reserve_voll_md, inertia_voll;
 end
