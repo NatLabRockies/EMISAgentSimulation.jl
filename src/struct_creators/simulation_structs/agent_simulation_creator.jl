@@ -33,9 +33,9 @@ function gather_data(case::CaseDefinition)
     system_peak_load = Dict(scenario => Dict{Int64, Float64}() for scenario in scenarios)
     
     for scenario in scenarios
-        println(scenario)
+        @info "Processing scenario: $scenario"
         for sim_year in collect(1:simulation_years)
-            println(sim_year)
+            @info "Processing simulation year: $sim_year"
             ### NY_change: copied load data over from /kfs2/projects/gmlcmarkets/Phase2_EMIS_Analysis/Feb2024_ERCOT_2011_MARKET_Test_NGUO_LDES/RTS-GMLC_NY/nys_psy/Data/zonal_load_profile.csv (zonal_model_tscost branch)
             test_system_load_da = DataFrames.DataFrame(CSV.File(joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Load", "DAY_AHEAD_regional_Load.csv")))
             test_system_load_rt = DataFrames.DataFrame(CSV.File(joinpath(test_system_dir, "RTS_Data", "timeseries_data_files", scenario, "sim_year_$(sim_year)", "Load", "REAL_TIME_regional_Load.csv")))
@@ -147,11 +147,8 @@ function gather_data(case::CaseDefinition)
         end
     end
 
-    
-    resource_adequacy = Dict(s => ResourceAdequacy(ra_targets, zeros(simulation_years), [ra_metrics for i in 1:simulation_years]) for s in scenarios)
-    
+    resource_adequacy = Dict(s => ResourceAdequacy(ra_targets, zeros(simulation_years), [ra_metrics for i in 1:simulation_years]) for s in scenarios)    
     results_dir = make_results_dir(case)
-
     simulation_data = AgentSimulationData(case,
                                         results_dir,
                                         sys_MDs,
