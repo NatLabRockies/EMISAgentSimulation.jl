@@ -91,22 +91,24 @@ function create_realized_marketdata(simulation::AgentSimulation,
     total_production = 0.0
     total_cec_production = 0.0
     day = 0
-    get_rt_resolution(get_case(simulation))
-    for time in 1:Int(24*60/get_rt_resolution(get_case(simulation))):(Int(24*60/get_rt_resolution(get_case(simulation))) * 365)
+    rt_resolution = get_rt_resolution(get_case(simulation))
+    for time in 1:Int(24*60/rt_resolution):(Int(24*60/rt_resolution) * 365)
         day += 1
         daily_total_production = 0.0
         daily_cec_production = 0.0
         for gen in get_all_techs(sys_ED)
             name = PSY.get_name(gen)
-            if !(occursin("BA", string(PSY.get_prime_mover_type(gen)))) #!(occursin("BA", name))
-                energy_production = sum(capacity_factors_ed[name][time:time + Int(24*60/get_rt_resolution(get_case(simulation)))-1]) * get_device_size(gen)
+            prime_mover = string(PSY.get_prime_mover_type(gen))
+
+            if !(occursin("BA", prime_mover)) #!(occursin("BA", name))
+                energy_production = sum(capacity_factors_ed[name][time:time + Int(24*60/rt_resolution)-1]) * get_device_size(gen)
                 total_production += energy_production
                 daily_total_production += energy_production
-                if occursin("WT", string(PSY.get_prime_mover_type(gen))) || occursin("PVe", string(PSY.get_prime_mover_type(gen))) || occursin("HY", string(PSY.get_prime_mover_type(gen))) #occursin("WT", name) || occursin("WIND", name) || occursin("PV", name) || occursin("HY", name) || occursin("NU", name) || occursin("RE", name)
+                if occursin("WT", prime_mover) || occursin("PVe", prime_mover) || occursin("HY", prime_mover) #occursin("WT", name) || occursin("WIND", name) || occursin("PV", name) || occursin("HY", name) || occursin("NU", name) || occursin("RE", name)
                     total_cec_production += energy_production
                     daily_cec_production += energy_production
                 end
-                if occursin("ST", string(PSY.get_prime_mover_type(gen)))
+                if occursin("ST", prime_mover)
                     if occursin("NUCLEAR", string(PSY.get_fuel(gen))) 
                         total_cec_production += energy_production
                         daily_cec_production += energy_production
