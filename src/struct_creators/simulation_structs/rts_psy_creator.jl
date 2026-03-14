@@ -96,8 +96,10 @@ function create_rts_sys(rts_dir::String,
                 MD_num_forecast_filename,
                 outage_dir,
             )
-        end        
-        push!(sys_MDs, PSY.System(MD_sys_filename, time_series_directory = scratch_dir, runchecks = runchecks));
+        end
+        sys_MD = PSY.System(MD_sys_filename, time_series_directory = scratch_dir, runchecks = runchecks)
+        fix_multistart_cost_curves!(sys_MD)        
+        push!(sys_MDs, sys_MD);
 
         UC_filename = joinpath(rts_dir, "constructed_systems", pcm_scenario, "sim_year_$(sim_year)", "DA_sys_EMIS_$(UC_horizon)hor_$(UC_interval)int_$(MD_horizon)mdhor_$(MD_interval)mdint.json")
         if !(isfile(UC_filename))
@@ -122,7 +124,9 @@ function create_rts_sys(rts_dir::String,
                 outage_dir,
             )
         end
-        push!(sys_UCs, PSY.System(UC_filename, time_series_directory = scratch_dir, runchecks = runchecks));
+        sys_UC = PSY.System(UC_filename, time_series_directory = scratch_dir, runchecks = runchecks)
+        fix_multistart_cost_curves!(sys_UC)
+        push!(sys_UCs, sys_UC);
 
         for scenario in scenarios
             if scenario == "scenario_1"
@@ -158,7 +162,9 @@ function create_rts_sys(rts_dir::String,
                     outage_dir,
                 )
             end
-            push!(sys_EDs_dict[scenario], PSY.System(ED_filename, time_series_directory = scratch_dir, runchecks = runchecks));
+            sys_ED = PSY.System(ED_filename, time_series_directory = scratch_dir, runchecks = runchecks)
+            fix_multistart_cost_curves!(sys_ED)
+            push!(sys_EDs_dict[scenario], sys_ED);
         end
         sys_EDs = sys_EDs_dict[pcm_scenario]
 
@@ -219,7 +225,6 @@ function remove_vre_gens!(sys::PSY.System)
         end
     end
 end
-
 
 function create_sys_w_updated_ts(
     data_dir::String,
@@ -526,13 +531,12 @@ function create_sys_w_updated_ts(
             ts = zeros(length(dates))
             if gen_name in names(outages_data)
                 @info "Adding outage timeseries for generator $(gen_name)."
-                
                 ts[1:size(outages_data, 1)] = outages_data[!, gen_name]
             else
                 @info "No outage timeseries found for generator $(gen_name), adding default values of 0."
             end
 
-            outage_ts = TimeArray(dates, ts)
+            outage_ts = TS.TimeArray(dates, ts)
             transition_data = PSY.FixedForcedOutage(;
                                 outage_status = 0.0,
                                 )
@@ -752,4 +756,48 @@ function create_PRAS_sys_NY_json(
     to_json(sys_PRAS, output_file, force=true)
 
     return
+end
+
+function fix_multistart_cost_curves!(sys::PSY.System)
+    base_power = PSY.get_base_power(sys)
+    for unit in PSY.get_components(PSY.ThermalMultiStart, sys)
+        @info "Checking cost curve for multi-start unit $(PSY.get_name(unit))"
+        cost = PSY.get_operation_cost(unit)
+        vc = PSY.get_variable(cost)
+        curve = PSY.get_value_curve(vc)
+        pmax_mw = PSY.get_active_power_limits(unit).max * base_power
+
+        if curve isa PSY.PiecewisePointCurve
+            points = PSY.get_points(curve)
+            if points[end].x < pmax_mw
+                @warn "$(PSY.get_name(unit)): PiecewisePointCurve ends at $(points[end].x) MW < Pmax $(pmax_mw) MW — extending"
+                slope = points[end].x > 0 ? points[end].y / points[end].x : 1.0
+                new_points = vcat(points, [(x = pmax_mw, y = pmax_mw * slope)])
+                new_curve = PSY.PiecewisePointCurve(new_points)
+                new_vc = PSY.CostCurve(new_curve, PSY.get_power_units(vc), PSY.get_vom_cost(vc))
+                PSY.set_operation_cost!(unit, PSY.ThermalGenerationCost(
+                    new_vc, PSY.get_fixed(cost), PSY.get_start_up(cost), PSY.get_shut_down(cost)
+                ))
+            end
+
+        elseif curve isa PSY.PiecewiseIncrementalCurve
+            x_coords = PSY.get_x_coords(curve)
+            if x_coords[end] < pmax_mw
+                @warn "$(PSY.get_name(unit)): PiecewiseIncrementalCurve ends at $(x_coords[end]) MW < Pmax $(pmax_mw) MW — extending"
+                slopes = PSY.get_slopes(curve)
+                new_x = vcat(x_coords, pmax_mw)
+                new_slopes = vcat(slopes, slopes[end])  # extend with last slope
+                new_curve = PSY.PiecewiseIncrementalCurve(
+                    PSY.get_initial_input(curve), new_x, new_slopes
+                )
+                new_vc = PSY.CostCurve(new_curve, PSY.get_power_units(vc), PSY.get_vom_cost(vc))
+                PSY.set_operation_cost!(unit, PSY.ThermalGenerationCost(
+                    new_vc, PSY.get_fixed(cost), PSY.get_start_up(cost), PSY.get_shut_down(cost)
+                ))
+            end
+
+        else
+            @warn "$(PSY.get_name(unit)): unhandled curve type $(typeof(curve)) — skipping"
+        end
+    end
 end
