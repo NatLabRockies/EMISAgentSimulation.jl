@@ -126,7 +126,8 @@ function get_start_costs(device::PSY.ThermalStandard,
                               results::Dict{String, DataFrames.DataFrame},
                               data_length_uc::Int64
                                         )
-    start_ups = results["StartVariable__ThermalStandard"][:, Symbol(get_name(device))]
+    # start_ups = results["StartVariable__ThermalStandard"][:, Symbol(get_name(device))]
+    start_ups = results["StartVariable__ThermalStandard"][results["StartVariable__ThermalStandard"].name .== PSY.get_name(device), :value]
     start_up_costs = start_ups * PSY.get_start_up(PSY.get_operation_cost(device))
     return start_up_costs
 end
@@ -136,7 +137,8 @@ function get_start_costs(device::ThermalFastStartSIIP,
                               results::Dict{String, DataFrames.DataFrame},
                               data_length_uc::Int64
                                         )
-    start_ups = results["StartVariable__ThermalFastStartSIIP"][:, Symbol(get_name(device))]
+    # start_ups = results["StartVariable__ThermalFastStartSIIP"][:, Symbol(get_name(device))]
+    start_ups = results["StartVariable__ThermalFastStartSIIP"][results["StartVariable__ThermalFastStartSIIP"].name .== PSY.get_name(device), :value]
     start_up_costs = start_ups * PSY.get_start_up(PSY.get_operation_cost(device))
     return start_up_costs
 end
@@ -158,7 +160,8 @@ function get_shut_costs(device::PSY.ThermalStandard,
                        results::Dict{String, DataFrames.DataFrame},
                        data_length_uc::Int64
                                         )
-    shut_downs = results["StopVariable__ThermalStandard"][:, Symbol(get_name(device))]
+    # shut_downs = results["StopVariable__ThermalStandard"][:, Symbol(get_name(device))]
+    shut_downs = results["StopVariable__ThermalStandard"][results["StopVariable__ThermalStandard"].name .== get_name(device), :value]
     shut_down_costs = shut_downs * PSY.get_shut_down(PSY.get_operation_cost(device))
     return shut_down_costs
 end
@@ -168,7 +171,8 @@ function get_shut_costs(device::ThermalFastStartSIIP,
                        results::Dict{String, DataFrames.DataFrame},
                        data_length_uc::Int64
                                         )
-    shut_downs = results["StopVariable__ThermalFastStartSIIP"][:, Symbol(get_name(device))]
+    # shut_downs = results["StopVariable__ThermalFastStartSIIP"][:, Symbol(get_name(device))]
+    shut_downs = results["StopVariable__ThermalFastStartSIIP"][results["StopVariable__ThermalFastStartSIIP"].name .== get_name(device), :value]
     shut_down_costs = shut_downs * PSY.get_shut_down(PSY.get_operation_cost(device))
     return shut_down_costs
 end
@@ -191,7 +195,22 @@ function get_realized_capacity_factors(device::PSY.ThermalStandard,
                                         results_uc::Dict{String, DataFrames.DataFrame},
                                         base_power::Float64
                                         )
-    energy_production = results["ActivePowerVariable__ThermalStandard"][:, Symbol(get_name(device))]
+    # energy_production = results["ActivePowerVariable__ThermalStandard"][:, Symbol(get_name(device))]
+    energy_production = results["ActivePowerVariable__ThermalStandard"][results["ActivePowerVariable__ThermalStandard"].name .== get_name(device), :value]
+    capacity_factors = (energy_production / base_power) / get_device_size(device)
+    return capacity_factors
+end
+
+"""
+This function returns realized capacity factors for ThermalMultiStart generators from PSI Simulation.
+"""
+function get_realized_capacity_factors(device::PSY.ThermalMultiStart,
+                                        results::Dict{String, DataFrames.DataFrame},
+                                        results_uc::Dict{String, DataFrames.DataFrame},
+                                        base_power::Float64
+                                        )
+    # energy_production = results["ActivePowerVariable__ThermalMultiStart"][:, Symbol(get_name(device))]
+    energy_production = results["ActivePowerVariable__ThermalMultiStart"][results["ActivePowerVariable__ThermalMultiStart"].name .== get_name(device), :value]
     capacity_factors = (energy_production / base_power) / get_device_size(device)
     return capacity_factors
 end
@@ -208,7 +227,8 @@ function get_realized_capacity_factors(device::ThermalFastStartSIIP,
                                         results_uc::Dict{String, DataFrames.DataFrame},
                                         base_power::Float64
                                         )
-    energy_production = results["ActivePowerVariable__ThermalFastStartSIIP"][:, Symbol(get_name(device))]
+    # energy_production = results["ActivePowerVariable__ThermalFastStartSIIP"][:, Symbol(get_name(device))]
+    energy_production = results["ActivePowerVariable__ThermalFastStartSIIP"][results["ActivePowerVariable__ThermalFastStartSIIP"].name .== get_name(device), :value]
     capacity_factors = (energy_production / base_power) / get_device_size(device)
     return capacity_factors
 end
@@ -221,7 +241,8 @@ function get_realized_capacity_factors(device::PSY.RenewableDispatch,
                                         results_uc::Dict{String, DataFrames.DataFrame},
                                         base_power::Float64
                                         )
-    energy_production = results["ActivePowerVariable__RenewableDispatch"][:, Symbol(get_name(device))]
+    # energy_production = results["ActivePowerVariable__RenewableDispatch"][:, Symbol(get_name(device))]
+    energy_production = results["ActivePowerVariable__RenewableDispatch"][results["ActivePowerVariable__RenewableDispatch"].name .== get_name(device), :value]
     capacity_factors = (energy_production / base_power) / get_device_size(device)
     return capacity_factors
 end
@@ -234,7 +255,8 @@ function get_realized_capacity_factors(device::PSY.HydroDispatch,
                                         results_uc::Dict{String, DataFrames.DataFrame},
                                         base_power::Float64
                                         )
-    energy_production = results["ActivePowerVariable__HydroDispatch"][:, Symbol(get_name(device))]
+    # energy_production = results["ActivePowerVariable__HydroDispatch"][:, Symbol(get_name(device))]
+    energy_production = results["ActivePowerVariable__HydroDispatch"][results["ActivePowerVariable__HydroDispatch"].name .== get_name(device), :value]
     capacity_factors = (energy_production / base_power) / get_device_size(device)
     return capacity_factors
 end
@@ -247,7 +269,8 @@ function get_realized_capacity_factors(device::PSY.HydroTurbine,
                                         results_uc::Dict{String, DataFrames.DataFrame},
                                         base_power::Float64
                                         )
-    energy_production = results["ActivePowerVariable__HydroTurbine"][:, Symbol(get_name(device))]
+    # energy_production = results["ActivePowerVariable__HydroTurbine"][:, Symbol(get_name(device))]
+    energy_production = results["ActivePowerVariable__HydroTurbine"][results["ActivePowerVariable__HydroTurbine"].name .== get_name(device), :value]
     capacity_factors = (energy_production / base_power) / get_device_size(device)
     return capacity_factors
 end
@@ -260,11 +283,16 @@ function get_realized_capacity_factors(device::PSY.EnergyReservoirStorage,
                                         results_uc::Dict{String, DataFrames.DataFrame},
                                         base_power::Float64
                                         )
-    energy_production = results["ActivePowerOutVariable__EnergyReservoirStorage"][:, Symbol(get_name(device))] - results["ActivePowerInVariable__EnergyReservoirStorage"][:, Symbol(get_name(device))]
+    # energy_production = results["ActivePowerOutVariable__EnergyReservoirStorage"][:, Symbol(get_name(device))] - results["ActivePowerInVariable__EnergyReservoirStorage"][:, Symbol(get_name(device))]
+    out_key = "ActivePowerOutVariable__EnergyReservoirStorage"
+    in_key = "ActivePowerInVariable__EnergyReservoirStorage"
+    energy_production = results[out_key][results[out_key].name .== get_name(device), :value] - results[in_key][results[in_key].name .== get_name(device), :value]
+    
     capacity_factors = (energy_production / base_power) / get_device_size(device)
     generation = filter(x -> x > 0, capacity_factors)
 
-    energy_production_uc = results_uc["ActivePowerOutVariable__EnergyReservoirStorage"][:, Symbol(get_name(device))] - results_uc["ActivePowerInVariable__EnergyReservoirStorage"][:, Symbol(get_name(device))]
+    # energy_production_uc = results_uc["ActivePowerOutVariable__EnergyReservoirStorage"][:, Symbol(get_name(device))] - results_uc["ActivePowerInVariable__EnergyReservoirStorage"][:, Symbol(get_name(device))]
+    energy_production_uc = results_uc[out_key][results_uc[out_key].name .== get_name(device), :value] - results_uc[in_key][results_uc[in_key].name .== get_name(device), :value]
     capacity_factors_uc = (energy_production_uc / base_power) / get_device_size(device)
     generation_uc = filter(x -> x > 0, capacity_factors_uc)
     return capacity_factors
@@ -313,9 +341,14 @@ function update_realized_reserve_perc!(device::PSY.Device,
     service_name = PSY.get_name(service)
 
     if service_name == "Inertia"
-        inertia_provision = results_ed["ActivePowerReserveVariable__VariableReserve__ReserveUp__$(service_name)"][:, Symbol(get_name(device))]
-        inertia_perc_value = inertia_provision / get_device_size(device) / base_power
-        inertia_perc[get_name(device)][1, :] = inertia_perc_value
+        ed_key = "ActivePowerReserveVariable__VariableReserve__ReserveUp__$(service_name)"
+        if haskey(results_ed, ed_key)
+            inertia_provision = results_ed[ed_key][results_ed[ed_key].name .== PSY.get_name(device), :value]
+            inertia_perc_value = inertia_provision / get_device_size(device) / base_power
+            inertia_perc[PSY.get_name(device)][1, :] = inertia_perc_value
+        else
+            @warn "No ED inertia variable found for $(PSY.get_name(device)), skipping"
+        end
     else
         # if service_name in rt_products
         #     reserve_provision = results_ed["ActivePowerReserveVariable__VariableReserve__ReserveUp__$(service_name)"][:, Symbol(get_name(device))]
@@ -328,21 +361,36 @@ function update_realized_reserve_perc!(device::PSY.Device,
         #     reserve_perc[get_name(device)][service_name][1, :] = reserve_perc_value
 
         # end
+        ed_key = "ActivePowerReserveVariable__VariableReserve__ReserveUp__$(service_name)"
+        uc_key = "ActivePowerReserveVariable__VariableReserve__ReserveUp__$(service_name)"
         if single_stage_bool == false
-            reserve_provision_ed = results_ed["ActivePowerReserveVariable__VariableReserve__ReserveUp__$(service_name)"][:, Symbol(get_name(device))]
-            reserve_perc_value_ed = reserve_provision_ed / get_device_size(device) / base_power
-            reserve_perc_ed[get_name(device)][service_name][1, :] = reserve_perc_value_ed
+            if haskey(results_ed, ed_key) 
+                reserve_provision_ed = results_ed[ed_key][results_ed[ed_key].name .== PSY.get_name(device), :value]
+                reserve_perc_value_ed = reserve_provision_ed / get_device_size(device) / base_power
+                reserve_perc_ed[PSY.get_name(device)][service_name][1, :] = reserve_perc_value_ed
+            else
+                @warn "No ED reserve variable found for $(PSY.get_name(device)) - $(service_name), skipping"
+            end
         end
 
-        reserve_provision_uc = results_uc["ActivePowerReserveVariable__VariableReserve__ReserveUp__$(service_name)"][:, Symbol(get_name(device))]
-        reserve_perc_value_uc = reserve_provision_uc / get_device_size(device) / base_power
-        reserve_perc_uc[get_name(device)][service_name][1, :] = reserve_perc_value_uc
+        if haskey(results_uc, uc_key) 
+            reserve_provision_uc = results_uc[uc_key][results_uc[uc_key].name .== PSY.get_name(device), :value]
+            reserve_perc_value_uc = reserve_provision_uc / get_device_size(device) / base_power
+            reserve_perc_uc[PSY.get_name(device)][service_name][1, :] = reserve_perc_value_uc
+        else
+            @warn "No UC reserve variable found for $(PSY.get_name(device)) - $(service_name), skipping"
+        end
     end
 
     if md_market_bool == true
-        reserve_provision_md = results_md["ActivePowerReserveVariable__VariableReserve__ReserveUp__$(service_name)"][:, Symbol(get_name(device))]
-        reserve_perc_value_md = reserve_provision_md / get_device_size(device) / base_power
-        reserve_perc_md[get_name(device)][service_name][1, :] = reserve_perc_value_md
+        md_key = "ActivePowerReserveVariable__VariableReserve__ReserveUp__$(service_name)"
+        if haskey(results_md, md_key) 
+            reserve_provision_md = results_md[md_key][results_md[md_key].name .== PSY.get_name(device), :value]
+            reserve_perc_value_md = reserve_provision_md / get_device_size(device) / base_power
+            reserve_perc_md[PSY.get_name(device)][service_name][1, :] = reserve_perc_value_md
+        else
+            @warn "No MD reserve variable found for $(PSY.get_name(device)) - $(service_name), skipping"
+        end
     end
 
     return
@@ -370,31 +418,43 @@ function update_realized_reserve_perc!(device::PSY.Device,
     service_name = PSY.get_name(service)
 
     if single_stage_bool == false
-        reserve_provision_ed = results_ed["ActivePowerReserveVariable__ReserveDemandCurve__ReserveUp__$(service_name)"][:, Symbol(get_name(device))]
-        reserve_perc_value_ed = reserve_provision_ed / get_device_size(device) / base_power
-        reserve_perc_ed[get_name(device)][service_name][1, :] = reserve_perc_value_ed
+        @info "Updating reserve provision for $(PSY.get_name(device)) - $(service_name) from ED results"
+        key_ed = "ActivePowerReserveVariable__ReserveDemandCurve__ReserveUp__$(service_name)"
+        if haskey(results_ed, key_ed)
+            reserve_provision_ed = results_ed[key_ed][results_ed[key_ed].name .== PSY.get_name(device), :value]
+            reserve_perc_value_ed = reserve_provision_ed / get_device_size(device) / base_power
+            reserve_perc_ed[PSY.get_name(device)][service_name][1, :] = reserve_perc_value_ed
+        else
+            @warn "No ED reserve variable found for $(PSY.get_name(device)) - $(service_name), skipping"
+        end
     end
 
     ### NY_change: need to comment this back once ORDC is enabled again
-    # reserve_provision_uc = results_uc["ActivePowerReserveVariable__ReserveDemandCurve__ReserveUp__$(service_name)"][:, Symbol(get_name(device))]
+    # reserve_provision_uc = results_uc["ActivePowerReserveVariable__ReserveDemandCurve__ReserveUp__$(service_name)"][:, Symbol(PSY.get_name(device))]
     # reserve_perc_value_uc = reserve_provision_uc / get_device_size(device) / base_power
-    # reserve_perc_uc[get_name(device)][service_name][1, :] = reserve_perc_value_uc
+    # reserve_perc_uc[PSY.get_name(device)][service_name][1, :] = reserve_perc_value_uc
 
     if md_market_bool == true
-        reserve_provision_md = results_md["ActivePowerReserveVariable__ReserveDemandCurve__ReserveUp__$(service_name)"][:, Symbol(get_name(device))]
-        reserve_perc_value_md = reserve_provision_md / get_device_size(device) / base_power
-        reserve_perc_md[get_name(device)][service_name][1, :] = reserve_perc_value_md
+        @info "Updating reserve provision for $(PSY.get_name(device)) - $(service_name) from MD results"
+        key_md = "ActivePowerReserveVariable__ReserveDemandCurve__ReserveUp__$(service_name)"
+        if haskey(results_md, key_md)
+            reserve_provision_md = results_md[key_md][results_md[key_md].name .== PSY.get_name(device), :value]
+            reserve_perc_value_md = reserve_provision_md / get_device_size(device) / base_power
+            reserve_perc_md[PSY.get_name(device)][service_name][1, :] = reserve_perc_value_md
+        else
+            @warn "No MD reserve variable found for $(PSY.get_name(device)) - $(service_name), skipping"
+        end
     end
 
     # if service_name in rt_products
-    #     reserve_provision = results_ed["ActivePowerReserveVariable__ReserveDemandCurve__ReserveUp__$(service_name)"][:, Symbol(get_name(device))]
+    #     reserve_provision = results_ed["ActivePowerReserveVariable__ReserveDemandCurve__ReserveUp__$(service_name)"][:, Symbol(PSY.get_name(device))]
     #     reserve_perc_value = reserve_provision / get_device_size(device) / base_power
-    #     reserve_perc[get_name(device)][service_name][1, :] = reserve_perc_value
+    #     reserve_perc[PSY.get_name(device)][service_name][1, :] = reserve_perc_value
 
     # elseif service_name in only_da_products
-    #     reserve_provision = results_uc["ActivePowerReserveVariable__ReserveDemandCurve__ReserveUp__$(service_name)"][:, Symbol(get_name(device))]
+    #     reserve_provision = results_uc["ActivePowerReserveVariable__ReserveDemandCurve__ReserveUp__$(service_name)"][:, Symbol(PSY.get_name(device))]
     #     reserve_perc_value = reserve_provision / get_device_size(device) / base_power
-    #     reserve_perc[get_name(device)][service_name][1, :] = reserve_perc_value
+    #     reserve_perc[PSY.get_name(device)][service_name][1, :] = reserve_perc_value
 
     # end
     return
@@ -422,19 +482,35 @@ function update_realized_reserve_perc!(device::PSY.Device,
     service_name = PSY.get_name(service)
 
     if single_stage_bool == false
-        reserve_provision_ed = results_ed["ActivePowerReserveVariable__VariableReserve__ReserveDown__$(service_name)"][:, Symbol(get_name(device))]
-        reserve_perc_value_ed = reserve_provision_ed / get_device_size(device) / base_power
-        reserve_perc_ed[get_name(device)][service_name][1, :] = reserve_perc_value_ed
+        @info "Updating reserve provision for $(PSY.get_name(device)) - $(service_name) from ED results"
+        key_ed = "ActivePowerReserveVariable__VariableReserve__ReserveDown__$(service_name)"
+        if haskey(results_ed, key_ed)
+            reserve_provision_ed = results_ed[key_ed][results_ed[key_ed].name .== PSY.get_name(device), :value]
+            reserve_perc_value_ed = reserve_provision_ed / get_device_size(device) / base_power
+            reserve_perc_ed[PSY.get_name(device)][service_name][1, :] = reserve_perc_value_ed
+        else
+            @warn "No ED reserve variable found for $(PSY.get_name(device)) - $(service_name), skipping"
+        end
     end
 
-    reserve_provision_uc = results_uc["ActivePowerReserveVariable__VariableReserve__ReserveDown__$(service_name)"][:, Symbol(get_name(device))]
-    reserve_perc_value_uc = reserve_provision_uc / get_device_size(device) / base_power
-    reserve_perc_uc[get_name(device)][service_name][1, :] = reserve_perc_value_uc
+    key_uc = "ActivePowerReserveVariable__VariableReserve__ReserveDown__$(service_name)"
+    if haskey(results_uc, key_uc)
+        reserve_provision_uc = results_uc[key_uc][results_uc[key_uc].name .== PSY.get_name(device), :value]
+        reserve_perc_value_uc = reserve_provision_uc / get_device_size(device) / base_power
+        reserve_perc_uc[PSY.get_name(device)][service_name][1, :] = reserve_perc_value_uc
+    else
+        @warn "No UC reserve variable found for $(PSY.get_name(device)) - $(service_name), skipping"
+    end
 
     if md_market_bool == true
-        reserve_provision_md = results_md["ActivePowerReserveVariable__VariableReserve__ReserveDown__$(service_name)"][:, Symbol(get_name(device))]
-        reserve_perc_value_md = reserve_provision_md / get_device_size(device) / base_power
-        reserve_perc_md[get_name(device)][service_name][1, :] = reserve_perc_value_md
+        key_md = "ActivePowerReserveVariable__VariableReserve__ReserveDown__$(service_name)"
+        if haskey(results_md, key_md)
+            reserve_provision_md = results_md[key_md][results_md[key_md].name .== PSY.get_name(device), :value]
+            reserve_perc_value_md = reserve_provision_md / get_device_size(device) / base_power
+            reserve_perc_md[PSY.get_name(device)][service_name][1, :] = reserve_perc_value_md
+        else
+            @warn "No MD reserve variable found for $(PSY.get_name(device)) - $(service_name), skipping"
+        end
     end
 
     # if service_name in rt_products
@@ -474,12 +550,18 @@ function update_realized_reserve_perc!(device::PSY.EnergyReservoirStorage,
     service_name = PSY.get_name(service)
 
     if single_stage_bool == false
-        reserve_provision_ed = (results_ed["AncillaryServiceVariableDischarge__EnergyReservoirStorage__ReserveDemandCurve{ReserveUp}_$(service_name)"][:, Symbol(get_name(device))] .+
-            results_ed["AncillaryServiceVariableCharge__EnergyReservoirStorage__ReserveDemandCurve{ReserveUp}_$(service_name)"][:, Symbol(get_name(device))])
-        reserve_perc_value_ed = reserve_provision_ed / get_device_size(device) / base_power
-        reserve_perc_ed[get_name(device)][service_name][1, :] = reserve_perc_value_ed
+        @info "Updating reserve provision for $(PSY.get_name(device)) - $(service_name) from ED results"
+        key_ed_discharge = "AncillaryServiceVariableDischarge__EnergyReservoirStorage__ReserveDemandCurve{ReserveUp}_$(service_name)"
+        key_ed_charge = "AncillaryServiceVariableCharge__EnergyReservoirStorage__ReserveDemandCurve{ReserveUp}_$(service_name)"
+        if haskey(results_ed, key_ed_discharge) && haskey(results_ed, key_ed_charge)
+            reserve_provision_ed = results_ed[key_ed_discharge][results_ed[key_ed_discharge].name .== PSY.get_name(device), :value] + 
+                results_ed[key_ed_charge][results_ed[key_ed_charge].name .== PSY.get_name(device), :value]
+            reserve_perc_value_ed = reserve_provision_ed / get_device_size(device) / base_power
+            reserve_perc_ed[PSY.get_name(device)][service_name][1, :] = reserve_perc_value_ed
+        else
+            @warn "No ED reserve variable found for $(PSY.get_name(device)) - $(service_name), skipping"
+        end
     end
-
     ### NY_change: need to comment this back once ORDC is enabled again
     # reserve_provision_uc = (results_uc["AncillaryServiceVariableDischarge__EnergyReservoirStorage__ReserveDemandCurve{ReserveUp}_$(service_name)"][:, Symbol(get_name(device))] .+
     #     results_uc["AncillaryServiceVariableCharge__EnergyReservoirStorage__ReserveDemandCurve{ReserveUp}_$(service_name)"][:, Symbol(get_name(device))])
@@ -487,10 +569,19 @@ function update_realized_reserve_perc!(device::PSY.EnergyReservoirStorage,
     # reserve_perc_uc[get_name(device)][service_name][1, :] = reserve_perc_value_uc
 
     if md_market_bool == true
-        reserve_provision_md = (results_md["AncillaryServiceVariableDischarge__EnergyReservoirStorage__ReserveDemandCurve{ReserveUp}_$(service_name)"][:, Symbol(get_name(device))] .+
-            results_md["AncillaryServiceVariableCharge__EnergyReservoirStorage__ReserveDemandCurve{ReserveUp}_$(service_name)"][:, Symbol(get_name(device))])
-        reserve_perc_value_md = reserve_provision_md / get_device_size(device) / base_power
-        reserve_perc_md[get_name(device)][service_name][1, :] = reserve_perc_value_md
+        @info "Updating reserve provision for $(PSY.get_name(device)) - $(service_name) from MD results"
+        key_md_discharge = "AncillaryServiceVariableDischarge__EnergyReservoirStorage__ReserveDemandCurve{ReserveUp}_$(service_name)"
+        key_md_charge = "AncillaryServiceVariableCharge__EnergyReservoirStorage__ReserveDemandCurve{ReserveUp}_$(service_name)"
+        if haskey(results_md, key_md_discharge) && haskey(results_md, key_md_charge)
+            reserve_provision_md = results_md[key_md_discharge][results_md[key_md_discharge].name .== PSY.get_name(device), :value] + 
+                results_md[key_md_charge][results_md[key_md_charge].name .== PSY.get_name(device), :value]
+            reserve_provision_md = (results_md[key_md_discharge][:, Symbol(PSY.get_name(device))] .+
+                results_md[key_md_charge][:, Symbol(PSY.get_name(device))])
+            reserve_perc_value_md = reserve_provision_md / get_device_size(device) / base_power
+            reserve_perc_md[PSY.get_name(device)][service_name][1, :] = reserve_perc_value_md
+        else
+            @warn "No MD reserve variable found for $(PSY.get_name(device)) - $(service_name), skipping"
+        end
     end
 
     # if service_name in rt_products
@@ -511,7 +602,6 @@ end
 This function creates the Unit Commitment template for PSI Simulation.
 """
 #TODO: Update needed
-
 function create_md_template(inertia_product)
     if !(isempty(inertia_product))
         template = PSI.ProblemTemplate(
@@ -687,7 +777,6 @@ function create_md_template(inertia_product)
 end
 
 function create_uc_template(inertia_product)
-
     if !(isempty(inertia_product))
 
         template = PSI.ProblemTemplate(
@@ -699,6 +788,7 @@ function create_uc_template(inertia_product)
         )
         PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalBasicUnitCommitment)
         PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalBasicUnitCommitment)
+        PSI.set_device_model!(template, PSY.ThermalMultiStart, PSI.ThermalBasicUnitCommitment)
         # PSI.set_device_model!(template, PSY.ThermalStandard, RPSI.ThermalStandardUCOutages)
         # PSI.set_device_model!(template, ThermalFastStartSIIP, RPSI.ThermalStandardUCOutages)
         PSI.set_device_model!(template, PSY.RenewableDispatch, PSI.RenewableFullDispatch)
@@ -781,6 +871,7 @@ function create_uc_template(inertia_product)
         )
         PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalBasicUnitCommitment)
         PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalBasicUnitCommitment)
+        PSI.set_device_model!(template, PSY.ThermalMultiStart, PSI.ThermalBasicUnitCommitment)
         # PSI.set_device_model!(template, PSY.ThermalStandard, RPSI.ThermalStandardUCOutages)
         # PSI.set_device_model!(template, ThermalFastStartSIIP, RPSI.ThermalStandardUCOutages)
         PSI.set_device_model!(template, PSY.RenewableDispatch, PSI.RenewableFullDispatch)
@@ -868,6 +959,7 @@ function create_ed_template(inertia_product)
         )
         PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalBasicDispatch)
         PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalBasicUnitCommitment)
+        PSI.set_device_model!(template, PSY.ThermalMultiStart, PSI.ThermalBasicUnitCommitment)
         # PSI.set_device_model!(template, PSY.ThermalStandard, RPSI.ThermalDispatchOutages)
         # PSI.set_device_model!(template, PSY.ThermalStandard, RPSI.ThermalRampLimitedOutages)
         # PSI.set_device_model!(template, ThermalFastStartSIIP, RPSI.ThermalStandardUCOutages)
@@ -941,6 +1033,7 @@ function create_ed_template(inertia_product)
         )
         PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalBasicDispatch)
         PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalBasicUnitCommitment)
+        PSI.set_device_model!(template, PSY.ThermalMultiStart, PSI.ThermalBasicUnitCommitment)
         # PSI.set_device_model!(template, PSY.ThermalStandard, RPSI.ThermalDispatchOutages)
         # PSI.set_device_model!(template, PSY.ThermalStandard, RPSI.ThermalRampLimitedOutages)
         # PSI.set_device_model!(template, ThermalFastStartSIIP, RPSI.ThermalStandardUCOutages)
@@ -1131,14 +1224,17 @@ function create_simulation(sys_MD::PSY.System,
     for sys in [sys_ED, sys_UC, sys_MD]
         reg_down = PSY.get_component(PSY.VariableReserve{PSY.ReserveDown}, sys, "Reg_Down")
         reg_up = PSY.get_component(PSY.VariableReserve{PSY.ReserveUp}, sys, "Reg_Up")
-        for service in [reg_down, reg_up]
+        for service in filter(!isnothing, [reg_down, reg_up])
             for device in Iterators.flatten([
                 PSY.get_components(PSY.ThermalStandard, sys),
                 PSY.get_components(PSY.EnergyReservoirStorage, sys),
                 PSY.get_components(PSY.HydroDispatch, sys),
                 PSY.get_components(PSY.HydroTurbine, sys),
             ])
-                PSY.add_service!(device, service, sys)
+                if !(service in PSY.get_services(device))
+                    @info "Adding $(service) to $(device)"
+                    PSY.add_service!(device, service, sys)
+                end
             end
         end
     end
@@ -1412,6 +1508,7 @@ function create_simulation(sys_MD::PSY.System,
     @info "Executing Sienna simulation..."
     execute_out = PSI.execute!(sim; enable_progress_bar = true)
     @info "Simulation execution completed."
+    
     @info "Getting Sienna results..."
     sim_results = PSI.SimulationResults(sim)
 
@@ -1468,7 +1565,7 @@ function create_simulation(sys_MD::PSY.System,
 
     for zone in zones
         # bus = find_zonal_bus(String(zone), sys_UC)
-        area = EAS.find_zonal_area(String(zone), sys_UC)
+        area = find_zonal_area(String(zone), sys_UC)
         # zone_num = parse(Int64, last(zone, 1))
         if isnothing(zone)
             energy_price_ed[zone, 1, :] = zeros(data_length_ed)
@@ -1515,34 +1612,60 @@ function create_simulation(sys_MD::PSY.System,
     if !single_stage_bool
         for service in get_system_services(sys_ED)
             name = PSY.get_name(service)
-            @info "Recording prices for service $(name)"
+            @info "Recording prices for service $(name) - sys_ED"
             if typeof(service) == PSY.VariableReserve{PSY.ReserveUp}
                 if name == "Inertia"
-                    inertia_price[1, :] = abs.(round.(dual_values_ed["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, :value], digits = 5)) / base_power
-                    replace!(inertia_price, NaN => 0.0)
-                    EAS.scale_voll(inertia_price, rt_resolution)
-                    inertia_voll[1, :] = abs.(round.(result_variables_ed["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, :value], digits = 5)) / base_power
+                    @info "Recording $(name) product - $(typeof(service)) - sys_ED"
+                    dual_key = "RequirementConstraint__VariableReserve__ReserveUp__$(name)"
+                    var_key = "ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"
+                    if haskey(dual_values_ed, dual_key) && haskey(result_variables_ed, var_key)
+                        inertia_price[1, :] = abs.(round.(dual_values_ed[dual_key][:, :value], digits = 5)) / base_power
+                        replace!(inertia_price, NaN => 0.0)
+                        scale_voll(inertia_price, rt_resolution)
+                        inertia_voll[1, :] = abs.(round.(result_variables_ed[var_key][:, :value], digits = 5)) / base_power
+                    else
+                        @warn "Inertia product found in system but: $(dual_key) $(haskey(dual_values_ed, dual_key)), $(var_key) $(haskey(result_variables_ed, var_key)) - sys_ED"
+                    end
+                
+                ##TODO: Check why we are not recording reserve price for clean energy product. 
                 elseif name == "Clean_Energy"
-                    @info "No price for Clean_Energy product"
+                    @info "Not processing for Clean_Energy product - sys_ED"
                 else
-                    @info "Recording reserve price for $(name) product - $(typeof(service))"
-                    reserve_price_ed[name][1, :] = abs.(round.(dual_values_ed["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, :value], digits = 5)) / base_power
-                    replace!(reserve_price_ed[name], NaN => 0.0)
-                    EAS.scale_voll(reserve_price_ed[name], rt_resolution)
-                    reserve_voll[name][1, :] = abs.(round.(result_variables_ed["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, :value], digits = 5)) / base_power
+                    @info "Recording $(name) product - $(typeof(service)) - sys_ED"
+                    dual_key = "RequirementConstraint__VariableReserve__ReserveUp__$(name)"
+                    var_key = "ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"
+                    if haskey(dual_values_ed, dual_key) && haskey(result_variables_ed, var_key)
+                        reserve_price_ed[name][1, :] = abs.(round.(dual_values_ed[dual_key][:, :value], digits = 5)) / base_power
+                        replace!(reserve_price_ed[name], NaN => 0.0)
+                        scale_voll(reserve_price_ed[name], rt_resolution)
+                        reserve_voll[name][1, :] = abs.(round.(result_variables_ed[var_key][:, :value], digits = 5)) / base_power
+                    else
+                        @warn "Reserve product $(name) found in system but: $(dual_key) $(haskey(dual_values_ed, dual_key)), $(var_key) $(haskey(result_variables_ed, var_key)) - sys_ED"
+                    end
                 end
             elseif typeof(service) == PSY.ReserveDemandCurve{PSY.ReserveUp}
-                @info "Recording reserve price for $(name) product - $(typeof(service))"
-                reserve_price_ed[name][1, :] = abs.(round.(dual_values_ed["RequirementConstraint__ReserveDemandCurve__ReserveUp__$(name)"][:, :value], digits = 5)) / base_power
-                replace!(reserve_price_ed[name], NaN => 0.0)
-                EAS.scale_voll(reserve_price_ed[name], rt_resolution)
+                @info "Recording $(name) product - $(typeof(service)) - sys_ED"
+                dual_key = "RequirementConstraint__ReserveDemandCurve__ReserveUp__$(name)"
+                if haskey(dual_values_ed, dual_key)
+                    reserve_price_ed[name][1, :] = abs.(round.(dual_values_ed[dual_key][:, :value], digits = 5)) / base_power
+                    replace!(reserve_price_ed[name], NaN => 0.0)
+                    scale_voll(reserve_price_ed[name], rt_resolution)
+                else
+                    @warn "Reserve demand curve product $(name) found in system but: $(dual_key) $(haskey(dual_values_ed, dual_key)) - sys_ED"
+                end
 
             elseif typeof(service) == PSY.VariableReserve{PSY.ReserveDown}
-                @info "Recording reserve price for $(name) product - $(typeof(service))"
-                reserve_price_ed[name][1, :] = abs.(round.(dual_values_ed["RequirementConstraint__VariableReserve__ReserveDown__$(name)"][:, :value], digits = 5)) / base_power
-                replace!(reserve_price_ed[name], NaN => 0.0)
-                EAS.scale_voll(reserve_price_ed[name], rt_resolution)
-                reserve_voll[name][1, :] = abs.(round.(result_variables_ed["ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)"][:, :value], digits = 5)) / base_power
+                @info "Recording $(name) product - $(typeof(service)) - sys_ED"
+                dual_key = "RequirementConstraint__VariableReserve__ReserveDown__$(name)"
+                var_key = "ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)"
+                if haskey(dual_values_ed, dual_key) && haskey(result_variables_ed, var_key)
+                    reserve_price_ed[name][1, :] = abs.(round.(dual_values_ed[dual_key][:, :value], digits = 5)) / base_power
+                    replace!(reserve_price_ed[name], NaN => 0.0)
+                    scale_voll(reserve_price_ed[name], rt_resolution)
+                    reserve_voll[name][1, :] = abs.(round.(result_variables_ed[var_key][:, :value], digits = 5)) / base_power
+                else
+                    @warn "Reserve product $(name) found in system but: $(dual_key) $(haskey(dual_values_ed, dual_key)), $(var_key) $(haskey(result_variables_ed, var_key)) - sys_ED"
+                end
             end
         end
 
@@ -1551,63 +1674,116 @@ function create_simulation(sys_MD::PSY.System,
             # if name in only_da_products
             if typeof(service) == PSY.VariableReserve{PSY.ReserveUp}
                 if name == "Inertia"
-                    inertia_price[1, :] = abs.(round.(dual_values_uc["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
-                    replace!(inertia_price, NaN => 0.0)
-                    scale_voll(inertia_price, da_resolution)
-                    # inertia_voll[1, :] = abs.(round.(result_variables_uc["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
+                    @info "Recording $(name) product - $(typeof(service)) - sys_UC"
+                    dual_key = "RequirementConstraint__VariableReserve__ReserveUp__$(name)"
+                    var_key = "ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"
+                    if haskey(dual_values_uc, dual_key) && haskey(result_variables_uc, var_key)
+                        inertia_price[1, :] = abs.(round.(dual_values_uc[dual_key][:, :value], digits = 5)) / base_power
+                        replace!(inertia_price, NaN => 0.0)
+                        scale_voll(inertia_price, da_resolution)
+                        inertia_voll[1, :] = abs.(round.(result_variables_uc[var_key][:, :value], digits = 5)) / base_power
+                    else
+                        @warn "Inertia product found in system but: $(dual_key) $(haskey(dual_values_uc, dual_key)), $(var_key) $(haskey(result_variables_uc, var_key)) - sys_UC"
+                    end
+
+                ##TODO: Check why we are not recording reserve price for clean energy product.
                 elseif name == "Clean_Energy"
+                    @info "Not processing prices for Clean_Energy product - sys_UC"
                 else
-                    reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
-                    replace!(reserve_price_uc[name], NaN => 0.0)
-                    scale_voll(reserve_price_uc[name], da_resolution)
-                    reserve_voll_uc[name][1, :] = abs.(round.(result_variables_uc["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
-                    #println(reserve_price[name])
+                    @info "Recording $(name) product - $(typeof(service)) - sys_UC"
+                    dual_key = "RequirementConstraint__VariableReserve__ReserveUp__$(name)"
+                    var_key = "ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"
+                    if haskey(dual_values_uc, dual_key) && haskey(result_variables_uc, var_key)
+                        reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc[dual_key][:, :value], digits = 5)) / base_power
+                        replace!(reserve_price_uc[name], NaN => 0.0)
+                        scale_voll(reserve_price_uc[name], da_resolution)
+                        reserve_voll_uc[name][1, :] = abs.(round.(result_variables_uc[var_key][:, :value], digits = 5)) / base_power
+                    else
+                        @warn "Reserve product $(name) found in system but: $(dual_key) $(haskey(dual_values_uc, dual_key)), $(var_key) $(haskey(result_variables_uc, var_key)) - sys_UC"   
+                    end
                 end
             elseif typeof(service) == PSY.ReserveDemandCurve{PSY.ReserveUp}
-                reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc["RequirementConstraint__ReserveDemandCurve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
-                replace!(reserve_price_uc[name], NaN => 0.0)
-                scale_voll(reserve_price_uc[name], da_resolution)
-                #println(reserve_price[name])
+                @info "Recording $(name) product - $(typeof(service)) - sys_UC"
+                dual_key = "RequirementConstraint__ReserveDemandCurve__ReserveUp__$(name)"
+                if haskey(dual_values_uc, dual_key)
+                    reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc[dual_key][:, :value], digits = 5)) / base_power
+                    replace!(reserve_price_uc[name], NaN => 0.0)
+                    scale_voll(reserve_price_uc[name], da_resolution)
+                else
+                    @warn "Reserve demand curve product $(name) found in system but: $(dual_key) $(haskey(dual_values_uc, dual_key)) - sys_UC"
+                end
             elseif typeof(service) == PSY.VariableReserve{PSY.ReserveDown}
-                reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc["RequirementConstraint__VariableReserve__ReserveDown__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
-                replace!(reserve_price_uc[name], NaN => 0.0)
-                scale_voll(reserve_price_uc[name], da_resolution)
-                reserve_voll_uc[name][1, :] = abs.(round.(result_variables_uc["ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)")], digits = 5)) / base_power
-                #println(reserve_price[name])
+                @info "Recording $(name) product - $(typeof(service)) - sys_UC"
+                 dual_key = "RequirementConstraint__VariableReserve__ReserveDown__$(name)"
+                 var_key = "ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)"
+                 if haskey(dual_values_uc, dual_key) && haskey(result_variables_uc, var_key)
+                    reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc[dual_key][:, :value], digits = 5)) / base_power
+                    replace!(reserve_price_uc[name], NaN => 0.0)
+                    scale_voll(reserve_price_uc[name], da_resolution)
+                    reserve_voll_uc[name][1, :] = abs.(round.(result_variables_uc[var_key][:, :value], digits = 5)) / base_power
+                else
+                    @warn "Reserve product $(name) found in system but: $(dual_key) $(haskey(dual_values_uc, dual_key)), $(var_key) $(haskey(result_variables_uc, var_key)) - sys_UC"
+                end
             end
             # end
         end
+
     else
         for service in get_system_services(sys_UC)
             name = PSY.get_name(service)
             # if name in only_da_products
             if typeof(service) == PSY.VariableReserve{PSY.ReserveUp}
                 if name == "Inertia"
-                    inertia_price[1, :] = abs.(round.(dual_values_uc["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
-                    replace!(inertia_price, NaN => 0.0)
-                    scale_voll(inertia_price, da_resolution)
-                    # inertia_voll[1, :] = abs.(round.(result_variables_uc["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
+                    @info "Recording $(name) product - $(typeof(service)) - sys_UC"
+                    dual_key = "RequirementConstraint__VariableReserve__ReserveUp__$(name)"
+                    var_key = "ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"
+                    if haskey(dual_values_uc, dual_key) && haskey(result_variables_uc, var_key)
+                        inertia_price[1, :] = abs.(round.(dual_values_uc[dual_key][:, :value], digits = 5)) / base_power
+                        replace!(inertia_price, NaN => 0.0)
+                        scale_voll(inertia_price, da_resolution)
+                        inertia_voll[1, :] = abs.(round.(result_variables_uc[var_key][:, :value], digits = 5)) / base_power
+                    else
+                        @warn "Inertia product found in system but: $(dual_key) $(haskey(dual_values_uc, dual_key)), $(var_key) $(haskey(result_variables_uc, var_key)) - sys_UC"
+                    end
                 elseif name == "Clean_Energy"
+                    @info "Not processing prices for Clean_Energy product - sys_UC"
                 else
-                    reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
-                    replace!(reserve_price_uc[name], NaN => 0.0)
-                    scale_voll(reserve_price_uc[name], da_resolution)
-                    reserve_voll_uc[name][1, :] = abs.(round.(result_variables_uc["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
-                    #println(reserve_price[name])
+                    @info "Recording $(name) product - $(typeof(service)) - sys_UC"
+                    dual_key = "RequirementConstraint__VariableReserve__ReserveUp__$(name)"
+                    var_key = "ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"
+                    if haskey(dual_values_uc, dual_key) && haskey(result_variables_uc, var_key)
+                        reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc[dual_key][:, :value], digits = 5)) / base_power
+                        replace!(reserve_price_uc[name], NaN => 0.0)
+                        scale_voll(reserve_price_uc[name], da_resolution)
+                        reserve_voll_uc[name][1, :] = abs.(round.(result_variables_uc[var_key][:, :value], digits = 5)) / base_power
+                    else
+                        @warn "Reserve product $(name) found in system but: $(dual_key) $(haskey(dual_values_uc, dual_key)), $(var_key) $(haskey(result_variables_uc, var_key)) - sys_UC"   
+                    end
                 end
             elseif typeof(service) == PSY.ReserveDemandCurve{PSY.ReserveUp}
-                ### NY_change: need to re-enable this
-                # reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc["RequirementConstraint__ReserveDemandCurve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
-                # replace!(reserve_price_uc[name], NaN => 0.0)
-                # scale_voll(reserve_price_uc[name], da_resolution)
+                @info "Recording $(name) product - $(typeof(service)) - sys_UC"
+                    dual_key = "RequirementConstraint__ReserveDemandCurve__ReserveUp__$(name)"
+                    if haskey(dual_values_uc, dual_key)
+                        reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc[dual_key][:, :value], digits = 5)) / base_power
+                        replace!(reserve_price_uc[name], NaN => 0.0)
+                        scale_voll(reserve_price_uc[name], da_resolution)
+                    else
+                        @warn "Reserve demand curve product $(name) found in system but: $(dual_key) $(haskey(dual_values_uc, dual_key)) - sys_UC"
+                    end
 
-                #println(reserve_price[name])
             elseif typeof(service) == PSY.VariableReserve{PSY.ReserveDown}
-                reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc["RequirementConstraint__VariableReserve__ReserveDown__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
-                replace!(reserve_price_uc[name], NaN => 0.0)
-                scale_voll(reserve_price_uc[name], da_resolution)
-                reserve_voll_uc[name][1, :] = abs.(round.(result_variables_uc["ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)")], digits = 5)) / base_power
-                #println(reserve_price[name])
+                @info "Recording $(name) product - $(typeof(service)) - sys_UC"
+                 dual_key = "RequirementConstraint__VariableReserve__ReserveDown__$(name)"
+                 var_key = "ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)"
+                 if haskey(dual_values_uc, dual_key) && haskey(result_variables_uc, var_key)
+                    reserve_price_uc[name][1, :] = abs.(round.(dual_values_uc[dual_key][:, :value], digits = 5)) / base_power
+                    replace!(reserve_price_uc[name], NaN => 0.0)
+                    scale_voll(reserve_price_uc[name], da_resolution)
+                    reserve_voll_uc[name][1, :] = abs.(round.(result_variables_uc[var_key][:, :value], digits = 5)) / base_power
+                else
+                    @warn "Reserve product $(name) found in system but: $(dual_key) $(haskey(dual_values_uc, dual_key)), $(var_key) $(haskey(result_variables_uc, var_key)) - sys_UC"
+                 end
+
             end
             # end
         end
@@ -1620,29 +1796,66 @@ function create_simulation(sys_MD::PSY.System,
             # if name in only_da_products
             if typeof(service) == PSY.VariableReserve{PSY.ReserveUp}
                 if name == "Inertia"
-                    inertia_price[1, :] = abs.(round.(dual_values_md["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
-                    replace!(inertia_price, NaN => 0.0)
-                    scale_voll(inertia_price, da_resolution)
-                    # inertia_voll[1, :] = abs.(round.(result_variables_uc["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
+                    @info "Recording $(name) product - $(typeof(service)) - sys_MD"
+                    dual_key = "RequirementConstraint__VariableReserve__ReserveUp__$(name)"
+                    var_key = "ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"
+                    if haskey(dual_values_md, dual_key) && haskey(result_variables_md, var_key)
+                        inertia_price[1, :] = abs.(round.(dual_values_md[dual_key][:, :value], digits = 5)) / base_power
+                        replace!(inertia_price, NaN => 0.0)
+                        scale_voll(inertia_price, da_resolution)
+                        inertia_voll[1, :] = abs.(round.(result_variables_md[var_key][:, :value], digits = 5)) / base_power
+                    else
+                        @warn "Inertia product found in system but: $(dual_key) $(haskey(dual_values_md, dual_key)), $(var_key) $(haskey(result_variables_md, var_key)) - sys_MD"
+                    end
+
                 elseif name == "Clean_Energy"
+                    @info "Not processing prices for Clean_Energy product - sys_MD"
                 else
-                    reserve_price_md[name][1, :] = abs.(round.(dual_values_md["RequirementConstraint__VariableReserve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
-                    replace!(reserve_price_md[name], NaN => 0.0)
-                    scale_voll(reserve_price_md[name], da_resolution)
-                    reserve_voll_md[name][1, :] = abs.(round.(result_variables_md["ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)")], digits = 5)) / base_power
-                    #println(reserve_price[name])
+                    dual_key = "RequirementConstraint__VariableReserve__ReserveUp__$(name)"
+                    var_key = "ReserveRequirementSlack__VariableReserve__ReserveUp__$(name)"
+                    if haskey(dual_values_md, dual_key) && haskey(result_variables_md, var_key)
+                        reserve_price_md[name][1, :] = abs.(round.(dual_values_md[dual_key][:, :value], digits = 5)) / base_power
+                        replace!(reserve_price_md[name], NaN => 0.0)
+                        scale_voll(reserve_price_md[name], da_resolution)
+                        reserve_voll_md[name][1, :] = abs.(round.(result_variables_md[var_key][:, :value], digits = 5)) / base_power
+                    else
+                        @warn "Reserve product found in system but: $(dual_key) $(haskey(dual_values_md, dual_key)), $(var_key) $(haskey(result_variables_md, var_key)) - sys_MD"
+                    end
                 end
             elseif typeof(service) == PSY.ReserveDemandCurve{PSY.ReserveUp}
-                reserve_price_md[name][1, :] = abs.(round.(dual_values_md["RequirementConstraint__ReserveDemandCurve__ReserveUp__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
-                replace!(reserve_price_md[name], NaN => 0.0)
-                scale_voll(reserve_price_md[name], da_resolution)
-                #println(reserve_price[name])
+                @info "Recording $(name) product - $(typeof(service)) - sys_MD"
+                dual_key = "RequirementConstraint__ReserveDemandCurve__ReserveUp__$(name)"
+                if haskey(dual_values_md, dual_key)
+                    reserve_price_md[name][1, :] = abs.(round.(dual_values_md[dual_key][:, :value], digits = 5)) / base_power
+                    replace!(reserve_price_md[name], NaN => 0.0)
+                    scale_voll(reserve_price_md[name], da_resolution)
+                else
+                    @warn "Reserve demand curve product $(name) found in system but: $(dual_key) $(haskey(dual_values_md, dual_key)) - sys_MD"
+                end
             elseif typeof(service) == PSY.VariableReserve{PSY.ReserveDown}
-                reserve_price_md[name][1, :] = abs.(round.(dual_values_md["RequirementConstraint__VariableReserve__ReserveDown__$(name)"][:, Symbol("$(name)")], digits = 5)) / base_power
-                replace!(reserve_price_md[name], NaN => 0.0)
-                scale_voll(reserve_price_md[name], da_resolution)
-                reserve_voll_md[name][1, :] = abs.(round.(result_variables_md["ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)"][:, Symbol("ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)")], digits = 5)) / base_power
-                #println(reserve_price[name])
+                @info "Recording $(name) product - $(typeof(service)) - sys_MD"
+                 dual_key = "RequirementConstraint__VariableReserve__ReserveDown__$(name)"
+                 var_key = "ReserveRequirementSlack__VariableReserve__ReserveDown__$(name)"
+                 if haskey(dual_values_md, dual_key) && haskey(result_variables_md, var_key)
+                     reserve_price_md[name][1, :] = abs.(round.(dual_values_md[dual_key][:, :value], digits = 5)) / base_power
+                     replace!(reserve_price_md[name], NaN => 0.0)
+                     scale_voll(reserve_price_md[name], da_resolution)
+                     reserve_voll_md[name][1, :] = abs.(round.(result_variables_md[var_key][:, :value], digits = 5)) / base_power
+                 else
+                     @warn "Reserve product $(name) found in system but: $(dual_key) $(haskey(dual_values_md, dual_key)), $(var_key) $(haskey(result_variables_md, var_key)) - sys_MD"
+                 end
+            elseif typeof(service) == PSY.ReserveDemandCurve{PSY.ReserveUp}
+                @info "Recording $(name) product - $(typeof(service)) - sys_MD"
+                 dual_key = "RequirementConstraint__ReserveDemandCurve__ReserveUp__$(name)"
+                 var_key = "ReserveRequirementSlack__ReserveDemandCurve__ReserveUp__$(name)"
+                 if haskey(dual_values_md, dual_key) && haskey(result_variables_md, var_key)
+                    reserve_price_md[name][1, :] = abs.(round.(dual_values_md[dual_key][:, :value], digits = 5)) / base_power
+                    replace!(reserve_price_md[name], NaN => 0.0)
+                    scale_voll(reserve_price_md[name], da_resolution)
+                    reserve_voll_md[name][1, :] = abs.(round.(result_variables_md[var_key][:, :value], digits = 5)) / base_power
+                 else
+                    @warn "Reserve demand curve product $(name) found in system but: $(dual_key) $(haskey(dual_values_md, dual_key)), $(var_key) $(haskey(result_variables_md, var_key)) - sys_MD"
+                 end
             end
             # end
         end
@@ -1673,10 +1886,11 @@ function create_simulation(sys_MD::PSY.System,
 
     for tech in sys_techs
         name = get_name(tech)
-        if md_market_bool == true
+        @info "Recording results for technology $(name)"
+        if md_market_bool
             capacity_factors_md[name][1, :] = get_realized_capacity_factors(tech, result_variables_md, result_variables_uc, base_power)
         end
-        if single_stage_bool == false
+        if !single_stage_bool
             capacity_factors_ed[name][1, :] = get_realized_capacity_factors(tech, result_variables_ed, result_variables_ed, base_power)
         end
         capacity_factors_uc[name][1, :] = get_realized_capacity_factors(tech, result_variables_uc, result_variables_uc, base_power)
@@ -1689,6 +1903,7 @@ function create_simulation(sys_MD::PSY.System,
         for service in services_UC
             # TODO: figure out if we need clean energy or not
             if PSY.get_name(service) != "Clean_Energy"
+                @info "Updating reserve percentage for technology $(name) - service $(PSY.get_name(service)) - sys_UC"
                 update_realized_reserve_perc!(tech,
                                             service,
                                             result_variables_ed,
