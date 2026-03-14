@@ -289,7 +289,7 @@ function add_psy_ordc!(simulation_dir::String,
     # finish_datetime = start_datetime + Dates.Hour(8759)
     time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
 
-    additional_timestep = length(time_stamps) - 8760
+    additional_timestep = length(time_stamps) - DEFAULT_HOURS_PER_YEAR
 
     for product in products
         if markets_dict[Symbol(product)]
@@ -301,7 +301,7 @@ function add_psy_ordc!(simulation_dir::String,
                 nothing,    #InfrastructureSystems.TimeSeriesKey
                 product,
                 true,
-                product_data[1, "timescale (min)"] * 60,
+                product_data[1, "timescale (min)"] * DEFAULT_TIME_RESOLUTION,
             )
 
             PSY.add_service!(sys, reserve, PSY.get_components(PSY.ThermalStandard, sys))
@@ -347,23 +347,22 @@ function add_psy_ordc!(simulation_dir::String,
             end
 
             if type in ["MD", "UC", "ED"]
-                ### TODO: ORDC timeseries is not available now
+                @info "Processing ORDC timeseries for $(product) product - $(type) model"
                 product_data_ts = process_ordc_data_for_siip(product_ts_raw)
-                product_data_ts = [product_data_ts;product_data_ts[1:additional_timestep]]
-                forecast = PSY.SingleTimeSeries("variable_cost", TimeSeries.TimeArray(time_stamps, product_data_ts))
-                # PSY.add_time_series!(sys, reserve, forecast)
+                product_data_ts = [product_data_ts; product_data_ts[1:additional_timestep]]
+
+                # Use Deterministic (ForecastKey) instead of SingleTimeSeries (StaticTimeSeriesKey)
+                # PSI's _get_reserve_pwl_data only handles ForecastKey, not StaticTimeSeriesKey
+                interval_steps = round(Int, sys_interval / sys_resolution)
+                data_dict = Dict{Dates.DateTime, Vector{PSY.PiecewiseStepData}}()
+                for w in 1:forecast_count
+                    t_start = start_datetime + (w - 1) * sys_interval
+                    idx_start = (w - 1) * interval_steps + 1
+                    data_dict[t_start] = product_data_ts[idx_start:(idx_start + sys_horizon - 1)]
+                end
+                forecast = PSY.Deterministic("variable_cost", data_dict, sys_resolution)
                 PSY.set_variable_cost!(sys, reserve, forecast)
-
-                # product_single = product_ts_raw[1]
-                # tuples = split.(chop.(split(chop(product_single, head = 1, tail = 2), "), "), head = 1, tail = 0), ", ")
-                # tuples_value = [(parse.(Float64, tuple)[2], parse.(Float64, tuple)[1]) for tuple in tuples]
-
-                # piecewisecurve = PSY.PiecewiseIncrementalCurve(0.0, [0.0, tuples_value[2][2]], [tuples_value[2][1]])
-                # cost_curve = PSY.CostCurve(piecewisecurve)
-                # PSY.set_variable_cost!(sys, reserve, cost_curve)
             end
-
-
         end
     end
 
