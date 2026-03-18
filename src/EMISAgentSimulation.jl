@@ -467,4 +467,7 @@ include("representative_days/chronological_clustering.jl")
 #Include main investment simulation function.
 include("investment_simulation.jl")
 
+#Include definitions
+include("definitions.jl")
+
 end

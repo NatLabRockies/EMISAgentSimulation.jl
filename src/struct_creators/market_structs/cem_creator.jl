@@ -203,6 +203,8 @@ function create_cem_mkt_clr_problem(investor_dir::String,
     invested_portfolio = find_active_invested_projects(expected_portfolio)
     option_portfolio = find_option_projects(expected_portfolio)
 
+    @info "Checking invested portfolios in cem_creator.jl"
+
     cem_projects = MarketProject[]
 
     for project in invested_portfolio
@@ -287,8 +289,12 @@ function create_cem_mkt_clr_problem(investor_dir::String,
         push!(chron_weights_cem, chron_weights[scenario_name][sim_year])
     end
     
-
-    system = MarketClearingProblem(zones, lines, average_capital_cost_multiplier, markets, carbon_tax_vector, cem_projects, rep_period_interval, rep_hour_weight_cem, avg_block_size, fixed_block_size, chron_weights_cem)
+    @info "Creating MarketClearingProblem struct in cem_creator.jl"
+    system = MarketClearingProblem(zones, lines, average_capital_cost_multiplier,
+                                  markets, carbon_tax_vector, cem_projects,
+                                  rep_period_interval, rep_hour_weight_cem, avg_block_size,
+                                  fixed_block_size, chron_weights_cem)
+    @info "Finished creating MarketClearingProblem struct in cem_creator.jl"
 
     return system
 end

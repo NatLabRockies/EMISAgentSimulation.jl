@@ -10,6 +10,7 @@ function create_investors(simulation_data::AgentSimulationData)
     test_system_dir = get_sys_dir(get_case(simulation_data))
     for i = 1:length(investor_names)
         investor_dir = joinpath(dir_name, "$(investor_names[i])")
+        @info "Creating investor: $(investor_names[i])"
 
         rep_hour_weight = get_rep_hour_weight(simulation_data)
         avg_block_size = get_avg_block_size(get_case(simulation_data))
@@ -126,36 +127,36 @@ function create_investors(simulation_data::AgentSimulationData)
         ### NY_change
         projectdata_existing = extract_projectdata(investor_dir, "projectexisting.csv")
         projectdata_options = extract_projectdata(investor_dir, "projectoptions.csv")
-
-        sys_UC = first(get_system_UCs(simulation_data))
+  
+        sys_UC = first(get_system_UCs(simulation_data))     
 
         #Append existing and option projects.
-        append!(projects, create_project_existing(projectdata_existing,
+        project_existing = create_project_existing(projectdata_existing,
                                                   simulation_data,
                                                   sys_UC,
                                                   investor_names[i],
                                                   investor_dir,
-                                                  get_name.(scenario_data)))
+                                                  get_name.(scenario_data))
 
-        append!(projects, create_project_options(projectdata_options,
-                                                      simulation_data,
-                                                      investor_names[i],
-                                                      investor_dir,
-                                                      get_name.(scenario_data)))
-
-                                                      
+        project_option = create_project_options(projectdata_options,
+                                                        simulation_data,
+                                                        sys_UC,
+                                                        investor_names[i],
+                                                        investor_dir,
+                                                        get_name.(scenario_data))                                                  
+        
+        append!(projects, project_existing)
+        append!(projects, project_option)
+        
         for scenario in scenario_names
             for sim_year in collect(1:horizon)
-                println(scenario)
-                println(sim_year)          
+                @info "Adding availability data for investor $(investor_names[i]) for scenario $(scenario) and simulation year $(sim_year)"          
                 add_investor_project_availability!(test_system_dir, simulation_data_dir, scenario, sim_year, projects, sys_UC)
             end
         end
 
         option_leaftypes = leaftypes(Project{Option})
-
         option_projects = filter(project -> in(typeof(project), option_leaftypes), projects)
-
         portfolio_preference_multipliers = Dict{Tuple{String, String}, Vector{Float64}}()
 
         for project in option_projects

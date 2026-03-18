@@ -9,6 +9,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
     capacity_forward_years = get_capacity_forward_years(simulation)
 
     # Set initial capacity market profits considering forward capacity auctions
+    @info "Setting initial capacity market profits for existing projects based on forward capacity auctions"
     if current_year == 1
         if get_markets(simulation)[:Capacity]
             initial_existing_projects = vcat(get_existing.(get_investors(simulation))...)
@@ -51,7 +52,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
 
         yearly_horizon = min(total_horizon - iteration_year + 1, rolling_horizon)
 
-        println("Year $(iteration_year)")
+        @info "Year $(iteration_year)"
         set_iteration_year!(simulation, iteration_year)
 
         active_projects = deepcopy(get_activeprojects(simulation))
@@ -91,14 +92,24 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
         end
 
         num_scenarios = length(scenario_names)
-        sys_PRAS_list, active_projects_list, capacity_forward_years_list, resource_adequacies, peak_loads, static_capacity_bools, iteration_years, simulation_years_list, data_dirs, rt_resolutions, results_dirs, outage_dirs = repeat_arguments(num_scenarios, sys_PRAS, active_projects, capacity_forward_years, get_resource_adequacy(simulation), get_peak_load(simulation), get_static_capacity_market(case), iteration_year, simulation_years, get_data_dir(case), get_rt_resolution(case), get_results_dir(simulation), get_outage_dir(case))
+        sys_PRAS_list, active_projects_list, capacity_forward_years_list,
+        resource_adequacies, peak_loads, static_capacity_bools,
+        iteration_years, simulation_years_list, data_dirs,
+        rt_resolutions, results_dirs,
+        outage_dirs = repeat_arguments(num_scenarios, sys_PRAS, active_projects,
+        capacity_forward_years, get_resource_adequacy(simulation),
+        get_peak_load(simulation), get_static_capacity_market(case),
+        iteration_year, simulation_years, get_data_dir(case), get_rt_resolution(case),
+        get_results_dir(simulation), get_outage_dir(case))
+
+        @info "Resource adequacies: $(resource_adequacies)"
 
         # Parallelize the processing of scenarios using Distributed.pmap
         # @time resource_adequacy_tuples = Distributed.pmap(parallelize_update_delta_irm!, zip(scenario_names, sys_PRAS_list, active_projects_list, capacity_forward_years_list, resource_adequacies, peak_loads, static_capacity_bools, iteration_years, simulation_years_list, data_dirs, rt_resolutions, results_dirs, outage_dirs))
         
-        # scenario_1 = scenario_names[1]
         resource_adequacy_tuples = []
         for scenario in scenario_names
+            @info "Updating resource adequacy for scenario: $scenario"
             resource_adequacy = update_delta_irm!(
                 sys_PRAS[scenario],
                 active_projects,
@@ -114,11 +125,14 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
                 get_outage_dir(case),
                 simulation_years
             )
+            @info "Resource adequacy for scenario $scenario: $resource_adequacy"
             push!(resource_adequacy_tuples, (scenario, resource_adequacy))
         end
 
+        @info "Setting resource adequacy for all scenarios in the simulation"
         set_resource_adequacy!(simulation, Dict(key => value for (key, value) in resource_adequacy_tuples))
 
+        @info "Creating investor predictions for all investors based on updated resource adequacy and other market data"
         create_investor_predictions(investors,
                                     active_projects,
                                     iteration_year,
@@ -155,7 +169,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
 
         end
 
-        #Get all existing projects to calculate realized profits for energy and REC markets.
+        @info "Getting all existing projects to calculate realized profits for energy and REC markets."
         all_existing_projects = vcat(get_existing.(get_investors(simulation))...)
 
         # Get all projects which are expected to be online for the forward capacity market auction.
@@ -170,6 +184,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
             end
 
             # Update variable operation cost based on annual carbon tax for SIIP market clearing
+            @info "Updating variable operation"
             update_operation_cost!(project, sys_MDs[iteration_year], (get_carbon_tax(simulation)), iteration_year)
             update_operation_cost!(project, sys_UCs[iteration_year], (get_carbon_tax(simulation)), iteration_year)
             update_operation_cost!(project, sys_EDs[iteration_year], (get_carbon_tax(simulation)), iteration_year)      
@@ -183,7 +198,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
                                                    iteration_year,
                                                    simulation_years)
 
-        println("Current Installed Capacity = $(round(installed_capacity[iteration_year])) MW")
+        @info "Current Installed Capacity = $(round(installed_capacity[iteration_year])) MW"
 
         #Find which markets to simulate.
         markets = union(hcat(get_markets.(get_investors(simulation))...))
@@ -196,6 +211,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
         # end
 
         #Create realzed market prices for existing projects.
+        @info "Creating realized market data for existing projects to calculate profits and update forecasts for next iteration"
         realized_market_prices,
         realized_capacity_factors_md,
         realized_capacity_factors_uc,
@@ -266,7 +282,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
 
             projects = get_projects(investor)
             for (i, project) in enumerate(projects)
-
+                @info "$(i): Updating realized profits for $(get_name(project))"
                 update_realized_profits!(project,
                                          realized_market_prices,
                                          realized_capacity_factors_md,
@@ -312,6 +328,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
         
         # @time Distributed.pmap(parallelize_update_derating_data, zip(scenario_names, simulations, iteration_years, derating_scales, methodologies, ra_metric_list, marginal_cc_switches))
 
+        @info "Updating derating data for all scenarios in the simulation based on updated resource adequacy and market conditions"
         update_simulation_derating_data!(
             simulation,
             scenario_1,
@@ -341,7 +358,7 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
         # reserve_ts_scaling_factor = calculate_reserve_scaling_factor(simulation)
         reserve_ts_scaling(simulation, iteration_year, step_size)
 
-        println("COMPLETED YEAR $(iteration_year)")
+        @info "COMPLETED YEAR $(iteration_year)"
         FileIO.save(joinpath(get_results_dir(simulation), "simulation_data_year$(iteration_year).jld2"), "simulation_data", simulation)
         FileIO.save(joinpath(get_results_dir(simulation), "clean_energy_percentage_year$(iteration_year).jld2"), "clean_energy_percentage", clean_energy_percentage_vector)
         # FileIO.save(joinpath(get_results_dir(simulation), "shortfall_data_year$(iteration_year).jld2"), "shortfall_data", shortfall)
@@ -349,12 +366,15 @@ function run_agent_simulation(simulation::AgentSimulation, simulation_years::Int
 
     final_portfolio = vcat(get_existing.(get_investors(simulation))...)
 
+    @info "Extrapolating profits for all projects in the final portfolio"
     for project in final_portfolio
         extrapolate_profits!(project, simulation_years)
     end
 
+    @info "Saving final simulation data and clean energy percentage vector"
     FileIO.save(joinpath(get_results_dir(simulation), "clean_energy_percentage.jld2"), "clean_energy_percentage", clean_energy_percentage_vector)
     FileIO.save(joinpath(get_results_dir(simulation), "simulation_data.jld2"), "simulation_data", simulation)
 
+    @info "SIMULATION COMPLETED!"
     return
 end
