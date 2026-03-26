@@ -1,7 +1,7 @@
 # EMIS AgentSimulation Model
 
 The Electricity Markets Investment Suite Agent-based Simulation (EMIS-AS)
-model is an agent-based model developed at NREL for simulating annual investment
+model is an agent-based model developed at NLR for simulating annual investment
 and retirement decisions of heterogeneous investors in the electricity sector.
 EMIS-AS is designed to capture the evolution of the electricity generation portfolio
 resulting from the interactions of heterogeneous investors under different policy
