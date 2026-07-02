@@ -1,13 +1,9 @@
-using Test
-using Logging
-using EMISAgentSimulation
-using DataFrames
-using CSV
-using AxisArrays
+include("includes.jl")
 
 # Self-contained tests — run without any external setup.
 const SELF_CONTAINED_TESTS = [
     "test_PSI.jl",
+    "test_PSI_build_solve.jl",
     "test_hdf5_serialization.jl",
     "test_read_cc_scalar.jl",
     "test_update_derating_factor.jl",
