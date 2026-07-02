@@ -48,7 +48,6 @@ export create_sys_with_timeseries
 export canonical_constructed_system_path
 
 export MarketPrices
-
 export Finance
 
 export Product
@@ -325,13 +324,11 @@ import PooledArrays
 import PowerSystems
 import PowerSimulations
 
-# using EMISExtensions
 using PRAS
 using SiennaPRASInterface
 using HiGHS
 using OrderedCollections
 import InfrastructureSystems
-# import ReliablePowerSimulations
 using HydroPowerSimulations
 using StorageSystemsSimulations
 using TimerOutputs
@@ -339,9 +336,7 @@ using HDF5
 
 const PSY = PowerSystems
 const PSI = PowerSimulations
-# const EMISEx = EMISExtensions
 const IS = InfrastructureSystems
-# const RPSI = ReliablePowerSimulations
 const HSI = HydroPowerSimulations
 const SSI = StorageSystemsSimulations
 const SPI = SiennaPRASInterface
@@ -373,7 +368,6 @@ const EMIS_TIMER = TimerOutput()
 # Includes
 
 # Include all structs:
-
 include("structs/products/Product.jl")
 include("structs/products/Energy.jl")
 include("structs/products/OperatingReserve.jl")
@@ -461,6 +455,7 @@ include("test_system_parsers/test_system_reader.jl")
 include("test_system_parsers/rts_reader.jl")
 
 #Include Expected and Actual Market Simultion functions.
+include("PSI_definitions.jl")
 include("markets_simulation/cem.jl")
 include("markets_simulation/expected_market_simulation.jl")
 include("markets_simulation/economicdispatch.jl")
