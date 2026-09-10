@@ -52,6 +52,33 @@ function make_capacity_demand_vectors(capmarkets::Vector{CapacityMarket})
 end
 
 """
+This function returns capacity market demand curve parameters, keyed by season,
+included in CEM for price projection and endogeneous Economic Dispatch. Each
+investment period's Dict{String, CapacityMarket} (one market per season) is
+unpacked into a per-season Vector{CapacityMarket} across investment periods and
+delegated to the single-season method above. In annual mode every period's dict
+has a single "annual" key, so this degrades to the single-season behavior with
+one season in the output dicts.
+"""
+function make_capacity_demand_vectors(capmarkets::Vector{Dict{String, CapacityMarket}})
+    seasons = collect(keys(capmarkets[1]))
+
+    segment_size = Dict{String, Vector{Vector{Float64}}}()
+    segment_grad = Dict{String, Vector{Vector{Float64}}}()
+    price_points = Dict{String, Vector{Vector{Float64}}}()
+    num_segments = Dict{String, Vector{Int64}}()
+
+    for season in seasons
+        season_markets = [capmarkets[p][season] for p in 1:length(capmarkets)]
+        segment_size[season], segment_grad[season], price_points[season], num_segments[season] =
+            make_capacity_demand_vectors(season_markets)
+    end
+
+    return segment_size, segment_grad, price_points, num_segments
+end
+
+
+"""
 This functions returns operating reserve demand curve parameters
 included in CEM for price projection and endogeneous Economic Dispatch.
 """
@@ -775,3 +802,4 @@ function get_all_scenario_names(data_dir)
     return scenarios
 
 end
+
