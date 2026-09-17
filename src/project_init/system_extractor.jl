@@ -489,9 +489,13 @@ function _project_row_value(defaults, unit_type, field, fallback)
     value = _default_value(defaults, unit_type, field, fallback)
     value isa AbstractString && lowercase(value) in ("true", "false") &&
         return lowercase(value) == "true"
-    value isa AbstractString && tryparse(Float64, value) !== nothing &&
-        return parse(Float64, value)
-    return value isa AbstractFloat && isinteger(value) ? Int(value) : value
+    if value isa AbstractString
+        parsed = tryparse(Float64, value)
+        if parsed !== nothing
+            return string(field) in PROJECT_INTEGER_DEFAULT_FIELDS && isinteger(parsed) ? Int(parsed) : parsed
+        end
+    end
+    return value isa AbstractFloat && string(field) in PROJECT_INTEGER_DEFAULT_FIELDS && isinteger(value) ? Int(value) : value
 end
 
 """Value of an optional per-generator override column (e.g. `Online Year`) in an

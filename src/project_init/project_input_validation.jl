@@ -23,6 +23,13 @@ const PROJECT_OPTION_INPUT_COLUMNS = [
 
 const PROJECT_EXISTING_INPUT_COLUMNS = [:Investor, :GEN_UID]
 
+const PROJECT_INTEGER_DEFAULT_FIELDS = Set([
+    "Lagtime",
+    "Online Year",
+    "Capex Years",
+    "Lifetime",
+])
+
 function _require_columns(df::DataFrames.DataFrame, columns, path::AbstractString)
     missing_columns = setdiff(columns, Symbol.(names(df)))
     isempty(missing_columns) || error(
@@ -97,7 +104,18 @@ function load_project_defaults(path::AbstractString=DEFAULT_PROJECT_DEFAULTS)
     length(unique(keys)) == length(keys) || error(
         "$(path) contains duplicate unit_type/field defaults"
     )
+    defaults.value = [
+        _normalize_default_value(row.field, row.value) for row in eachrow(defaults)
+    ]
     return defaults
+end
+
+function _normalize_default_value(field, value)
+    value === missing && return value
+    string(field) in PROJECT_INTEGER_DEFAULT_FIELDS || return value
+    parsed = tryparse(Float64, strip(string(value)))
+    parsed === nothing && return value
+    return isinteger(parsed) ? string(Int(parsed)) : string(parsed)
 end
 
 """Validate one of the minimal user-facing project input templates."""
