@@ -202,16 +202,28 @@ function _default_lookup(defaults::DataFrames.DataFrame)
     lookup = Dict{String, Dict{String, String}}()
     for row in eachrow(defaults)
         unit_defaults = get!(lookup, string(row.unit_type), Dict{String, String}())
-        unit_defaults[string(row.field)] = string(row.value)
+        unit_defaults[string(row.field)] = _format_default_value(row.value)
     end
     return lookup
 end
 
+# CSV type inference reads project_defaults.csv's mixed `value` column as Float64, so
+# whole-number defaults (e.g. Lifetime=55.0) must be reformatted back to integer text
+# here; otherwise generated project CSVs get Float64-typed columns downstream instead
+# of the Int64 columns legacy hand-written project CSVs had.
+_format_default_value(value::AbstractFloat) = isinteger(value) ? string(Int(value)) : string(value)
+_format_default_value(value) = string(value)
+
 function _option_default(defaults, unit_type::AbstractString, field::AbstractString, fallback)
     unit_defaults = get(defaults, string(unit_type), Dict{String, String}())
-    value = get(unit_defaults, string(field), fallback)
-    value === missing || isempty(strip(string(value))) ? string(fallback) : string(value)
+    haskey(unit_defaults, string(field)) && return _option_default_or_fallback(unit_defaults[string(field)], fallback)
+    all_defaults = get(defaults, "ALL", Dict{String, String}())
+    haskey(all_defaults, string(field)) && return _option_default_or_fallback(all_defaults[string(field)], fallback)
+    return string(fallback)
 end
+
+_option_default_or_fallback(value, fallback) =
+    value === missing || isempty(strip(string(value))) ? string(fallback) : string(value)
 
 function _option_technology_default(technology, field::AbstractString, fallback)
     symbol = Symbol(field)
@@ -306,6 +318,7 @@ function _write_projectoptions_for_investor(
     investor_dir::AbstractString,
     investor::AbstractString,
     technologies::DataFrames.DataFrame,
+    defaults::DataFrames.DataFrame,
 )
     options_path = joinpath(spec_dir, "projectoptions.csv")
     isfile(options_path) || return nothing
@@ -314,10 +327,17 @@ function _write_projectoptions_for_investor(
         options,
         investor,
         technologies,
-        load_project_defaults(),
+        defaults,
     )
     CSV.write(joinpath(investor_dir, "projectoptions.csv"), completed_options)
     return completed_options
+end
+
+"""Resolve technology defaults: a project-supplied `project_defaults.csv` in `spec_dir`
+overrides the package's bundled `config/project_defaults.csv` when present."""
+function _resolve_project_defaults(spec_dir::AbstractString)
+    override_path = joinpath(spec_dir, "project_defaults.csv")
+    return isfile(override_path) ? load_project_defaults(override_path) : load_project_defaults()
 end
 
 function _write_project_metadata(project_root::AbstractString, values::Dict{String, String})
@@ -456,6 +476,7 @@ function initialize_emis_project(spec_dir::AbstractString; output_dir::AbstractS
 
     target_config_dir = _write_system_config_bundle(base_dir, spec_dir, spec)
     technologies = DataFrames.DataFrame(CSV.File(joinpath(target_config_dir, "technologies.csv"); stringtype=String))
+    project_defaults = _resolve_project_defaults(spec_dir)
 
     spec_markets_dir = joinpath(spec_dir, "markets_data")
     if isdir(spec_markets_dir)
@@ -463,7 +484,9 @@ function initialize_emis_project(spec_dir::AbstractString; output_dir::AbstractS
     end
     spec_queue_cost = joinpath(spec_dir, "queue_cost_data.csv")
     if isfile(spec_queue_cost)
-        cp(spec_queue_cost, joinpath(base_dir, "queue_cost_data.csv"); force=true)
+        # Must live inside base_dir/<heterogeneity>, not base_dir itself: make_case_data_dir
+        # copies that whole folder into each case's data_dir.
+        cp(spec_queue_cost, joinpath(base_dir, heterogeneity, "queue_cost_data.csv"); force=true)
     end
 
     ref_case = isnothing(reference_case_dir) ? get(spec, "reference_case_dir", nothing) : String(reference_case_dir)
@@ -480,7 +503,7 @@ function initialize_emis_project(spec_dir::AbstractString; output_dir::AbstractS
                 ref_queue = joinpath(ref_case, "queue_cost_data.csv")
             end
             if isfile(ref_queue)
-                cp(ref_queue, joinpath(base_dir, "queue_cost_data.csv"); force=true)
+                cp(ref_queue, joinpath(base_dir, heterogeneity, "queue_cost_data.csv"); force=true)
             end
         end
     end
@@ -506,11 +529,8 @@ function initialize_emis_project(spec_dir::AbstractString; output_dir::AbstractS
             end
         end
 
-        if isfile(joinpath(spec_dir, "projectexisting.csv"))
-            cp(joinpath(spec_dir, "projectexisting.csv"), joinpath(investor_dir, "projectexisting.csv"); force=true)
-        end
         if isfile(joinpath(spec_dir, "projectoptions.csv"))
-            _write_projectoptions_for_investor(spec_dir, investor_dir, investor, technologies)
+            _write_projectoptions_for_investor(spec_dir, investor_dir, investor, technologies, project_defaults)
         end
     end
 
@@ -533,11 +553,19 @@ function initialize_emis_project(spec_dir::AbstractString; output_dir::AbstractS
     if !isempty(copied_system_path)
         source_data_dir = joinpath(test_system_dir, "RTS_Data", "SourceData")
         sys = PSY.System(copied_system_path; runchecks=false)
+        # Ownership input is only Investor/GEN_UID; write_system_inputs completes the
+        # full projectexisting.csv schema per investor via extract_fleet.
+        spec_existing = joinpath(spec_dir, "projectexisting.csv")
+        ownership = isfile(spec_existing) ?
+            DataFrames.DataFrame(CSV.File(spec_existing; stringtype=String)) : nothing
         write_system_inputs(
             sys,
             source_data_dir;
             technologies=technologies,
             reserve_timeseries_dir=project_timeseries_dir,
+            ownership=ownership,
+            investor_dir=ownership === nothing ? nothing : joinpath(base_dir, heterogeneity, "investors"),
+            defaults=project_defaults,
         )
     end
 

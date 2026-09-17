@@ -62,6 +62,26 @@ Add these only when needed:
   `config/project_templates/project_spec/markets_data/README.md`.
 - `investors/<investor>/markets_data/`: investor-specific market assumptions such as
   `scenario_data.csv`, `scenario_multiplier_data.csv`, and `investor_belief.csv`.
+- `project_defaults.csv`: per-`unit_type` economic/technical fallback values (fuel price,
+  heat rate, CO2 emission rate, inertia, FOR/MTTR, capex/lifetime, fixed O&M, etc.) used
+  to complete `projectexisting.csv` (existing-fleet rows, via PSY-derived values where
+  available) and `projectoptions.csv` (new-build candidates) whenever a field isn't
+  otherwise supplied. If present in the project input folder, this file *replaces* the
+  package's bundled `config/project_defaults.csv` for the whole project — supply it when
+  your system's technologies or economics differ from that reference data. It must have
+  the same `unit_type,field,value` schema as `config/project_defaults.csv`.
+  - The bundled values are drawn from the Annual Technology Baseline: NLR (National
+    Laboratory of the Rockies). 2020. "2020 Annual Technology Baseline." Golden, CO:
+    National Laboratory of the Rockies. [https://atb.nlr.gov](https://atb.nlr.gov/).
+  - A row with `unit_type = ALL` (e.g. `ALL,Online Year,2000`) is a technology-agnostic
+    fallback applied to every unit type when no per-`unit_type` row exists for that
+    field. Use this for fields like `Online Year` that vary too much within a single
+    technology (real fleet vintages span 40+ years per technology) for a per-technology
+    average to be meaningful.
+  - `Online Year` in particular is genuinely per-generator, not a technology constant.
+    Rather than overriding it in `project_defaults.csv`, add an optional `Online Year`
+    column directly to your `projectexisting.csv` — any value supplied there for a
+    generator takes precedence over both the per-`unit_type` and `ALL` defaults.
 
 `reference_case_dir` is optional. It can supply compatible downstream market, investor,
 and finance files, but it does not replace the need for the user's own system, zones,
@@ -101,3 +121,34 @@ to the run result folder:
 
 Then `create_agent_simulation` reads the generated base, test-system, market, investor,
 and time series inputs.
+
+## Timeseries Naming Contract (Canonical Mode)
+
+A project created from scratch (no pre-built `constructed_systems/` and no legacy raw
+weather/load-forecast data under `<time_series_data_dir>/input_processing/`) is built in
+**canonical mode**: `create_rts_sys` reads your own time series directly instead of a
+legacy system-specific raw-data pipeline. This is the expected, supported path for a
+new user's project. Column names must match exactly:
+
+- **Load**: `Load/DAY_AHEAD_regional_Load.csv` and `Load/REAL_TIME_regional_Load.csv`
+  zone columns are resolved through `zones.csv` (same as the runtime reader), not by
+  literal PSY area name. The load-scaling factor is computed from `sim_year_1`'s peak
+  divided by `system_config.csv`'s `default_rts_load` baseline (GW) — set that value to
+  your system's intended peak so the scaled profile lines up with your PSY system's
+  capacity.
+- **Wind/PV**: `WIND/DAY_AHEAD_wind.csv`, `WIND/REAL_TIME_wind.csv`,
+  `PV/DAY_AHEAD_pv.csv`, and `PV/REAL_TIME_pv.csv` columns must be named **exactly**
+  after the matching PSY generator (case-sensitive), e.g. a PSY generator named
+  `Glove Solar` needs a `Glove Solar` column. If a generator's name isn't found, that
+  generator is skipped with a `@warn` rather than failing the whole build — check logs
+  after a first run to confirm every VRE generator you expect got a profile attached.
+- **Reserves**: `reserves.csv` only lists a reserve product when a matching
+  `Reserves/DAY_AHEAD_regional_{product}.csv` (or `REAL_TIME_regional_{product}.csv`)
+  file exists, matched case-insensitively. Products with no matching file are silently
+  dropped from `reserves.csv`, since the runtime reader builds file paths directly from
+  that column and errors on a missing file rather than skipping it.
+
+If your project instead supplies legacy raw weather/load-forecast data under
+`input_processing/`, an older system-specific construction path is used unchanged for
+backward compatibility; this only applies to migrating existing pre-project-init cases,
+not to new projects.
