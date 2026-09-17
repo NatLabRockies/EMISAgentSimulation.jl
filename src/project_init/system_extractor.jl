@@ -440,10 +440,18 @@ function _defaults_by_unit(defaults::DataFrames.DataFrame)
     return result
 end
 
+"""Look up `field` for `unit_type`, falling back to the `"ALL"` (technology-agnostic)
+unit_type entry when `unit_type` doesn't define it, then to `fallback`."""
 function _default_value(defaults, unit_type, field, fallback)
-    value = get(get(defaults, unit_type, Dict{String, Any}()), field, fallback)
-    value === missing || isempty(strip(string(value))) ? fallback : value
+    unit_defaults = get(defaults, unit_type, Dict{String, Any}())
+    haskey(unit_defaults, field) && return _default_value_or_fallback(unit_defaults[field], fallback)
+    all_defaults = get(defaults, "ALL", Dict{String, Any}())
+    haskey(all_defaults, field) && return _default_value_or_fallback(all_defaults[field], fallback)
+    return fallback
 end
+
+_default_value_or_fallback(value, fallback) =
+    value === missing || isempty(strip(string(value))) ? fallback : value
 
 function _outage_for(outage, name, fallback)
     outage === nothing && return fallback
@@ -483,7 +491,24 @@ function _project_row_value(defaults, unit_type, field, fallback)
         return lowercase(value) == "true"
     value isa AbstractString && tryparse(Float64, value) !== nothing &&
         return parse(Float64, value)
-    return value
+    return value isa AbstractFloat && isinteger(value) ? Int(value) : value
+end
+
+"""Value of an optional per-generator override column (e.g. `Online Year`) in an
+ownership input row, if the column is present and the row's value isn't blank/NA.
+Unlike most PROJECT_EXISTING_COLUMNS fields, some (Online Year) are true per-unit data
+rather than technology constants, so they can't be reasonably filled from a single
+technology-wide default."""
+function _ownership_override(owner_row, column::AbstractString)
+    sym = Symbol(column)
+    sym in propertynames(owner_row) || return nothing
+    value = owner_row[sym]
+    value === missing && return nothing
+    text = strip(string(value))
+    (isempty(text) || lowercase(text) in ("na", "n/a")) && return nothing
+    lowercase(text) in ("true", "false") && return lowercase(text) == "true"
+    parsed = tryparse(Float64, text)
+    return parsed === nothing ? text : parsed
 end
 
 """Extract complete existing-project rows from PSY and explicit ownership input."""
@@ -507,7 +532,9 @@ function extract_fleet(
     report = String[]
     for owner_row in eachrow(ownership)
         name = string(owner_row.GEN_UID)
-        haskey(devices, name) || error("Existing project $(name) is not available in the PSY system")
+        haskey(devices, name) || error(
+            "Existing project \"$(name)\" is not an available PSY Generator/Storage component"
+        )
         device = devices[name]
         unit_type = classify_psy_component(device, mapping)
         haskey(technology_lookup, unit_type) || error(
@@ -516,7 +543,15 @@ function extract_fleet(
         category = technology_lookup[unit_type]
         bus = PSY.get_bus(device)
         area = PSY.get_area(bus)
-        limits = device isa PSY.Storage ? PSY.get_output_active_power_limits(device) : PSY.get_active_power_limits(device)
+        # RenewableGen (wind/PV) has no active_power_limits field — PSY derives its max
+        # output from rating * power_factor instead, with an implicit 0 minimum.
+        limits = if device isa PSY.Storage
+            PSY.get_output_active_power_limits(device)
+        elseif device isa PSY.RenewableGen
+            (min = 0.0, max = PSY.get_max_active_power(device))
+        else
+            PSY.get_active_power_limits(device)
+        end
         size = limits.max * PSY.get_base_power(sys)
         min_pu = limits.min
         row = Dict{String, Any}(column => "NA" for column in PROJECT_EXISTING_COLUMNS)
@@ -550,6 +585,10 @@ function extract_fleet(
             row["Min Up Time Hr"] = PSY.get_time_limits(device)
             operation_cost === nothing && push!(report, "$(name): heat-rate fallback used")
         end
+        # Genuinely per-unit fields (e.g. commissioning year) vary too widely across real
+        # fleets to fill from a technology-wide default; honor a user-supplied value first.
+        online_year = _ownership_override(owner_row, "Online Year")
+        online_year !== nothing && (row["Online Year"] = online_year)
         for column in PROJECT_EXISTING_COLUMNS
             row[column] == "NA" && (row[column] = _project_row_value(default_lookup, unit_type, column, "NA"))
         end

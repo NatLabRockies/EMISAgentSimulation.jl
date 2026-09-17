@@ -234,7 +234,7 @@ function load_system_config(data_dir::AbstractString)
     )
 end
 
-function get_zone_name(cfg::SystemConfig, zone_id::Union{Int, String})
+function get_zone_name(cfg::SystemConfig, zone_id::Union{Int, AbstractString})
     if zone_id isa Int
         idx = zone_id
         if 1 <= idx <= length(cfg.zone_names)
@@ -242,7 +242,7 @@ function get_zone_name(cfg::SystemConfig, zone_id::Union{Int, String})
         end
         error("Unknown zone index: $(idx)")
     end
-    key = String(zone_id)
+    key = String(strip(zone_id))
     haskey(cfg.zone_lookup, key) || error("Unknown zone identifier: $(key)")
     return cfg.zone_lookup[key]
 end

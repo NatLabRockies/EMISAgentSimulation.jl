@@ -1,50 +1,103 @@
 unit_type,field,value
-ST,Min Gen pu,0.0
+ALL,Online Year,2000
+ST,Min Gen pu,0.3
 ST,Min Up Time Hr,0.0
 ST,Min Down Time Hr,0.0
 ST,Ramp Rate pu/Hr,1.0
-ST,FOR,0.06
-ST,MTTR Hr,24.0
+ST,FOR,0.0897
+ST,MTTR Hr,44.0
 ST,Lagtime,2.0
 ST,Capex Years,20.0
-ST,Lifetime,30.0
-ST,Fixed OM Cost per MW,15000.0
+ST,Lifetime,55.0
+ST,Fixed OM Cost per MW,20227.0
 ST,Preference Multiplier,1.0
-CT,Min Gen pu,0.0
+ST,Fuel Price $/MMBTU,3.323
+ST,Output_pct_0,1.0
+ST,Output_pct_1,0.0
+ST,Output_pct_2,0.0
+ST,Output_pct_3,0.0
+ST,Output_pct_4,0.0
+ST,HR_avg_0,10139.0
+ST,HR_incr_1,0.0
+ST,HR_incr_2,0.0
+ST,HR_incr_3,0.0
+ST,HR_incr_4,0.0
+ST,CO2_Emissions ton/MMBTU,0.0667
+ST,Inertia MJ/MW,3.0
+CT,Min Gen pu,0.3
 CT,Min Up Time Hr,0.0
 CT,Min Down Time Hr,0.0
 CT,Ramp Rate pu/Hr,1.0
-CT,FOR,0.06
-CT,MTTR Hr,24.0
+CT,FOR,0.0393
+CT,MTTR Hr,29.0
 CT,Lagtime,2.0
 CT,Capex Years,20.0
-CT,Lifetime,30.0
-CT,Fixed OM Cost per MW,11000.0
+CT,Lifetime,55.0
+CT,Fixed OM Cost per MW,11460.0
 CT,Preference Multiplier,1.0
-CC,Min Gen pu,0.0
+CT,Fuel Price $/MMBTU,3.887
+CT,Output_pct_0,1.0
+CT,Output_pct_1,0.0
+CT,Output_pct_2,0.0
+CT,Output_pct_3,0.0
+CT,Output_pct_4,0.0
+CT,HR_avg_0,8362.0
+CT,HR_incr_1,0.0
+CT,HR_incr_2,0.0
+CT,HR_incr_3,0.0
+CT,HR_incr_4,0.0
+CT,CO2_Emissions ton/MMBTU,0.0535
+CT,Inertia MJ/MW,3.3
+CC,Min Gen pu,0.4
 CC,Min Up Time Hr,0.0
 CC,Min Down Time Hr,0.0
 CC,Ramp Rate pu/Hr,0.6
-CC,FOR,0.05
-CC,MTTR Hr,24.0
+CC,FOR,0.0393
+CC,MTTR Hr,21.0
 CC,Lagtime,3.0
-CC,Capex Years,25.0
-CC,Lifetime,30.0
-CC,Fixed OM Cost per MW,15000.0
+CC,Capex Years,20.0
+CC,Lifetime,55.0
+CC,Fixed OM Cost per MW,13000.0
 CC,Preference Multiplier,1.0
+CC,Fuel Price $/MMBTU,3.887
+CC,Output_pct_0,1.0
+CC,Output_pct_1,0.0
+CC,Output_pct_2,0.0
+CC,Output_pct_3,0.0
+CC,Output_pct_4,0.0
+CC,HR_avg_0,7598.0
+CC,HR_incr_1,0.0
+CC,HR_incr_2,0.0
+CC,HR_incr_3,0.0
+CC,HR_incr_4,0.0
+CC,CO2_Emissions ton/MMBTU,0.0535
+CC,Inertia MJ/MW,5.0
 WT,Min Gen pu,0.0
-WT,Ramp Rate pu/Hr,1.0
+WT,Ramp Rate pu/Hr,60.0
 WT,FOR,0.0
 WT,MTTR Hr,0.0
 WT,Lagtime,2.0
 WT,Capex Years,20.0
-WT,Lifetime,30.0
+WT,Lifetime,25.0
 WT,Fixed OM Cost per MW,43000.0
 WT,Preference Multiplier,1.0
 WT,Capacity Eligible,true
 WT,REC Eligible,true
+WT,Fuel Price $/MMBTU,0.0
+WT,Output_pct_0,1.0
+WT,Output_pct_1,0.0
+WT,Output_pct_2,0.0
+WT,Output_pct_3,0.0
+WT,Output_pct_4,0.0
+WT,HR_avg_0,0.0
+WT,HR_incr_1,0.0
+WT,HR_incr_2,0.0
+WT,HR_incr_3,0.0
+WT,HR_incr_4,0.0
+WT,CO2_Emissions ton/MMBTU,0.0
+WT,Inertia MJ/MW,3.5
 PVe,Min Gen pu,0.0
-PVe,Ramp Rate pu/Hr,1.0
+PVe,Ramp Rate pu/Hr,60.0
 PVe,FOR,0.0
 PVe,MTTR Hr,0.0
 PVe,Lagtime,1.0
@@ -54,33 +107,258 @@ PVe,Fixed OM Cost per MW,19000.0
 PVe,Preference Multiplier,1.0
 PVe,Capacity Eligible,true
 PVe,REC Eligible,true
+PVe,Fuel Price $/MMBTU,0.0
+PVe,Output_pct_0,1.0
+PVe,Output_pct_1,0.0
+PVe,Output_pct_2,0.0
+PVe,Output_pct_3,0.0
+PVe,Output_pct_4,0.0
+PVe,HR_avg_0,0.0
+PVe,HR_incr_1,0.0
+PVe,HR_incr_2,0.0
+PVe,HR_incr_3,0.0
+PVe,HR_incr_4,0.0
+PVe,CO2_Emissions ton/MMBTU,0.0
+PVe,Inertia MJ/MW,2.5
 BA,Min Gen pu,0.0
 BA,Input Power Rating pu,1.0
 BA,Output Power Rating pu,1.0
 BA,Min Storgae pu,0.0
 BA,Duration Hr,4.0
 BA,Round Trip Efficiency pu,0.85
+BA,Ramp Rate pu/Hr,60.0
 BA,FOR,0.0
 BA,MTTR Hr,0.0
 BA,Lagtime,1.0
 BA,Capex Years,15.0
 BA,Lifetime,15.0
-BA,Fixed OM Cost per MW,2525.0
+BA,Fixed OM Cost per MW,18000.0
 BA,Preference Multiplier,1.0
 BA,Capacity Eligible,false
 BA,REC Eligible,false
+BA,Fuel Price $/MMBTU,0.0
+BA,Output_pct_0,1.0
+BA,Output_pct_1,0.0
+BA,Output_pct_2,0.0
+BA,Output_pct_3,0.0
+BA,Output_pct_4,0.0
+BA,HR_avg_0,0.0
+BA,HR_incr_1,0.0
+BA,HR_incr_2,0.0
+BA,HR_incr_3,0.0
+BA,HR_incr_4,0.0
+BA,CO2_Emissions ton/MMBTU,0.0
+BA,Inertia MJ/MW,2.5
 LDES,Min Gen pu,0.0
 LDES,Input Power Rating pu,1.0
 LDES,Output Power Rating pu,1.0
 LDES,Min Storgae pu,0.0
 LDES,Duration Hr,12.0
 LDES,Round Trip Efficiency pu,0.85
+LDES,Ramp Rate pu/Hr,60.0
 LDES,FOR,0.0
 LDES,MTTR Hr,0.0
 LDES,Lagtime,1.0
 LDES,Capex Years,15.0
 LDES,Lifetime,15.0
-LDES,Fixed OM Cost per MW,2525.0
+LDES,Fixed OM Cost per MW,18000.0
 LDES,Preference Multiplier,1.0
 LDES,Capacity Eligible,false
 LDES,REC Eligible,false
+LDES,Fuel Price $/MMBTU,0.0
+LDES,Output_pct_0,1.0
+LDES,Output_pct_1,0.0
+LDES,Output_pct_2,0.0
+LDES,Output_pct_3,0.0
+LDES,Output_pct_4,0.0
+LDES,HR_avg_0,0.0
+LDES,HR_incr_1,0.0
+LDES,HR_incr_2,0.0
+LDES,HR_incr_3,0.0
+LDES,HR_incr_4,0.0
+LDES,CO2_Emissions ton/MMBTU,0.0
+LDES,Inertia MJ/MW,2.5
+NU_ST,Min Gen pu,0.5
+NU_ST,Ramp Rate pu/Hr,0.006
+NU_ST,FOR,0.0151
+NU_ST,MTTR Hr,126.0
+NU_ST,Lagtime,6.0
+NU_ST,Capex Years,20.0
+NU_ST,Lifetime,100.0
+NU_ST,Fixed OM Cost per MW,119000.0
+NU_ST,Preference Multiplier,1.0
+NU_ST,Fuel Price $/MMBTU,0.810
+NU_ST,Output_pct_0,1.0
+NU_ST,Output_pct_1,0.0
+NU_ST,Output_pct_2,0.0
+NU_ST,Output_pct_3,0.0
+NU_ST,Output_pct_4,0.0
+NU_ST,HR_avg_0,0.0
+NU_ST,HR_incr_1,0.0
+NU_ST,HR_incr_2,0.0
+NU_ST,HR_incr_3,0.0
+NU_ST,HR_incr_4,0.0
+NU_ST,CO2_Emissions ton/MMBTU,0.0
+NU_ST,Inertia MJ/MW,5.0
+GT,Min Gen pu,0.3
+GT,Ramp Rate pu/Hr,1.0
+GT,FOR,0.0616
+GT,MTTR Hr,31.0
+GT,Lagtime,2.0
+GT,Capex Years,20.0
+GT,Lifetime,56.0
+GT,Fixed OM Cost per MW,11023.0
+GT,Preference Multiplier,1.0
+GT,Fuel Price $/MMBTU,3.887
+GT,Output_pct_0,1.0
+GT,Output_pct_1,0.0
+GT,Output_pct_2,0.0
+GT,Output_pct_3,0.0
+GT,Output_pct_4,0.0
+GT,HR_avg_0,8708.0
+GT,HR_incr_1,0.0
+GT,HR_incr_2,0.0
+GT,HR_incr_3,0.0
+GT,HR_incr_4,0.0
+GT,CO2_Emissions ton/MMBTU,0.0535
+GT,Inertia MJ/MW,3.0
+RE_CT,Min Gen pu,0.3
+RE_CT,Ramp Rate pu/Hr,1.0
+RE_CT,FOR,0.0616
+RE_CT,MTTR Hr,31.0
+RE_CT,Lagtime,2.0
+RE_CT,Capex Years,20.0
+RE_CT,Lifetime,56.0
+RE_CT,Fixed OM Cost per MW,11023.0
+RE_CT,Preference Multiplier,1.0
+RE_CT,Fuel Price $/MMBTU,3.887
+RE_CT,Output_pct_0,1.0
+RE_CT,Output_pct_1,0.0
+RE_CT,Output_pct_2,0.0
+RE_CT,Output_pct_3,0.0
+RE_CT,Output_pct_4,0.0
+RE_CT,HR_avg_0,8708.0
+RE_CT,HR_incr_1,0.0
+RE_CT,HR_incr_2,0.0
+RE_CT,HR_incr_3,0.0
+RE_CT,HR_incr_4,0.0
+RE_CT,CO2_Emissions ton/MMBTU,0.0535
+RE_CT,Inertia MJ/MW,3.0
+IC,Min Gen pu,0.3
+IC,Ramp Rate pu/Hr,1.0
+IC,FOR,0.0616
+IC,MTTR Hr,31.0
+IC,Lagtime,1.0
+IC,Capex Years,15.0
+IC,Lifetime,30.0
+IC,Fixed OM Cost per MW,11023.0
+IC,Preference Multiplier,1.0
+IC,Fuel Price $/MMBTU,3.887
+IC,Output_pct_0,1.0
+IC,Output_pct_1,0.0
+IC,Output_pct_2,0.0
+IC,Output_pct_3,0.0
+IC,Output_pct_4,0.0
+IC,HR_avg_0,8708.0
+IC,HR_incr_1,0.0
+IC,HR_incr_2,0.0
+IC,HR_incr_3,0.0
+IC,HR_incr_4,0.0
+IC,CO2_Emissions ton/MMBTU,0.0535
+IC,Inertia MJ/MW,2.0
+HY,Min Gen pu,0.0
+HY,Ramp Rate pu/Hr,60.0
+HY,FOR,0.0233
+HY,MTTR Hr,22.0
+HY,Lagtime,5.0
+HY,Capex Years,20.0
+HY,Lifetime,150.0
+HY,Fixed OM Cost per MW,114000.0
+HY,Preference Multiplier,1.0
+HY,Capacity Eligible,true
+HY,REC Eligible,false
+HY,Fuel Price $/MMBTU,0.0
+HY,Output_pct_0,1.0
+HY,Output_pct_1,0.0
+HY,Output_pct_2,0.0
+HY,Output_pct_3,0.0
+HY,Output_pct_4,0.0
+HY,HR_avg_0,0.0
+HY,HR_incr_1,0.0
+HY,HR_incr_2,0.0
+HY,HR_incr_3,0.0
+HY,HR_incr_4,0.0
+HY,CO2_Emissions ton/MMBTU,0.0
+HY,Inertia MJ/MW,3.5
+WIND,Min Gen pu,0.0
+WIND,Ramp Rate pu/Hr,60.0
+WIND,FOR,0.0
+WIND,MTTR Hr,0.0
+WIND,Lagtime,2.0
+WIND,Capex Years,20.0
+WIND,Lifetime,25.0
+WIND,Fixed OM Cost per MW,43000.0
+WIND,Preference Multiplier,1.0
+WIND,Capacity Eligible,true
+WIND,REC Eligible,true
+WIND,Fuel Price $/MMBTU,0.0
+WIND,Output_pct_0,1.0
+WIND,Output_pct_1,0.0
+WIND,Output_pct_2,0.0
+WIND,Output_pct_3,0.0
+WIND,Output_pct_4,0.0
+WIND,HR_avg_0,0.0
+WIND,HR_incr_1,0.0
+WIND,HR_incr_2,0.0
+WIND,HR_incr_3,0.0
+WIND,HR_incr_4,0.0
+WIND,CO2_Emissions ton/MMBTU,0.0
+WIND,Inertia MJ/MW,3.5
+PV,Min Gen pu,0.0
+PV,Ramp Rate pu/Hr,60.0
+PV,FOR,0.0
+PV,MTTR Hr,0.0
+PV,Lagtime,1.0
+PV,Capex Years,20.0
+PV,Lifetime,30.0
+PV,Fixed OM Cost per MW,19000.0
+PV,Preference Multiplier,1.0
+PV,Capacity Eligible,true
+PV,REC Eligible,true
+PV,Fuel Price $/MMBTU,0.0
+PV,Output_pct_0,1.0
+PV,Output_pct_1,0.0
+PV,Output_pct_2,0.0
+PV,Output_pct_3,0.0
+PV,Output_pct_4,0.0
+PV,HR_avg_0,0.0
+PV,HR_incr_1,0.0
+PV,HR_incr_2,0.0
+PV,HR_incr_3,0.0
+PV,HR_incr_4,0.0
+PV,CO2_Emissions ton/MMBTU,0.0
+PV,Inertia MJ/MW,2.5
+RTPV,Min Gen pu,0.0
+RTPV,Ramp Rate pu/Hr,60.0
+RTPV,FOR,0.0
+RTPV,MTTR Hr,0.0
+RTPV,Lagtime,1.0
+RTPV,Capex Years,20.0
+RTPV,Lifetime,30.0
+RTPV,Fixed OM Cost per MW,19000.0
+RTPV,Preference Multiplier,1.0
+RTPV,Capacity Eligible,true
+RTPV,REC Eligible,true
+RTPV,Fuel Price $/MMBTU,0.0
+RTPV,Output_pct_0,1.0
+RTPV,Output_pct_1,0.0
+RTPV,Output_pct_2,0.0
+RTPV,Output_pct_3,0.0
+RTPV,Output_pct_4,0.0
+RTPV,HR_avg_0,0.0
+RTPV,HR_incr_1,0.0
+RTPV,HR_incr_2,0.0
+RTPV,HR_incr_3,0.0
+RTPV,HR_incr_4,0.0
+RTPV,CO2_Emissions ton/MMBTU,0.0
+RTPV,Inertia MJ/MW,2.5
