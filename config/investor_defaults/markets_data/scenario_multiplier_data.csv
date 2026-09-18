@@ -1,0 +1,4 @@
+﻿scenario,probability,load_zone_1,load_zone_2,load_zone_3,load_zone_4,load_zone_5,load_zone_6,load_zone_7,load_zone_8
+scenario_1,0.5,1,1,1,1,1,1,1,1
+scenario_2,0.25,2,2,2,2,2,2,2,2
+scenario_3,0.25,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5

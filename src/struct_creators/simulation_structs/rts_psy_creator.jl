@@ -67,7 +67,7 @@ function create_rts_sys(rts_dir::String,
     runchecks = false
 
     ##TODO: revert back to original system after checking storage capacities
-    initial_Sienna_system_name = "DA_sys_zonal_with_storage_capacities.json"
+    initial_Sienna_system_path = resolve_generated_system_path(rts_dir)
     # initial_Sienna_system_name = "DA_sys_zonal.json"
 
     sys_MDs = Vector{PSY.System}()
@@ -100,7 +100,7 @@ function create_rts_sys(rts_dir::String,
             @info "Simulation year $(sim_year): MD json file doesn't exist, creating PSY system."
             dir_exists(dirname(MD_sys_filename))
             sys_MD_initial = PSY.System(
-                joinpath(rts_dir, initial_Sienna_system_name);
+                initial_Sienna_system_path;
                 time_series_directory = scratch_dir,
             );
             prune_system_devices!(sys_MD_initial, configured_pruning)
@@ -148,7 +148,7 @@ function create_rts_sys(rts_dir::String,
             @info "Simulation year $(sim_year): UC json file doesn't exist, creating PSY system."
             dir_exists(dirname(UC_filename))
             sys_UC_initial = PSY.System(
-                joinpath(rts_dir, initial_Sienna_system_name);
+                initial_Sienna_system_path;
                 time_series_directory = scratch_dir,
             );
             prune_system_devices!(sys_UC_initial, configured_pruning)
@@ -199,7 +199,7 @@ function create_rts_sys(rts_dir::String,
                 @info "Simulation year $(sim_year): ED json file doesn't exist, creating PSY system."
                 dir_exists(dirname(ED_filename))
                 sys_ED_initial = PSY.System(
-                    joinpath(rts_dir, initial_Sienna_system_name);
+                    initial_Sienna_system_path;
                     time_series_directory = scratch_dir,
                 );
                 prune_system_devices!(sys_ED_initial, configured_pruning)

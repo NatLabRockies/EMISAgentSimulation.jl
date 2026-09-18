@@ -1,0 +1,5 @@
+Investor,risk_preference,uf_constant,uf_multiplier,uf_risk_coefficient,capital_cost_multiplier,max_annual_projects,discount_rate_adder,retire_lookback,min_pref_multiplier,max_pref_multiplier
+investor1,averse,1,1,1.0e-5,0.143,30,0.02,2,0.9,1.1
+investor2,averse,1,1,1.0e-5,0.105,50,0.01,2,0.9,1.1
+investor3,averse,1,1,1.0e-6,0.105,50,0.005,2,0.9,1.1
+investor4,averse,1,1,1.0e-6,0.0853,80,0.0,2,0.9,1.1

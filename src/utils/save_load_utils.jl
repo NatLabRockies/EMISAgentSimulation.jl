@@ -1762,7 +1762,7 @@ function load_sienna_systems!(
     ED_interval = get_ed_interval(case)
     outage_dir = get_outage_dir(case)
 
-    initial_Sienna_system_name = "DA_sys_zonal_with_storage_capacities.json"
+    initial_Sienna_system_path = resolve_generated_system_path(rts_dir)
     pcm_scenario = simulation_settings["pcm_scenario"]
     system_config = load_system_config(data_dir)
     supercc_scenario = get_scenario_pcm_label(system_config, pcm_scenario)

@@ -110,6 +110,24 @@ const EXISTING_TEMPLATE = joinpath(
     @test isdir(joinpath(init_dir, "EMIS_RTS_Analysis", "Heterogeneous", "system_config"))
     @test isdir(joinpath(init_dir, "EMIS_RTS_Analysis", "Heterogeneous", "markets_data"))
     @test isdir(joinpath(init_dir, "EMIS_RTS_Analysis", "Heterogeneous", "investors", "investor_1", "markets_data"))
+    @test isfile(joinpath(
+        init_dir,
+        "EMIS_RTS_Analysis",
+        "Heterogeneous",
+        "investors",
+        "investor_1",
+        "markets_data",
+        "investor_belief.csv",
+    ))
+    @test isfile(joinpath(
+        init_dir,
+        "EMIS_RTS_Analysis",
+        "Heterogeneous",
+        "investors",
+        "investor_2",
+        "markets_data",
+        "scenario_data.csv",
+    ))
     @test haskey(result, :base_dir)
     @test isdir(joinpath(init_dir, "case_templates"))
 
@@ -121,4 +139,13 @@ const EXISTING_TEMPLATE = joinpath(
         output_dir=stale_root,
         reference_case_dir=nothing,
     )
+
+    renamed_system_dir = mktempdir()
+    renamed_system = joinpath(renamed_system_dir, "renamed_system.json")
+    touch(renamed_system)
+    @test EMISAgentSimulation._resolve_generated_system_path(renamed_system_dir) == renamed_system
+
+    investor_dir = mktempdir()
+    mkpath(joinpath(investor_dir, "markets_data"))
+    @test_throws ErrorException EMISAgentSimulation._validate_investor_market_bundle(investor_dir)
 end
