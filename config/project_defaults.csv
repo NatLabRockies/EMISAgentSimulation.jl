@@ -12,16 +12,16 @@ ST,Lifetime,55.0
 ST,Fixed OM Cost per MW,20227.0
 ST,Preference Multiplier,1.0
 ST,Fuel Price $/MMBTU,3.323
-ST,Output_pct_0,1.0
-ST,Output_pct_1,0.0
-ST,Output_pct_2,0.0
-ST,Output_pct_3,0.0
-ST,Output_pct_4,0.0
-ST,HR_avg_0,10139.0
-ST,HR_incr_1,0.0
-ST,HR_incr_2,0.0
-ST,HR_incr_3,0.0
-ST,HR_incr_4,0.0
+ST,Output_pct_0,0.0
+ST,Output_pct_1,1.0
+ST,Output_pct_2,NA
+ST,Output_pct_3,NA
+ST,Output_pct_4,NA
+ST,HR_avg_0,0.0
+ST,HR_incr_1,7718.0
+ST,HR_incr_2,NA
+ST,HR_incr_3,NA
+ST,HR_incr_4,NA
 ST,CO2_Emissions ton/MMBTU,0.0667
 ST,Inertia MJ/MW,3.0
 CT,Min Gen pu,0.3
@@ -36,16 +36,16 @@ CT,Lifetime,55.0
 CT,Fixed OM Cost per MW,11460.0
 CT,Preference Multiplier,1.0
 CT,Fuel Price $/MMBTU,3.887
-CT,Output_pct_0,1.0
-CT,Output_pct_1,0.0
-CT,Output_pct_2,0.0
-CT,Output_pct_3,0.0
-CT,Output_pct_4,0.0
-CT,HR_avg_0,8362.0
-CT,HR_incr_1,0.0
-CT,HR_incr_2,0.0
-CT,HR_incr_3,0.0
-CT,HR_incr_4,0.0
+CT,Output_pct_0,0.4
+CT,Output_pct_1,0.6
+CT,Output_pct_2,0.8
+CT,Output_pct_3,1.0
+CT,Output_pct_4,NA
+CT,HR_avg_0,13000.0
+CT,HR_incr_1,6003.0
+CT,HR_incr_2,6817.0
+CT,HR_incr_3,7176.0
+CT,HR_incr_4,NA
 CT,CO2_Emissions ton/MMBTU,0.0535
 CT,Inertia MJ/MW,3.3
 CC,Min Gen pu,0.4
@@ -60,16 +60,16 @@ CC,Lifetime,55.0
 CC,Fixed OM Cost per MW,13000.0
 CC,Preference Multiplier,1.0
 CC,Fuel Price $/MMBTU,3.887
-CC,Output_pct_0,1.0
-CC,Output_pct_1,0.0
-CC,Output_pct_2,0.0
-CC,Output_pct_3,0.0
-CC,Output_pct_4,0.0
-CC,HR_avg_0,7598.0
-CC,HR_incr_1,0.0
-CC,HR_incr_2,0.0
-CC,HR_incr_3,0.0
-CC,HR_incr_4,0.0
+CC,Output_pct_0,0.478873239
+CC,Output_pct_1,0.65258216
+CC,Output_pct_2,0.82629108
+CC,Output_pct_3,1.0
+CC,Output_pct_4,NA
+CC,HR_avg_0,7200.0
+CC,HR_incr_1,5950.0
+CC,HR_incr_2,6772.0
+CC,HR_incr_3,7850.0
+CC,HR_incr_4,NA
 CC,CO2_Emissions ton/MMBTU,0.0535
 CC,Inertia MJ/MW,5.0
 WT,Min Gen pu,0.0
@@ -137,16 +137,16 @@ BA,Preference Multiplier,1.0
 BA,Capacity Eligible,false
 BA,REC Eligible,false
 BA,Fuel Price $/MMBTU,0.0
-BA,Output_pct_0,1.0
-BA,Output_pct_1,0.0
-BA,Output_pct_2,0.0
-BA,Output_pct_3,0.0
-BA,Output_pct_4,0.0
+BA,Output_pct_0,0.0
+BA,Output_pct_1,NA
+BA,Output_pct_2,NA
+BA,Output_pct_3,NA
+BA,Output_pct_4,NA
 BA,HR_avg_0,0.0
-BA,HR_incr_1,0.0
-BA,HR_incr_2,0.0
-BA,HR_incr_3,0.0
-BA,HR_incr_4,0.0
+BA,HR_incr_1,NA
+BA,HR_incr_2,NA
+BA,HR_incr_3,NA
+BA,HR_incr_4,NA
 BA,CO2_Emissions ton/MMBTU,0.0
 BA,Inertia MJ/MW,2.5
 LDES,Min Gen pu,0.0
@@ -188,16 +188,16 @@ NU_ST,Lifetime,100.0
 NU_ST,Fixed OM Cost per MW,119000.0
 NU_ST,Preference Multiplier,1.0
 NU_ST,Fuel Price $/MMBTU,0.810
-NU_ST,Output_pct_0,1.0
-NU_ST,Output_pct_1,0.0
-NU_ST,Output_pct_2,0.0
-NU_ST,Output_pct_3,0.0
-NU_ST,Output_pct_4,0.0
+NU_ST,Output_pct_0,0.0
+NU_ST,Output_pct_1,1.0
+NU_ST,Output_pct_2,NA
+NU_ST,Output_pct_3,NA
+NU_ST,Output_pct_4,NA
 NU_ST,HR_avg_0,0.0
 NU_ST,HR_incr_1,0.0
-NU_ST,HR_incr_2,0.0
-NU_ST,HR_incr_3,0.0
-NU_ST,HR_incr_4,0.0
+NU_ST,HR_incr_2,NA
+NU_ST,HR_incr_3,NA
+NU_ST,HR_incr_4,NA
 NU_ST,CO2_Emissions ton/MMBTU,0.0
 NU_ST,Inertia MJ/MW,5.0
 GT,Min Gen pu,0.3
@@ -210,16 +210,16 @@ GT,Lifetime,56.0
 GT,Fixed OM Cost per MW,11023.0
 GT,Preference Multiplier,1.0
 GT,Fuel Price $/MMBTU,3.887
-GT,Output_pct_0,1.0
-GT,Output_pct_1,0.0
-GT,Output_pct_2,0.0
-GT,Output_pct_3,0.0
-GT,Output_pct_4,0.0
-GT,HR_avg_0,8708.0
-GT,HR_incr_1,0.0
-GT,HR_incr_2,0.0
-GT,HR_incr_3,0.0
-GT,HR_incr_4,0.0
+GT,Output_pct_0,0.0
+GT,Output_pct_1,1.0
+GT,Output_pct_2,NA
+GT,Output_pct_3,NA
+GT,Output_pct_4,NA
+GT,HR_avg_0,0.0
+GT,HR_incr_1,9776.0
+GT,HR_incr_2,NA
+GT,HR_incr_3,NA
+GT,HR_incr_4,NA
 GT,CO2_Emissions ton/MMBTU,0.0535
 GT,Inertia MJ/MW,3.0
 RE_CT,Min Gen pu,0.3
@@ -232,16 +232,16 @@ RE_CT,Lifetime,56.0
 RE_CT,Fixed OM Cost per MW,11023.0
 RE_CT,Preference Multiplier,1.0
 RE_CT,Fuel Price $/MMBTU,3.887
-RE_CT,Output_pct_0,1.0
-RE_CT,Output_pct_1,0.0
-RE_CT,Output_pct_2,0.0
-RE_CT,Output_pct_3,0.0
-RE_CT,Output_pct_4,0.0
-RE_CT,HR_avg_0,8708.0
-RE_CT,HR_incr_1,0.0
-RE_CT,HR_incr_2,0.0
-RE_CT,HR_incr_3,0.0
-RE_CT,HR_incr_4,0.0
+RE_CT,Output_pct_0,0.4
+RE_CT,Output_pct_1,0.6
+RE_CT,Output_pct_2,0.8
+RE_CT,Output_pct_3,1.0
+RE_CT,Output_pct_4,NA
+RE_CT,HR_avg_0,13000.0
+RE_CT,HR_incr_1,6003.0
+RE_CT,HR_incr_2,6817.0
+RE_CT,HR_incr_3,7176.0
+RE_CT,HR_incr_4,NA
 RE_CT,CO2_Emissions ton/MMBTU,0.0535
 RE_CT,Inertia MJ/MW,3.0
 IC,Min Gen pu,0.3
@@ -254,11 +254,11 @@ IC,Lifetime,30.0
 IC,Fixed OM Cost per MW,11023.0
 IC,Preference Multiplier,1.0
 IC,Fuel Price $/MMBTU,3.887
-IC,Output_pct_0,1.0
-IC,Output_pct_1,0.0
-IC,Output_pct_2,0.0
-IC,Output_pct_3,0.0
-IC,Output_pct_4,0.0
+IC,Output_pct_0,0.0
+IC,Output_pct_1,0.25
+IC,Output_pct_2,0.5
+IC,Output_pct_3,0.75
+IC,Output_pct_4,1.0
 IC,HR_avg_0,8708.0
 IC,HR_incr_1,0.0
 IC,HR_incr_2,0.0
@@ -278,16 +278,16 @@ HY,Preference Multiplier,1.0
 HY,Capacity Eligible,true
 HY,REC Eligible,false
 HY,Fuel Price $/MMBTU,0.0
-HY,Output_pct_0,1.0
-HY,Output_pct_1,0.0
-HY,Output_pct_2,0.0
-HY,Output_pct_3,0.0
-HY,Output_pct_4,0.0
+HY,Output_pct_0,0.0
+HY,Output_pct_1,1.0
+HY,Output_pct_2,NA
+HY,Output_pct_3,NA
+HY,Output_pct_4,NA
 HY,HR_avg_0,0.0
 HY,HR_incr_1,0.0
-HY,HR_incr_2,0.0
-HY,HR_incr_3,0.0
-HY,HR_incr_4,0.0
+HY,HR_incr_2,NA
+HY,HR_incr_3,NA
+HY,HR_incr_4,NA
 HY,CO2_Emissions ton/MMBTU,0.0
 HY,Inertia MJ/MW,3.5
 WIND,Min Gen pu,0.0

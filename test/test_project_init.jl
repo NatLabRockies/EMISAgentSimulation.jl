@@ -29,7 +29,7 @@ end
     source_spec_dir = joinpath(PROJECT_ROOT, "config", "project_templates", "project_spec")
     spec_dir = joinpath(mktempdir(), "project_spec")
     cp(source_spec_dir, spec_dir; force=true)
-    rm(joinpath(spec_dir, "investors"); recursive=true)
+    rm(joinpath(spec_dir, "investors"); recursive=true, force=true)
 
     init_dir = joinpath(mktempdir(), "project_init_defaults")
     initialize_emis_project(spec_dir; output_dir=init_dir, reference_case_dir=nothing)

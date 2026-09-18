@@ -185,7 +185,7 @@ function _copy_directory_contents(src_dir::AbstractString, dst_dir::AbstractStri
         src_path = joinpath(src_dir, entry)
         dst_path = joinpath(dst_dir, entry)
         if isdir(src_path)
-            cp(src_path, dst_path; force=true)
+            _copy_directory_contents(src_path, dst_path)
         elseif isfile(src_path)
             cp(src_path, dst_path; force=true)
         end
@@ -281,11 +281,37 @@ function _option_technology_default(technology, field::AbstractString, fallback)
     return string(fallback)
 end
 
+function _coalesce_project_option_value(
+    input_row,
+    reference_row,
+    defaults_by_unit::Dict{String, Dict{String, String}},
+    unit_type::AbstractString,
+    field::AbstractString,
+    fallback,
+)
+    if input_row !== nothing && field in names(input_row)
+        value = input_row[Symbol(field)]
+        text = strip(string(value))
+        if !(value === missing || isempty(text) || lowercase(text) == "na" || lowercase(text) == "n/a")
+            return string(value)
+        end
+    end
+    if reference_row !== nothing && field in names(reference_row)
+        value = reference_row[Symbol(field)]
+        text = strip(string(value))
+        if !(value === missing || isempty(text) || lowercase(text) == "na" || lowercase(text) == "n/a")
+            return string(value)
+        end
+    end
+    return _option_default(defaults_by_unit, unit_type, field, fallback)
+end
+
 function _complete_projectoptions_for_investor(
     options::DataFrames.DataFrame,
     investor::AbstractString,
     technologies::DataFrames.DataFrame,
-    defaults::DataFrames.DataFrame,
+    defaults::DataFrames.DataFrame;
+    reference_options::Union{Nothing, DataFrames.DataFrame}=nothing,
 )
     if _is_complete_projectoptions(options)
         investor_options = if "Investor" in _string_column_names(options)
@@ -306,54 +332,53 @@ function _complete_projectoptions_for_investor(
         haskey(technology_by_unit, unit_type) || error("projectoptions.csv references unknown technology $(unit_type)")
         technology = technology_by_unit[unit_type]
         technology_class = string(technology.class)
-        capacity_default = _option_default(
-            defaults_by_unit,
-            unit_type,
-            "Capacity Eligible",
-            _option_technology_default(technology, "capacity_eligible", "true"),
-        )
-        rec_default = _option_default(defaults_by_unit, unit_type, "REC Eligible", "false")
-        duration_default = _option_default(
-            defaults_by_unit,
-            unit_type,
-            "Duration Hr",
-            _option_technology_default(technology, "duration_hr", "n/a"),
-        )
+
+        reference_row = nothing
+        if reference_options !== nothing
+            matches = filter(ref_row -> string(ref_row.GEN_UID) == string(input_row.GEN_UID), eachrow(reference_options))
+            if !isempty(matches)
+                reference_row = matches[1]
+            end
+        end
+
         row = Dict{String, String}(
             "GEN_UID" => string(input_row.GEN_UID),
             "Unit Type" => unit_type,
             "Fuel" => unit_type in ("WT", "WIND") ? "WIND" : unit_type in ("PVe", "PV", "RTPV") ? "SOLAR" : "N/A",
             "Category" => string(technology.category),
-            "Size" => string(input_row.Size),
-            "Min Gen pu" => _option_default(defaults_by_unit, unit_type, "Min Gen pu", "0"),
-            "Min Up Time Hr" => _option_default(defaults_by_unit, unit_type, "Min Up Time Hr", "0"),
-            "Min Down Time Hr" => _option_default(defaults_by_unit, unit_type, "Min Down Time Hr", "0"),
-            "Shut Down Cost" => _option_default(defaults_by_unit, unit_type, "Shut Down Cost", "0"),
-            "Ramp Rate pu/Hr" => _option_default(defaults_by_unit, unit_type, "Ramp Rate pu/Hr", "1"),
-            "Input Power Rating pu" => technology_class == "storage" ? _option_default(defaults_by_unit, unit_type, "Input Power Rating pu", "1") : "n/a",
-            "Output Power Rating pu" => technology_class == "storage" ? _option_default(defaults_by_unit, unit_type, "Output Power Rating pu", "1") : "n/a",
-            "Min Storgae pu" => technology_class == "storage" ? _option_default(defaults_by_unit, unit_type, "Min Storgae pu", "0") : "n/a",
-            "Duration Hr" => technology_class == "storage" ? duration_default : "n/a",
-            "Round Trip Efficiency pu" => technology_class == "storage" ? _option_default(defaults_by_unit, unit_type, "Round Trip Efficiency pu", "0.85") : "n/a",
-            "Fuel Price \$/MMBTU" => _option_default(defaults_by_unit, unit_type, "Fuel Price \$/MMBTU", "0"),
-            "Start Heat Cold MBTU" => _option_default(defaults_by_unit, unit_type, "Start Heat Cold MBTU", "0"),
-            "CO2_Emissions ton/MMBTU" => _option_default(defaults_by_unit, unit_type, "CO2_Emissions ton/MMBTU", "0"),
-            "Inertia MJ/MW" => _option_default(defaults_by_unit, unit_type, "Inertia MJ/MW", "0"),
-            "FOR" => _option_default(defaults_by_unit, unit_type, "FOR", "0"),
-            "MTTR Hr" => _option_default(defaults_by_unit, unit_type, "MTTR Hr", "0"),
-            "Lagtime" => _option_default(defaults_by_unit, unit_type, "Lagtime", "1"),
-            "Capex Years" => _option_default(defaults_by_unit, unit_type, "Capex Years", "20"),
-            "Lifetime" => _option_default(defaults_by_unit, unit_type, "Lifetime", "30"),
-            "Fixed OM Cost per MW" => _option_default(defaults_by_unit, unit_type, "Fixed OM Cost per MW", "0"),
-            "Preference Multiplier" => _option_default(defaults_by_unit, unit_type, "Preference Multiplier", "1"),
-            "Zone" => string(input_row.Zone),
-            "Bus ID" => string(input_row[Symbol("Bus ID")]),
-            "Capacity Eligible" => capacity_default,
-            "REC Eligible" => rec_default,
-            "Synchronous_Inertia" => technology_class == "thermal" ? "true" : "false",
+            "Size" => _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Size", "0"),
+            "Min Gen pu" => _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Min Gen pu", "0"),
+            "Min Up Time Hr" => _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Min Up Time Hr", "0"),
+            "Min Down Time Hr" => _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Min Down Time Hr", "0"),
+            "Shut Down Cost" => _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Shut Down Cost", "0"),
+            "Ramp Rate pu/Hr" => _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Ramp Rate pu/Hr", "1"),
+            "Input Power Rating pu" => technology_class == "storage" ? _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Input Power Rating pu", "1") : "n/a",
+            "Output Power Rating pu" => technology_class == "storage" ? _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Output Power Rating pu", "1") : "n/a",
+            "Min Storgae pu" => technology_class == "storage" ? _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Min Storgae pu", "0") : "n/a",
+            "Duration Hr" => technology_class == "storage" ? _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Duration Hr", "n/a") : "n/a",
+            "Round Trip Efficiency pu" => technology_class == "storage" ? _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Round Trip Efficiency pu", "0.85") : "n/a",
+            "Fuel Price \$/MMBTU" => _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Fuel Price \$/MMBTU", "0"),
+            "Start Heat Cold MBTU" => _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Start Heat Cold MBTU", "0"),
+            "CO2_Emissions ton/MMBTU" => _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "CO2_Emissions ton/MMBTU", "0"),
+            "Inertia MJ/MW" => _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Inertia MJ/MW", "0"),
+            "FOR" => _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "FOR", "0"),
+            "MTTR Hr" => _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "MTTR Hr", "0"),
+            "Lagtime" => _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Lagtime", "1"),
+            "Capex Years" => _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Capex Years", "20"),
+            "Lifetime" => _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Lifetime", "30"),
+            "Fixed OM Cost per MW" => _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Fixed OM Cost per MW", "0"),
+            "Preference Multiplier" => _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Preference Multiplier", "1"),
+            "Zone" => _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Zone", string(input_row.Zone)),
+            "Bus ID" => _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Bus ID", string(input_row[Symbol("Bus ID")])),
+            "Capacity Eligible" => _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Capacity Eligible", _option_technology_default(technology, "capacity_eligible", "true")),
+            "REC Eligible" => _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "REC Eligible", "false"),
+            "Synchronous_Inertia" => _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Synchronous_Inertia", technology_class == "thermal" ? "true" : "false"),
         )
-        for field in ("Output_pct_0", "Output_pct_1", "Output_pct_2", "Output_pct_3", "Output_pct_4", "HR_avg_0", "HR_incr_1", "HR_incr_2", "HR_incr_3", "HR_incr_4")
-            row[field] = _option_default(defaults_by_unit, unit_type, field, "0")
+        for field in ("Output_pct_0", "Output_pct_1", "Output_pct_2", "Output_pct_3", "Output_pct_4")
+            row[field] = _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, field, "0")
+        end
+        for field in ("HR_avg_0", "HR_incr_1", "HR_incr_2", "HR_incr_3", "HR_incr_4")
+            row[field] = _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, field, "0")
         end
         push!(rows, [row[column] for column in PROJECT_OPTION_DOWNSTREAM_COLUMNS])
     end
@@ -365,7 +390,8 @@ function _write_projectoptions_for_investor(
     investor_dir::AbstractString,
     investor::AbstractString,
     technologies::DataFrames.DataFrame,
-    defaults::DataFrames.DataFrame,
+    defaults::DataFrames.DataFrame;
+    reference_options::Union{Nothing, DataFrames.DataFrame}=nothing,
 )
     options_path = joinpath(spec_dir, "projectoptions.csv")
     isfile(options_path) || return nothing
@@ -374,8 +400,10 @@ function _write_projectoptions_for_investor(
         options,
         investor,
         technologies,
-        defaults,
+        defaults;
+        reference_options=reference_options,
     )
+    validate_project_option_cost_curve(completed_options, joinpath(investor_dir, "projectoptions.csv"))
     CSV.write(joinpath(investor_dir, "projectoptions.csv"), completed_options)
     return completed_options
 end
@@ -590,7 +618,24 @@ function initialize_emis_project(spec_dir::AbstractString; output_dir::AbstractS
         end
 
         if isfile(joinpath(spec_dir, "projectoptions.csv"))
-            _write_projectoptions_for_investor(spec_dir, investor_dir, investor, technologies, project_defaults)
+            ref_options = nothing
+            if !isnothing(ref_case) && !isempty(strip(ref_case))
+                ref_het = _find_ref_het_dir(ref_case, base_dir_name, heterogeneity)
+                if !isempty(ref_het)
+                    ref_investor_options = joinpath(ref_het, "investors", investor, "projectoptions.csv")
+                    if isfile(ref_investor_options)
+                        ref_options = DataFrames.DataFrame(CSV.File(ref_investor_options; stringtype=String))
+                    end
+                end
+            end
+            _write_projectoptions_for_investor(
+                spec_dir,
+                investor_dir,
+                investor,
+                technologies,
+                project_defaults;
+                reference_options=ref_options,
+            )
         end
 
         _validate_investor_market_bundle(investor_dir)

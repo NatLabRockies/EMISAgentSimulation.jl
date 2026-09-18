@@ -131,6 +131,22 @@ const EXISTING_TEMPLATE = joinpath(
     @test haskey(result, :base_dir)
     @test isdir(joinpath(init_dir, "case_templates"))
 
+    project_defaults = EMISAgentSimulation._default_lookup(
+        load_project_defaults(DEFAULTS_FILE),
+    )
+    thermal_unit = "ST"
+    output_points = [
+        EMISAgentSimulation._option_default(
+            project_defaults,
+            thermal_unit,
+            "Output_pct_$(i)",
+            "NA",
+        )
+        for i in 0:4
+    ]
+    @test parse.(Float64, output_points[1:2]) == [0.0, 1.0]
+    @test all(==("NA"), output_points[3:5])
+
     stale_root = mktempdir()
     stale_base = joinpath(stale_root, "EMIS_RTS_Analysis")
     mkpath(joinpath(stale_base, "case_1"))
@@ -143,7 +159,7 @@ const EXISTING_TEMPLATE = joinpath(
     renamed_system_dir = mktempdir()
     renamed_system = joinpath(renamed_system_dir, "renamed_system.json")
     touch(renamed_system)
-    @test EMISAgentSimulation._resolve_generated_system_path(renamed_system_dir) == renamed_system
+    @test resolve_generated_system_path(renamed_system_dir) == renamed_system
 
     investor_dir = mktempdir()
     mkpath(joinpath(investor_dir, "markets_data"))

@@ -118,6 +118,47 @@ function _normalize_default_value(field, value)
     return isinteger(parsed) ? string(Int(parsed)) : string(parsed)
 end
 
+function validate_project_option_cost_curve(df::DataFrames.DataFrame, path::AbstractString)
+    if !("Unit Type" in names(df)) || !("Output_pct_0" in names(df))
+        return nothing
+    end
+    thermal_types = Set(["ST", "CT", "CC", "GT", "RE_CT", "IC", "NU_ST"])
+    for row in eachrow(df)
+        unit_type = uppercase(strip(string(row[Symbol("Unit Type")])) )
+        unit_type in thermal_types || continue
+        values = Float64[]
+        for idx in 0:4
+            field = "Output_pct_$(idx)"
+            heat_rate_field = idx == 0 ? "HR_avg_0" : "HR_incr_$(idx)"
+            field in names(df) || continue
+            heat_rate_field in names(df) || error("$(path) is missing $(heat_rate_field) for unit $(row[Symbol("Unit Type")])")
+            value = row[Symbol(field)]
+            heat_rate_value = row[Symbol(heat_rate_field)]
+            text = strip(string(value))
+            heat_rate_text = strip(string(heat_rate_value))
+            output_is_na = uppercase(text) == "NA"
+            heat_rate_is_na = uppercase(heat_rate_text) == "NA"
+            output_is_na == heat_rate_is_na || error(
+                "$(path) has an incomplete curve point $(field)/$(heat_rate_field) for unit $(row[Symbol("Unit Type")])"
+            )
+            output_is_na && continue
+            isempty(text) && error("$(path) has an empty $(field) for unit $(row[Symbol("Unit Type")])")
+            parsed = tryparse(Float64, text)
+            parsed === nothing && error("$(path) has a non-numeric $(field) for unit $(row[Symbol("Unit Type")])")
+            tryparse(Float64, heat_rate_text) === nothing && error(
+                "$(path) has a non-numeric $(heat_rate_field) for unit $(row[Symbol("Unit Type")])"
+            )
+            0.0 <= parsed <= 1.0 || error("$(path) has an invalid $(field)=$(parsed) for unit $(row[Symbol("Unit Type")]); values must be in [0,1]")
+            push!(values, parsed)
+        end
+        length(values) >= 2 || error("$(path) has fewer than two valid thermal cost-curve points for unit $(row[Symbol("Unit Type")])")
+        all(diff(values) .> 0.0) || error(
+            "$(path) has a non-ascending thermal cost curve for unit $(row[Symbol("Unit Type")]): $(values)"
+        )
+    end
+    return nothing
+end
+
 """Validate one of the minimal user-facing project input templates."""
 function validate_project_input_template(
     path::AbstractString;
