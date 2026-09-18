@@ -1,6 +1,9 @@
 # Optional Market Overrides
 
-Place project-specific market input overrides here when repository defaults or a `reference_case_dir` are not sufficient for the study.
+Place project-specific market input overrides here when the package runtime
+defaults in `config/investor_defaults/` or a `reference_case_dir` are not
+sufficient for the study. This directory is part of the editable project
+template; it is not the source of the package runtime defaults.
 
 Common override files include:
 
@@ -18,5 +21,10 @@ Common override files include:
 - `symmetric_belief.csv`
 - `symmetric_scenario_data.csv`
 - `symmetric_scenario_multiplier_data.csv`
+
+The initializer applies inputs in this order: package defaults, reference-case
+files, then files supplied here. Files under
+`../investors/{investor}/markets_data/` can override the shared defaults for one
+investor when calibrated agent-specific values are needed.
 
 Do not put raw system time series here. User-supplied raw profiles belong under the path referenced by `time_series_data_dir` in `project_spec.csv`, usually `timeseries/`.

@@ -161,6 +161,7 @@ export parsebool
 export parseint
 export parsefloat
 export normalize_vector
+export resolve_generated_system_path
 
 # Export Getter Functions
 export get_accepted_perc

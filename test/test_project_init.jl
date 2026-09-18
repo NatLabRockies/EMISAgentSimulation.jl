@@ -11,6 +11,82 @@ const PROJECT_ROOT = normpath(joinpath(@__DIR__, ".."))
     initialize_emis_project(spec_dir; output_dir=init_dir, reference_case_dir=nothing)
 
     @test validate_emis_project(init_dir) == init_dir
+    for investor in ("investor_1", "investor_2")
+        markets_dir = joinpath(
+            init_dir,
+            "EMIS_RTS_Analysis",
+            "Heterogeneous",
+            "investors",
+            investor,
+            "markets_data",
+        )
+        @test isfile(joinpath(markets_dir, "investor_belief.csv"))
+        @test isfile(joinpath(markets_dir, "scenario_data.csv"))
+    end
+end
+
+@testset "Project init uses default investor forecast bundles" begin
+    source_spec_dir = joinpath(PROJECT_ROOT, "config", "project_templates", "project_spec")
+    spec_dir = joinpath(mktempdir(), "project_spec")
+    cp(source_spec_dir, spec_dir; force=true)
+    rm(joinpath(spec_dir, "investors"); recursive=true)
+
+    init_dir = joinpath(mktempdir(), "project_init_defaults")
+    initialize_emis_project(spec_dir; output_dir=init_dir, reference_case_dir=nothing)
+
+    for investor in ("investor_1", "investor_2")
+        markets_dir = joinpath(
+            init_dir,
+            "EMIS_RTS_Analysis",
+            "Heterogeneous",
+            "investors",
+            investor,
+            "markets_data",
+        )
+        @test isfile(joinpath(markets_dir, "investor_belief.csv"))
+        @test isfile(joinpath(markets_dir, "scenario_data.csv"))
+        @test isfile(joinpath(
+            init_dir,
+            "EMIS_RTS_Analysis",
+            "Heterogeneous",
+            "investors",
+            investor,
+            "characteristics.csv",
+        ))
+    end
+    characteristics = CSV.read(
+        joinpath(
+            init_dir,
+            "EMIS_RTS_Analysis",
+            "Heterogeneous",
+            "investors",
+            "investor_1",
+            "characteristics.csv",
+        ),
+        DataFrame,
+    )
+    @test characteristics.capital_cost_multiplier[1] == 0.143
+    @test characteristics.max_annual_projects[1] == 30
+    investor_energy = CSV.read(
+        joinpath(
+            init_dir,
+            "EMIS_RTS_Analysis",
+            "Heterogeneous",
+            "investors",
+            "investor_1",
+            "markets_data",
+            "Energy.csv",
+        ),
+        DataFrame,
+    )
+    @test investor_energy[1, :price_cap] == 10000.0
+    @test isfile(joinpath(
+        init_dir,
+        "EMIS_RTS_Analysis",
+        "Heterogeneous",
+        "markets_data",
+        "scenario_data.csv",
+    ))
 end
 
 @testset "Generated reserves only include products with matching time series" begin

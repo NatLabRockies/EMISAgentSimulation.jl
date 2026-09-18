@@ -135,6 +135,28 @@ function _validate_option_techs(config_root::AbstractString, investor_root::Abst
     return nothing
 end
 
+function _validate_investor_market_bundle(investor_dir::AbstractString)
+    isdir(investor_dir) || error("Investor directory does not exist: $(investor_dir)")
+    markets_dir = joinpath(investor_dir, "markets_data")
+    isdir(markets_dir) || error("Investor $(basename(investor_dir)) is missing its markets_data directory")
+    required_files = ["investor_belief.csv", "scenario_data.csv"]
+    missing = [file for file in required_files if !isfile(joinpath(markets_dir, file))]
+    isempty(missing) || error(
+        "Investor $(basename(investor_dir)) is missing required forecast bundle files: $(join(missing, ", "))"
+    )
+    return nothing
+end
+
+function _validate_project_investor_bundles(investor_root::AbstractString)
+    isdir(investor_root) || return nothing
+    for investor in readdir(investor_root)
+        investor_path = joinpath(investor_root, investor)
+        isdir(investor_path) || continue
+        _validate_investor_market_bundle(investor_path)
+    end
+    return nothing
+end
+
 function _validate_psy_generator_names(config_root::AbstractString, ts_root::AbstractString)
     isdir(ts_root) || return nothing
     zone_names = _project_zone_names(config_root)
@@ -182,6 +204,7 @@ function validate_emis_project(project_root::AbstractString)
     _validate_probability_sum(config_root)
     _validate_load_zone_columns(config_root, ts_root)
     _validate_option_techs(config_root, investor_root)
+    _validate_project_investor_bundles(investor_root)
     _validate_psy_generator_names(config_root, ts_root)
 
     return project_root

@@ -33,6 +33,53 @@ function _copy_template_file(src::AbstractString, dst::AbstractString)
     return dst
 end
 
+function _default_investor_fixture_dir()
+    return normpath(joinpath(@__DIR__, "..", "..", "config", "investor_defaults"))
+end
+
+function _copy_default_investor_inputs(base_dir::AbstractString, heterogeneity::AbstractString)
+    defaults_dir = _default_investor_fixture_dir()
+    isdir(defaults_dir) || error("Default investor fixture does not exist: $(defaults_dir)")
+
+    target_markets_dir = joinpath(base_dir, heterogeneity, "markets_data")
+    defaults_markets_dir = joinpath(defaults_dir, "markets_data")
+    isdir(defaults_markets_dir) && _copy_directory_contents(defaults_markets_dir, target_markets_dir)
+    return defaults_dir
+end
+
+function _investor_key(name::AbstractString)
+    return lowercase(replace(strip(name), "_" => ""))
+end
+
+function _default_investor_override_dir(defaults_dir::AbstractString, investor::AbstractString)
+    overrides_dir = joinpath(defaults_dir, "investors")
+    isdir(overrides_dir) || return ""
+    for candidate in readdir(overrides_dir)
+        _investor_key(candidate) == _investor_key(investor) || continue
+        path = joinpath(overrides_dir, candidate)
+        isdir(path) && return path
+    end
+    return ""
+end
+
+function _write_default_investor_characteristics(
+    defaults_dir::AbstractString,
+    investor_dir::AbstractString,
+    investor::AbstractString,
+)
+    source_path = joinpath(defaults_dir, "characteristics.csv")
+    isfile(source_path) || error("Default investor characteristics do not exist: $(source_path)")
+    defaults = DataFrames.DataFrame(CSV.File(source_path; stringtype=String))
+    :Investor in Symbol.(names(defaults)) || error("$(source_path) is missing the Investor column")
+    matches = defaults[_investor_key.(defaults.Investor) .== _investor_key(investor), :]
+    nrow(matches) == 1 || error(
+        "Default investor characteristics must contain exactly one row for $(investor); found $(nrow(matches))"
+    )
+    select!(matches, Not(:Investor))
+    CSV.write(joinpath(investor_dir, "characteristics.csv"), matches)
+    return nothing
+end
+
 function _resolve_path(base_dir::AbstractString, path_value::AbstractString)
     isempty(strip(path_value)) && return ""
     if isabspath(path_value)
@@ -442,7 +489,7 @@ function initialize_emis_project(spec_dir::AbstractString; output_dir::AbstractS
         "SYSTEM_NAME" => system_name,
         "SCRATCH_DIR" => _resolve_path(spec_dir, scratch_dir),
         "OUTAGE_FILEPATH" => _resolve_path(spec_dir, outage_filepath),
-        "SYSTEM_FILEPATH" => _resolve_path(spec_dir, system_filepath),
+        "SYSTEM_FILEPATH" => "",
         "TIME_SERIES_DATA_DIR" => normpath(project_timeseries_dir),
         "CASE_NAME" => "{{CASE_NAME}}",
         "START_YEAR" => start_year,
@@ -470,6 +517,7 @@ function initialize_emis_project(spec_dir::AbstractString; output_dir::AbstractS
         "test_system_dir" => normpath(test_system_dir),
         "timeseries_data_dir" => normpath(project_timeseries_dir),
         "heterogeneity" => heterogeneity,
+        "system_name" => system_name,
     ))
     mkpath(runs_dir)
     mkpath(test_system_dir)
@@ -478,10 +526,7 @@ function initialize_emis_project(spec_dir::AbstractString; output_dir::AbstractS
     technologies = DataFrames.DataFrame(CSV.File(joinpath(target_config_dir, "technologies.csv"); stringtype=String))
     project_defaults = _resolve_project_defaults(spec_dir)
 
-    spec_markets_dir = joinpath(spec_dir, "markets_data")
-    if isdir(spec_markets_dir)
-        _copy_directory_contents(spec_markets_dir, joinpath(base_dir, heterogeneity, "markets_data"))
-    end
+    defaults_dir = _copy_default_investor_inputs(base_dir, heterogeneity)
     spec_queue_cost = joinpath(spec_dir, "queue_cost_data.csv")
     if isfile(spec_queue_cost)
         # Must live inside base_dir/<heterogeneity>, not base_dir itself: make_case_data_dir
@@ -508,10 +553,21 @@ function initialize_emis_project(spec_dir::AbstractString; output_dir::AbstractS
         end
     end
 
+    spec_markets_dir = joinpath(spec_dir, "markets_data")
+    if isdir(spec_markets_dir)
+        _copy_directory_contents(spec_markets_dir, joinpath(base_dir, heterogeneity, "markets_data"))
+    end
+
     for investor in investors
         investor_dir = joinpath(base_dir, heterogeneity, "investors", investor)
         investor_markets_dir = joinpath(investor_dir, "markets_data")
         mkpath(investor_markets_dir)
+
+        _copy_directory_contents(joinpath(defaults_dir, "markets_data"), investor_markets_dir)
+        default_investor_dir = _default_investor_override_dir(defaults_dir, investor)
+        if !isempty(default_investor_dir)
+            _copy_directory_contents(default_investor_dir, investor_dir)
+        end
 
         if !isnothing(ref_case) && !isempty(strip(ref_case))
             _copy_reference_investor_assets(ref_case, base_dir_name, heterogeneity, investor_dir, investor)
@@ -520,6 +576,10 @@ function initialize_emis_project(spec_dir::AbstractString; output_dir::AbstractS
         spec_inv_dir = joinpath(spec_dir, "investors", investor)
         if isdir(spec_inv_dir)
             _copy_directory_contents(spec_inv_dir, investor_dir)
+        end
+
+        if !isfile(joinpath(investor_dir, "characteristics.csv"))
+            _write_default_investor_characteristics(defaults_dir, investor_dir, investor)
         end
 
         for fn in ("characteristics.csv", "finance_params.csv", "MACRS Schedule.csv", "project_capex.csv", "sizedict.csv")
@@ -532,6 +592,8 @@ function initialize_emis_project(spec_dir::AbstractString; output_dir::AbstractS
         if isfile(joinpath(spec_dir, "projectoptions.csv"))
             _write_projectoptions_for_investor(spec_dir, investor_dir, investor, technologies, project_defaults)
         end
+
+        _validate_investor_market_bundle(investor_dir)
     end
 
     copied_system_path = ""
@@ -539,6 +601,16 @@ function initialize_emis_project(spec_dir::AbstractString; output_dir::AbstractS
         resolved_system = _resolve_path(spec_dir, system_filepath)
         if !isempty(resolved_system) && isfile(resolved_system)
             copied_system_path = _copy_system_file_bundle(resolved_system, test_system_dir)
+            template_replacements["SYSTEM_FILEPATH"] = copied_system_path
+            metadata_path = _write_project_metadata(output_dir, Dict(
+                "base_dir" => normpath(base_dir),
+                "runs_dir" => normpath(runs_dir),
+                "test_system_dir" => normpath(test_system_dir),
+                "timeseries_data_dir" => normpath(project_timeseries_dir),
+                "heterogeneity" => heterogeneity,
+                "system_name" => system_name,
+                "system_file" => basename(copied_system_path),
+            ))
         end
     end
 

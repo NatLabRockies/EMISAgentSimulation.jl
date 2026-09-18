@@ -46,13 +46,19 @@ These data files must exist either in the input folder or at paths referenced fr
 Use `config/project_templates/project_spec/timeseries/README.md` for the required
 time series folder layout.
 
+## User Inputs That Remain Explicit
+
+These inputs remain in the starter template because they describe the user's
+system and ownership choices rather than runtime defaults:
+
+- `projectexisting.csv`: existing-project ownership. Edit it to match the
+  existing generators and investors in the supplied system.
+- `devices_to_remove.csv`: devices to prune from the extracted PSY system. Keep
+  only the header when no devices should be removed.
+
 ## Optional User Inputs
 
 Add these only when needed:
-
-- `projectexisting.csv`: existing-project ownership. Omit it for all-new-entrant
-  cases or for investors with no existing projects.
-- `devices_to_remove.csv`: devices to prune from the extracted PSY system.
 - `<system_stem>_metadata.json` and `<system_stem>_validation_descriptors.json`:
   optional PSY sidecars copied with the system JSON when present.
 - `simulation_settings.csv`, `markets_included.csv`, and `options.csv`: case-template
@@ -60,7 +66,16 @@ Add these only when needed:
 - `queue_cost_data.csv`, investor finance defaults, and `markets_data/`: study-specific
   market and finance overrides. See
   `config/project_templates/project_spec/markets_data/README.md`.
-- `investors/<investor>/markets_data/`: investor-specific market assumptions such as
+- `config/investor_defaults/`: package defaults for the crash-critical investor
+  inputs (`characteristics.csv`, `markets_data/investor_belief.csv`, and
+  `markets_data/scenario_data.csv`). These defaults are copied into the generated
+  top-level and per-investor `markets_data/` directories before applying a
+  reference case or user-supplied investor overrides. The characteristics file
+  is keyed by investor and is used only when no reference-case or user-provided
+  characteristics file exists. Shared market option files live under
+  `markets_data/`; calibrated differences live under
+  `investors/<investor>/markets_data/`.
+- `investors/<investor>/markets_data/`: optional investor-specific market assumptions such as
   `scenario_data.csv`, `scenario_multiplier_data.csv`, and `investor_belief.csv`.
 - `project_defaults.csv`: per-`unit_type` economic/technical fallback values (fuel price,
   heat rate, CO2 emission rate, inertia, FOR/MTTR, capex/lifetime, fixed O&M, etc.) used
