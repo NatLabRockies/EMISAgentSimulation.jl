@@ -1,0 +1,167 @@
+using Test
+using EMISAgentSimulation
+using PowerSystems
+using DataFrames
+using CSV
+
+const PROJECT_ROOT = normpath(joinpath(@__DIR__, ".."))
+const TECHNOLOGIES_FILE = joinpath(
+    PROJECT_ROOT, "config", "ercot_est", "system_config", "technologies.csv"
+)
+const MAPPING_FILE = joinpath(
+    PROJECT_ROOT, "config", "psy5", "psy_classification_mapping.csv"
+)
+const DEFAULTS_FILE = joinpath(PROJECT_ROOT, "config", "project_defaults.csv")
+const OPTIONS_TEMPLATE = joinpath(
+    PROJECT_ROOT, "config", "project_templates", "project_spec", "projectoptions.csv"
+)
+const EXISTING_TEMPLATE = joinpath(
+    PROJECT_ROOT, "config", "project_templates", "project_spec", "projectexisting.csv"
+)
+
+@testset "Project input validation" begin
+    mapping = load_psy_classification_mapping(MAPPING_FILE)
+    technologies = DataFrame(CSV.File(TECHNOLOGIES_FILE))
+
+    @test validate_psy_classification_mapping(mapping, technologies)
+    @test nrow(load_project_defaults(DEFAULTS_FILE)) > 0
+    @test nrow(validate_project_input_template(
+        OPTIONS_TEMPLATE;
+        kind=:options,
+        investors=["investor_1"],
+    )) == 1
+    @test nrow(validate_project_input_template(
+        EXISTING_TEMPLATE;
+        kind=:existing,
+        investors=["investor_1"],
+    )) == 1
+
+    invalid_mapping = copy(mapping)
+    invalid_mapping.unit_type[1] = "UNKNOWN"
+    @test_throws ErrorException validate_psy_classification_mapping(
+        invalid_mapping, technologies
+    )
+
+    invalid_options = DataFrame(
+        [["investor_1"], ["new_WT_2"], ["WT"], ["L"], [missing], [missing]],
+        [:Investor, :GEN_UID, Symbol("Unit Type"), :Size, :Zone, Symbol("Bus ID")],
+    )
+    invalid_options_file = joinpath(mktempdir(), "projectoptions.csv")
+    CSV.write(invalid_options_file, invalid_options)
+    @test_throws ErrorException validate_project_input_template(
+        invalid_options_file;
+        kind=:options,
+        investors=["investor_1"],
+    )
+
+    empty_system = PowerSystems.System(100.0; runchecks=false)
+    @test_throws ErrorException extract_zones(empty_system)
+    @test isempty(extract_branches(empty_system).ac)
+    @test isempty(extract_branches(empty_system).dc)
+    @test isempty(extract_reserves(empty_system))
+
+    # "REG_DN"/"REG_UP" are the raw PSY reserve service names, while RTS_Data time-series
+    # files use "Reg_Down"/"Reg_Up" (matching the constructed-system renaming in
+    # src/struct_creators/simulation_structs/rts_psy_creator.jl). Neither the PSY system
+    # nor the time-series files should be renamed to bridge this; extract_reserves should
+    # resolve it via the known alias table.
+    available_products = Dict("reg_down" => "Reg_Down", "spin" => "Spin")
+    @test EMISAgentSimulation._resolve_reserve_product_name("REG_DN", available_products) == "Reg_Down"
+    @test EMISAgentSimulation._resolve_reserve_product_name("SPIN", available_products) == "Spin"
+    @test EMISAgentSimulation._resolve_reserve_product_name("NONSPIN", available_products) === nothing
+    @test EMISAgentSimulation._resolve_reserve_product_name("REG_UP", available_products) === nothing
+
+    reserve_defaults = DataFrame(
+        Symbol.(EMISAgentSimulation.RESERVE_COLUMNS) .=> [
+            ["Curve"], [60], [12.0], ["(1)"], ["(Generator)"], [""], ["Up"]
+        ],
+    )
+    demand_curve = PowerSystems.ReserveDemandCurve{PowerSystems.ReserveUp}(nothing)
+    @test ismissing(EMISAgentSimulation._reserve_requirement(
+        demand_curve,
+        nothing,
+        "Curve",
+    ))
+    @test EMISAgentSimulation._reserve_requirement(
+        demand_curve,
+        reserve_defaults,
+        "Curve",
+    ) == 12.0
+    ownership = DataFrame(Investor=String[], GEN_UID=String[])
+    technologies = DataFrame(CSV.File(TECHNOLOGIES_FILE))
+    @test nrow(extract_fleet(
+        empty_system,
+        mapping,
+        technologies,
+        ownership;
+        defaults=load_project_defaults(DEFAULTS_FILE),
+    ).projects) == 0
+    output_dir = mktempdir()
+    @test_throws ErrorException write_system_inputs(
+        empty_system,
+        output_dir;
+        mapping=mapping,
+        technologies=technologies,
+    )
+
+    spec_dir = joinpath(PROJECT_ROOT, "config", "project_templates", "project_spec")
+    init_dir = joinpath(mktempdir(), "project_init_test")
+    result = initialize_emis_project(spec_dir; output_dir=init_dir, reference_case_dir=nothing)
+    @test isdir(joinpath(init_dir, "EMIS_RTS_Analysis", "Heterogeneous", "system_config"))
+    @test isdir(joinpath(init_dir, "EMIS_RTS_Analysis", "Heterogeneous", "markets_data"))
+    @test isdir(joinpath(init_dir, "EMIS_RTS_Analysis", "Heterogeneous", "investors", "investor_1", "markets_data"))
+    @test isfile(joinpath(
+        init_dir,
+        "EMIS_RTS_Analysis",
+        "Heterogeneous",
+        "investors",
+        "investor_1",
+        "markets_data",
+        "investor_belief.csv",
+    ))
+    @test isfile(joinpath(
+        init_dir,
+        "EMIS_RTS_Analysis",
+        "Heterogeneous",
+        "investors",
+        "investor_2",
+        "markets_data",
+        "scenario_data.csv",
+    ))
+    @test haskey(result, :base_dir)
+    @test isdir(joinpath(init_dir, "case_templates"))
+
+    project_defaults = EMISAgentSimulation._default_lookup(
+        load_project_defaults(DEFAULTS_FILE),
+    )
+    thermal_unit = "ST"
+    output_points = [
+        EMISAgentSimulation._option_default(
+            project_defaults,
+            thermal_unit,
+            "Output_pct_$(i)",
+            "NA",
+        )
+        for i in 0:4
+    ]
+    @test parse.(Float64, output_points[1:2]) == [0.0, 1.0]
+    @test all(==("NA"), output_points[3:5])
+
+    stale_root = mktempdir()
+    stale_base = joinpath(stale_root, "EMIS_RTS_Analysis")
+    mkpath(joinpath(stale_base, "case_1"))
+    @test_throws ErrorException initialize_emis_project(
+        spec_dir;
+        output_dir=stale_root,
+        reference_case_dir=nothing,
+    )
+
+    renamed_system_dir = mktempdir()
+    renamed_system = joinpath(renamed_system_dir, "renamed_system.json")
+    touch(renamed_system)
+    @test resolve_generated_system_path(renamed_system_dir) == renamed_system
+
+    investor_dir = mktempdir()
+    mkpath(joinpath(investor_dir, "markets_data"))
+    @test_throws ErrorException EMISAgentSimulation._validate_investor_market_bundle(investor_dir)
+end

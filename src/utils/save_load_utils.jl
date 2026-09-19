@@ -1762,18 +1762,10 @@ function load_sienna_systems!(
     ED_interval = get_ed_interval(case)
     outage_dir = get_outage_dir(case)
 
-    initial_Sienna_system_name = "DA_sys_zonal_with_storage_capacities.json"
+    initial_Sienna_system_path = resolve_generated_system_path(rts_dir)
     pcm_scenario = simulation_settings["pcm_scenario"]
-
-    if pcm_scenario == "scenario_1"
-        supercc_scenario = "baseline"
-    elseif pcm_scenario == "scenario_2"
-        supercc_scenario = "central"
-    elseif pcm_scenario == "scenario_3"
-        supercc_scenario = "ira"
-    else
-        "Not a pre-defined scenario."
-    end
+    system_config = load_system_config(data_dir)
+    supercc_scenario = get_scenario_pcm_label(system_config, pcm_scenario)
 
     for sim_year in (restore_year + 1):simulation_years
         md_json = joinpath(result_path, "sys_MD_year$(sim_year).json")
@@ -2305,10 +2297,13 @@ end
 # Note: this is a one-time utility function to convert existing JLD2 files to the new HDF5 format.
 # base_path = "/projects/gmlcmarkets/Phase2_EMIS_Analysis/GS_AAYAD/EMIS_RTS_Analysis_GS/20250310_no_sdes_High_RECT_Static_ORDC_RA_Cap_wo_md_storff_High_RPS/investors"
 
-function transform_jld2_to_h5(base_path::String)
+function transform_jld2_to_h5(
+    base_path::String,
+    scenario_names::Vector{String},
+)
     for investor_id in 1:4
         investor_name = "investor$(investor_id)"
-        for scenario_name in ["scenario_1", "scenario_2", "scenario_3"]
+        for scenario_name in scenario_names
             for iteration_year in 1:15
                 @info "Loading OLD format expected market data for $(investor_name) iteration year $(iteration_year)"
                 data_path = joinpath(
