@@ -266,6 +266,7 @@ end
 # ─────────────────────────────────────────────────────────────────────────────
 # Phase 1a — CaseDefinition seasonal toggle
 # ─────────────────────────────────────────────────────────────────────────────
+@testset "Seasonal Capacity Markets — Phase 1-4" begin
 
 @testset "Phase 1a — CaseDefinition.seasonal_capacity_market" begin
     @testset "field defaults to false and is readable via getter" begin
@@ -1290,3 +1291,4 @@ import Dates
         end
     end
 end
+end # outer testset "Seasonal Capacity Markets — Phase 1-4"

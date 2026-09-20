@@ -66,6 +66,9 @@ function cem(system::MarketClearingProblem{Z, T},
     decided_projects = String[]
     option_projects_by_type = Dict(t => Vector{String}() for t in tech_types)
 
+    # Seasonal capacity markets
+    seasons = collect(keys(system.inv_periods[1].capacity))
+
     for g in projects
         if sum(units_in_queue[g]) <= 0
             push!(option_projects, g)
@@ -319,6 +322,7 @@ function cem(system::MarketClearingProblem{Z, T},
             start_index = 0
         end
         block_size = avg_block_size
+
         @assert start_index <= avg_block_size
 
         TB, opperiods,
@@ -415,8 +419,9 @@ function cem(system::MarketClearingProblem{Z, T},
         ] >= 0
     )
 
-    # CAPACITY MARKET ELASTIC DEMAND
-    JuMP.@variable(m, d_cap[p in invperiods, s in 1:cap_numsegments[p]] >= 0)
+    # Capacity market elastic demand, indexed by season
+    JuMP.@variable(m, d_cap[p in invperiods, season in seasons,
+                             s in 1:cap_numsegments[p]] >= 0)
 
     # OPERATION DECISION VARIABLES
     JuMP.@variable(m, p_e[g in projects, p in invperiods, t in opperiods] >= 0) # Unit energy production [MW]
@@ -657,7 +662,7 @@ function cem(system::MarketClearingProblem{Z, T},
 
         # Capacity market welfare
         sum(
-            sum(d_cap[p, s] * cap_price_points[p][s] for s in 1:cap_numsegments[p]) *
+            sum(d_cap[p, season, s] * cap_price_points[season][p][s] for s in 1:cap_numsegments[p]) *
             social_npv_array[p] for p in invperiods
         )
         +
