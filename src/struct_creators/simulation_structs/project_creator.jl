@@ -89,6 +89,10 @@ function add_investor_project_availability!(test_system_dir::String,
     gennames = names(system_availability_data)[5:length(names(system_availability_data))] #################
     psy_gens = PSY.get_name.(PSY.get_components(PSY.Generator, sys_UC))
     gen_diff = setdiff(gennames, psy_gens)
+    # devices_to_remove.csv can drop a generator from sys_UC while its column
+    # still exists in the availability CSV; exclude those names from zone matching.
+    matchable_gennames = setdiff(gennames, gen_diff)
+    isempty(gen_diff) || @warn "Excluding $(length(gen_diff)) availability column(s) not present in sys_UC from zone matching: $(gen_diff)"
 
     for project in projects
         # println("this is $(get_name(project))")
@@ -147,7 +151,7 @@ function add_investor_project_availability!(test_system_dir::String,
                                     ),
                                 ),
                             ),
-                        gennames)
+                        matchable_gennames)
                 elseif get_type(tech) == "PVe"
                     # gens_in_zone = filter(g -> (first("$(bus)", 1)== first(g, 1)) && occursin("pv", lowercase(g)),
                     #                                 names(system_availability_data))
@@ -177,7 +181,7 @@ function add_investor_project_availability!(test_system_dir::String,
                                     ),
                                 ),
                             ),
-                        gennames)
+                        matchable_gennames)
                 elseif get_type(tech) == "HY"
                     # gens_in_zone = filter(g -> (first("$(bus)", 1) == first(g, 1)) && occursin("hy", lowercase(g)),
                     #                                 names(system_availability_data))
@@ -207,7 +211,7 @@ function add_investor_project_availability!(test_system_dir::String,
                                     ),
                                 ),
                             ),
-                        gennames)
+                        matchable_gennames)
                 end
 
                 if length(gens_in_zone) < 1

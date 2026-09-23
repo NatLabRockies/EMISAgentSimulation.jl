@@ -344,7 +344,8 @@ function _complete_projectoptions_for_investor(
         row = Dict{String, String}(
             "GEN_UID" => string(input_row.GEN_UID),
             "Unit Type" => unit_type,
-            "Fuel" => unit_type in ("WT", "WIND") ? "WIND" : unit_type in ("PVe", "PV", "RTPV") ? "SOLAR" : "N/A",
+            "Fuel" => unit_type in ("WT", "WIND") ? "WIND" : unit_type in ("PVe", "PV", "RTPV") ? "SOLAR" :
+                _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Fuel", "N/A"),
             "Category" => string(technology.category),
             "Size" => _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Size", "0"),
             "Min Gen pu" => _coalesce_project_option_value(input_row, reference_row, defaults_by_unit, unit_type, "Min Gen pu", "0"),
@@ -553,6 +554,7 @@ function initialize_emis_project(spec_dir::AbstractString; output_dir::AbstractS
     target_config_dir = _write_system_config_bundle(base_dir, spec_dir, spec)
     technologies = DataFrames.DataFrame(CSV.File(joinpath(target_config_dir, "technologies.csv"); stringtype=String))
     project_defaults = _resolve_project_defaults(spec_dir)
+    validate_thermal_fuel_defaults(technologies, project_defaults)
 
     defaults_dir = _copy_default_investor_inputs(base_dir, heterogeneity)
     spec_queue_cost = joinpath(spec_dir, "queue_cost_data.csv")

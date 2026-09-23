@@ -135,6 +135,52 @@ function _validate_option_techs(config_root::AbstractString, investor_root::Abst
     return nothing
 end
 
+function _csv_category_set(path::AbstractString)
+    isfile(path) || return nothing
+    df = _read_csv_df(path)
+    :Category in Symbol.(names(df)) || error("$(path) is missing required column Category")
+    return Set(_as_string.(df.Category))
+end
+
+function _investor_used_categories(investor_dir::AbstractString)
+    categories = Set{String}()
+    for filename in ("projectexisting.csv", "projectoptions.csv")
+        path = joinpath(investor_dir, filename)
+        isfile(path) || continue
+        found = _csv_category_set(path)
+        found === nothing || union!(categories, found)
+    end
+    return categories
+end
+
+function _validate_investor_finance_categories(investor_dir::AbstractString)
+    investor = basename(investor_dir)
+    categories = _investor_used_categories(investor_dir)
+    isempty(categories) && return nothing
+    for filename in ("finance_params.csv", "project_capex.csv")
+        path = joinpath(investor_dir, filename)
+        # Finance/capex files are optional (Tier 3); only cross-check categories when present.
+        isfile(path) || continue
+        covered = _csv_category_set(path)
+        missing_categories = setdiff(categories, covered)
+        isempty(missing_categories) || error(
+            "Investor $(investor)'s $(filename) is missing Category row(s) $(join(sort(collect(missing_categories)), ", ")) " *
+            "used by its own projectexisting.csv/projectoptions.csv; add matching rows or fix the technologies.csv unit_type→category mapping"
+        )
+    end
+    return nothing
+end
+
+function _validate_technology_finance_coverage(config_root::AbstractString, investor_root::AbstractString)
+    isdir(investor_root) || return nothing
+    for investor in readdir(investor_root)
+        investor_path = joinpath(investor_root, investor)
+        isdir(investor_path) || continue
+        _validate_investor_finance_categories(investor_path)
+    end
+    return nothing
+end
+
 function _validate_investor_market_bundle(investor_dir::AbstractString)
     isdir(investor_dir) || error("Investor directory does not exist: $(investor_dir)")
     markets_dir = joinpath(investor_dir, "markets_data")
@@ -204,6 +250,7 @@ function validate_emis_project(project_root::AbstractString)
     _validate_probability_sum(config_root)
     _validate_load_zone_columns(config_root, ts_root)
     _validate_option_techs(config_root, investor_root)
+    _validate_technology_finance_coverage(config_root, investor_root)
     _validate_project_investor_bundles(investor_root)
     _validate_psy_generator_names(config_root, ts_root)
 
