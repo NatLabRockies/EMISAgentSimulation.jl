@@ -1,9 +1,9 @@
 unit_type,category,class,capacity_eligible,mopr_exempt,macrs_years,duration_hr
-ST,Steam,thermal,true,false,,
+ST,Gas ST,thermal,true,false,,
 CT,Gas CT,thermal,true,false,,
 CC,Gas CC,thermal,true,false,,
 NU_ST,Nuclear,thermal,true,false,,
-GT,Gas CT,thermal,true,false,,
+GT,Gas GT,thermal,true,false,,
 RE_CT,Gas CT,thermal,true,false,,
 IC,Internal Combustion,thermal,true,false,,
 WT,Wind,renewable,true,true,,

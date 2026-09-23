@@ -93,6 +93,34 @@ function validate_psy_classification_mapping(
     return true
 end
 
+"""
+    validate_thermal_fuel_defaults(technologies, defaults)
+
+Every thermal-class `unit_type` in `technologies.csv` must resolve to a `Fuel` default
+that `PowerSystems.ThermalFuels` can parse, so option completion never falls back to a
+non-enum placeholder (e.g. "N/A") that later crashes `PSY.ThermalFuels(...)`.
+"""
+function validate_thermal_fuel_defaults(
+    technologies::DataFrames.DataFrame,
+    defaults::DataFrames.DataFrame,
+)
+    _require_columns(technologies, [:unit_type, :class], "technologies.csv")
+    fuel_by_unit = Dict{String, String}(
+        string(row.unit_type) => string(row.value)
+        for row in eachrow(defaults) if string(row.field) == "Fuel"
+    )
+    valid_fuels = Set(Symbol.(instances(PSY.ThermalFuels)))
+    invalid = sort!(unique([
+        string(row.unit_type) for row in eachrow(technologies) if
+        string(row.class) == "thermal" &&
+        !(Symbol(get(fuel_by_unit, string(row.unit_type), "")) in valid_fuels)
+    ]))
+    isempty(invalid) || error(
+        "project_defaults.csv is missing a valid Fuel default (PowerSystems.ThermalFuels member) for thermal unit_type(s): $(join(invalid, ", "))"
+    )
+    return true
+end
+
 function load_project_defaults(path::AbstractString=DEFAULT_PROJECT_DEFAULTS)
     isfile(path) || error("Project defaults do not exist: $(path)")
     defaults = DataFrames.DataFrame(CSV.File(path))

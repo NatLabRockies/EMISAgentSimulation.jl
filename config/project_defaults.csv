@@ -1,5 +1,6 @@
 unit_type,field,value
 ALL,Online Year,2000
+ST,Fuel,NATURAL_GAS
 ST,Min Gen pu,0.3
 ST,Min Up Time Hr,0.0
 ST,Min Down Time Hr,0.0
@@ -24,6 +25,7 @@ ST,HR_incr_3,NA
 ST,HR_incr_4,NA
 ST,CO2_Emissions ton/MMBTU,0.0667
 ST,Inertia MJ/MW,3.0
+CT,Fuel,NATURAL_GAS
 CT,Min Gen pu,0.3
 CT,Min Up Time Hr,0.0
 CT,Min Down Time Hr,0.0
@@ -48,6 +50,7 @@ CT,HR_incr_3,7176.0
 CT,HR_incr_4,NA
 CT,CO2_Emissions ton/MMBTU,0.0535
 CT,Inertia MJ/MW,3.3
+CC,Fuel,NATURAL_GAS
 CC,Min Gen pu,0.4
 CC,Min Up Time Hr,0.0
 CC,Min Down Time Hr,0.0
@@ -84,7 +87,7 @@ WT,Preference Multiplier,1.0
 WT,Capacity Eligible,true
 WT,REC Eligible,true
 WT,Fuel Price $/MMBTU,0.0
-WT,Output_pct_0,1.0
+WT,Output_pct_0,0.0
 WT,Output_pct_1,0.0
 WT,Output_pct_2,0.0
 WT,Output_pct_3,0.0
@@ -108,7 +111,7 @@ PVe,Preference Multiplier,1.0
 PVe,Capacity Eligible,true
 PVe,REC Eligible,true
 PVe,Fuel Price $/MMBTU,0.0
-PVe,Output_pct_0,1.0
+PVe,Output_pct_0,0.0
 PVe,Output_pct_1,0.0
 PVe,Output_pct_2,0.0
 PVe,Output_pct_3,0.0
@@ -138,15 +141,15 @@ BA,Capacity Eligible,false
 BA,REC Eligible,false
 BA,Fuel Price $/MMBTU,0.0
 BA,Output_pct_0,0.0
-BA,Output_pct_1,NA
-BA,Output_pct_2,NA
-BA,Output_pct_3,NA
-BA,Output_pct_4,NA
+BA,Output_pct_1,0.0
+BA,Output_pct_2,0.0
+BA,Output_pct_3,0.0
+BA,Output_pct_4,0.0
 BA,HR_avg_0,0.0
-BA,HR_incr_1,NA
-BA,HR_incr_2,NA
-BA,HR_incr_3,NA
-BA,HR_incr_4,NA
+BA,HR_incr_1,0.0
+BA,HR_incr_2,0.0
+BA,HR_incr_3,0.0
+BA,HR_incr_4,0.0
 BA,CO2_Emissions ton/MMBTU,0.0
 BA,Inertia MJ/MW,2.5
 LDES,Min Gen pu,0.0
@@ -166,7 +169,7 @@ LDES,Preference Multiplier,1.0
 LDES,Capacity Eligible,false
 LDES,REC Eligible,false
 LDES,Fuel Price $/MMBTU,0.0
-LDES,Output_pct_0,1.0
+LDES,Output_pct_0,0.0
 LDES,Output_pct_1,0.0
 LDES,Output_pct_2,0.0
 LDES,Output_pct_3,0.0
@@ -178,6 +181,7 @@ LDES,HR_incr_3,0.0
 LDES,HR_incr_4,0.0
 LDES,CO2_Emissions ton/MMBTU,0.0
 LDES,Inertia MJ/MW,2.5
+NU_ST,Fuel,NUCLEAR
 NU_ST,Min Gen pu,0.5
 NU_ST,Ramp Rate pu/Hr,0.006
 NU_ST,FOR,0.0151
@@ -200,6 +204,7 @@ NU_ST,HR_incr_3,NA
 NU_ST,HR_incr_4,NA
 NU_ST,CO2_Emissions ton/MMBTU,0.0
 NU_ST,Inertia MJ/MW,5.0
+GT,Fuel,NATURAL_GAS
 GT,Min Gen pu,0.3
 GT,Ramp Rate pu/Hr,1.0
 GT,FOR,0.0616
@@ -222,6 +227,7 @@ GT,HR_incr_3,NA
 GT,HR_incr_4,NA
 GT,CO2_Emissions ton/MMBTU,0.0535
 GT,Inertia MJ/MW,3.0
+RE_CT,Fuel,NATURAL_GAS
 RE_CT,Min Gen pu,0.3
 RE_CT,Ramp Rate pu/Hr,1.0
 RE_CT,FOR,0.0616
@@ -244,6 +250,7 @@ RE_CT,HR_incr_3,7176.0
 RE_CT,HR_incr_4,NA
 RE_CT,CO2_Emissions ton/MMBTU,0.0535
 RE_CT,Inertia MJ/MW,3.0
+IC,Fuel,NATURAL_GAS
 IC,Min Gen pu,0.3
 IC,Ramp Rate pu/Hr,1.0
 IC,FOR,0.0616
@@ -302,7 +309,7 @@ WIND,Preference Multiplier,1.0
 WIND,Capacity Eligible,true
 WIND,REC Eligible,true
 WIND,Fuel Price $/MMBTU,0.0
-WIND,Output_pct_0,1.0
+WIND,Output_pct_0,0.0
 WIND,Output_pct_1,0.0
 WIND,Output_pct_2,0.0
 WIND,Output_pct_3,0.0
