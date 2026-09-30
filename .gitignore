@@ -25,3 +25,6 @@ _*.jl
 TODO_thermalms_ed_dispatch.md
 unused_audit.md
 
+
+# Local PSY system fixtures (large, not for release)
+test/test_systems/
