@@ -1,8 +1,10 @@
 component_type,prime_mover,fuel,unit_type
 ThermalGen,ST,NATURAL_GAS,ST
 ThermalGen,ST,COAL,ST
+ThermalGen,ST,RESIDUAL_FUEL_OIL,ST
 ThermalGen,ST,NUCLEAR,NU_ST
 ThermalGen,CT,NATURAL_GAS,CT
+ThermalGen,CT,DISTILLATE_FUEL_OIL,CT
 ThermalGen,CC,NATURAL_GAS,CC
 ThermalGen,GT,NATURAL_GAS,GT
 ThermalGen,IC,NATURAL_GAS,IC

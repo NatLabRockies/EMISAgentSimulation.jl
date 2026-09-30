@@ -187,6 +187,35 @@ function validate_project_option_cost_curve(df::DataFrames.DataFrame, path::Abst
     return nothing
 end
 
+"""
+    validate_existing_project_lifetimes(projects, start_year, path)
+
+Error if any existing project is already past its lifetime at `start_year`
+(`Lifetime - (start_year - Online Year) < 0`).
+"""
+function validate_existing_project_lifetimes(
+    projects::DataFrames.DataFrame,
+    start_year::Integer,
+    path::AbstractString,
+)
+    _require_columns(projects, [:GEN_UID, Symbol("Online Year"), :Lifetime], path)
+    as_float(value) = value isa Number ? Float64(value) : tryparse(Float64, strip(string(value)))
+    expired = String[]
+    for row in eachrow(projects)
+        online_year = as_float(row[Symbol("Online Year")])
+        lifetime = as_float(row.Lifetime)
+        (online_year === nothing || lifetime === nothing) && continue
+        remaining = lifetime - (start_year - online_year)
+        remaining < 0 && push!(expired,
+            "$(row.GEN_UID) (Online Year $(Int(online_year)), Lifetime $(Int(lifetime)), remaining $(Int(remaining)))")
+    end
+    isempty(expired) || error(
+        "$(path) has existing projects already past their lifetime at start_year $(start_year): " *
+        "$(join(expired, "; ")). Set a later Online Year (ownership input or project_defaults.csv) or a longer Lifetime."
+    )
+    return true
+end
+
 """Validate one of the minimal user-facing project input templates."""
 function validate_project_input_template(
     path::AbstractString;

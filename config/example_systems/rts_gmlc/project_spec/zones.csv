@@ -1,0 +1,4 @@
+zone_id,zone_name,area_name,load_column
+1,zone_1,1,load_zone_1
+2,zone_2,2,load_zone_2
+3,zone_3,3,load_zone_3

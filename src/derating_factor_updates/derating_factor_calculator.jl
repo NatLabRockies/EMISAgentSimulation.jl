@@ -115,7 +115,7 @@ function calculate_derating_data(simulation::Union{AgentSimulation, AgentSimulat
         ]...,
     )
     availability_data =
-        read_availability_df(timeseries_data_dir, scenario, simulation_years, "REAL_TIME")
+        get_availability_df(timeseries_data_dir, scenario, simulation_years, "REAL_TIME")
 
     num_hours = DataFrames.nrow(load_n_vg_data)
     base_num_top_hours = cap_mkt_params.num_top_hours[1]
