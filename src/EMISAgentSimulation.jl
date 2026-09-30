@@ -31,6 +31,7 @@ export load_psy_classification_mapping
 export validate_psy_classification_mapping
 export load_project_defaults
 export validate_project_input_template
+export validate_existing_project_lifetimes
 export build_project_init_manifest
 export validate_project_init_manifest
 export initialize_emis_project

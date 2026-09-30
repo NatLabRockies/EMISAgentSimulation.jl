@@ -56,6 +56,16 @@ const EXISTING_TEMPLATE = joinpath(
 
     empty_system = PowerSystems.System(100.0; runchecks=false)
     @test_throws ErrorException extract_zones(empty_system)
+
+    existing_projects = DataFrame(
+        GEN_UID=["old_ST", "old_BA"],
+        var"Online Year"=[2000, 2000],
+        Lifetime=[55, 15],
+    )
+    @test validate_existing_project_lifetimes(existing_projects[1:1, :], 2020, "projectexisting.csv")
+    @test_throws ErrorException validate_existing_project_lifetimes(existing_projects, 2020, "projectexisting.csv")
+    existing_projects[2, "Online Year"] = 2015
+    @test validate_existing_project_lifetimes(existing_projects, 2020, "projectexisting.csv")
     @test isempty(extract_branches(empty_system).ac)
     @test isempty(extract_branches(empty_system).dc)
     @test isempty(extract_reserves(empty_system))

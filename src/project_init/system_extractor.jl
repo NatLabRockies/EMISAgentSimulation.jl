@@ -579,7 +579,7 @@ function extract_fleet(
         if device isa PSY.Storage
             row["Input Power Rating pu"] = PSY.get_input_active_power_limits(device).max
             row["Output Power Rating pu"] = PSY.get_output_active_power_limits(device).max
-            row["Duration Hr"] = PSY.get_storage_capacity(device) / size
+            row["Duration Hr"] = PSY.get_storage_capacity(device) * PSY.get_base_power(sys) / size
             efficiency = PSY.get_efficiency(device)
             row["Round Trip Efficiency pu"] = efficiency.in * efficiency.out
         elseif device isa PSY.ThermalGen
@@ -614,6 +614,7 @@ function write_system_inputs(
     investor_dir::Union{Nothing, AbstractString}=nothing,
     defaults::DataFrames.DataFrame=load_project_defaults(),
     outage=nothing,
+    start_year::Union{Nothing, Integer}=nothing,
 )
     mkpath(source_data_dir)
     zones = extract_zones(sys)
@@ -644,6 +645,9 @@ function write_system_inputs(
             outage=outage,
         )
         append!(report, fleet.report)
+        start_year === nothing || validate_existing_project_lifetimes(
+            fleet.projects, start_year, "projectexisting.csv"
+        )
         for investor in sort!(unique(string.(ownership.Investor)))
             owned_names = string.(ownership.GEN_UID[string.(ownership.Investor) .== investor])
             investor_rows = filter(row -> string(row.GEN_UID) in owned_names, fleet.projects)

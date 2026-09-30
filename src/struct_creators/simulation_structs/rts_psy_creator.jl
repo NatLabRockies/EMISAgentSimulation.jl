@@ -37,6 +37,27 @@ function specify_pruned_units(system_config::SystemConfig)
     return pruned_units
 end
 
+"""
+    normalize_legacy_reserve_services!(sys)
+
+Remove the legacy ERCOT `SPIN`/`NONSPIN` services and rename `REG_DN`/`REG_UP` to
+`Reg_Down`/`Reg_Up`. Services that are absent (e.g. non-ERCOT systems) are skipped.
+"""
+function normalize_legacy_reserve_services!(sys::PSY.System)
+    for (service_type, name) in (
+        (PSY.VariableReserve, "SPIN"),
+        (PSY.VariableReserveNonSpinning, "NONSPIN"),
+    )
+        service = PSY.get_component(service_type, sys, name)
+        isnothing(service) || PSY.remove_component!(sys, service)
+    end
+    for (old_name, new_name) in (("REG_DN", "Reg_Down"), ("REG_UP", "Reg_Up"))
+        service = PSY.get_component(PSY.VariableReserve, sys, old_name)
+        isnothing(service) || PSY.set_name!(sys, service, new_name)
+    end
+    return sys
+end
+
 function create_rts_sys(rts_dir::String,
     base_power::Float64,
     simulation_dir::String,
@@ -249,23 +270,7 @@ function create_rts_sys(rts_dir::String,
         end
 
         for sys in [sys_MDs[sim_year], sys_UCs[sim_year], sys_EDs[sim_year]]
-            d = PSY.get_component(PSY.VariableReserve, sys, "SPIN")
-            PSY.remove_component!(sys, d)
-        end
-
-        for sys in [sys_MDs[sim_year], sys_UCs[sim_year], sys_EDs[sim_year]]
-            d = PSY.get_component(PSY.VariableReserveNonSpinning, sys, "NONSPIN")
-            PSY.remove_component!(sys, d)
-        end
-
-        for sys in [sys_MDs[sim_year], sys_UCs[sim_year], sys_EDs[sim_year]]
-            d = PSY.get_component(PSY.VariableReserve, sys, "REG_DN")
-            PSY.set_name!(sys, d, "Reg_Down")
-        end
-
-        for sys in [sys_MDs[sim_year], sys_UCs[sim_year], sys_EDs[sim_year]]
-            d = PSY.get_component(PSY.VariableReserve, sys, "REG_UP")
-            PSY.set_name!(sys, d, "Reg_Up")
+            normalize_legacy_reserve_services!(sys)
         end
 
         PSY.set_units_base_system!(sys_MDs[sim_year], PSY.IS.UnitSystem.DEVICE_BASE)
