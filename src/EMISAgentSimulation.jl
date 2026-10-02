@@ -22,6 +22,30 @@ export RiskPreference
 export RiskNeutral
 export RiskAverse
 
+export SystemConfig
+export load_system_config
+export get_zone_name
+export get_default_scenario
+export get_scenario_probability
+export load_psy_classification_mapping
+export validate_psy_classification_mapping
+export load_project_defaults
+export validate_project_input_template
+export build_project_init_manifest
+export validate_project_init_manifest
+export initialize_emis_project
+export new_emis_case
+export validate_emis_project
+export classify_psy_component
+export extract_zones
+export extract_gen_table
+export extract_branches
+export extract_reserves
+export extract_fleet
+export write_system_inputs
+export create_sys_with_timeseries
+export canonical_constructed_system_path
+
 export MarketPrices
 
 export Finance
@@ -111,9 +135,14 @@ export start_construction!
 # Export Utility functions
 export calculate_operating_profit
 export calculate_required_processes
+export canonical_constructed_system_path
+export canonical_constructed_system_paths
+export canonical_timeseries_path
 export chronological_clustering
 export create_parallel_workers
 export create_pras_worker
+export create_sys_with_timeseries
+export generate_canonical_system_bundle
 export dir_exists
 export leaftypes
 export make_case_data_dir
@@ -132,6 +161,7 @@ export parsebool
 export parseint
 export parsefloat
 export normalize_vector
+export resolve_generated_system_path
 
 # Export Getter Functions
 export get_accepted_perc
@@ -364,6 +394,7 @@ include("structs/devices/RenewableGenEMIS.jl")
 include("structs/devices/ThermalGenEMIS.jl")
 include("structs/devices/ThermalFastStartSIIP.jl")
 
+include("structs/SystemConfig.jl")
 include("structs/CaseDefinition.jl")
 include("structs/MarketPrices.jl")
 include("structs/Scenario.jl")
@@ -476,5 +507,15 @@ include("investment_simulation.jl")
 
 #Include definitions
 include("definitions.jl")
+
+# Include project initialization helpers last so they may use package utilities,
+# while the simulation core remains independent of project_init.
+include("project_init/project_input_validation.jl")
+include("project_init/input_manifest.jl")
+include("project_init/system_extractor.jl")
+include("project_init/project_initializer.jl")
+include("project_init/new_case.jl")
+include("project_init/build_constructed_systems.jl")
+include("project_init/validate_project.jl")
 
 end

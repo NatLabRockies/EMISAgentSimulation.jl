@@ -1,0 +1,2 @@
+direction,seasons,timeblocks,penalty,stepsize (MW),timescale (min),MRR_scale,stepped,curve,eligible_zones,eligible categories
+Up,(Dec-Feb);(Mar-May);(Jun-Aug);(Sep-Nov),(2300-0200);(0300-0600);(0700-1000);(1100-1400);(1500-1800);(1900-2200),850,200,30,1.5,FALSE,TRUE,1;2;3;4;5;6;7;8,"(Gas CT,Gas CC,Gas GT,Gas ST,Oil CT,Oil ST,Coal,Solar PV,Wind,CSP)"
