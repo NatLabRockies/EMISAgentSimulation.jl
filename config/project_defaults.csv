@@ -135,6 +135,7 @@ BA,MTTR Hr,0.0
 BA,Lagtime,1.0
 BA,Capex Years,15.0
 BA,Lifetime,15.0
+BA,Online Year,2015
 BA,Fixed OM Cost per MW,18000.0
 BA,Preference Multiplier,1.0
 BA,Capacity Eligible,false
@@ -164,6 +165,7 @@ LDES,MTTR Hr,0.0
 LDES,Lagtime,1.0
 LDES,Capex Years,15.0
 LDES,Lifetime,15.0
+LDES,Online Year,2015
 LDES,Fixed OM Cost per MW,18000.0
 LDES,Preference Multiplier,1.0
 LDES,Capacity Eligible,false
