@@ -203,6 +203,27 @@ function _validate_project_investor_bundles(investor_root::AbstractString)
     return nothing
 end
 
+"""
+Errors if a system-level `markets_data/` file read unconditionally at runtime is missing,
+or if `Energy.csv` lacks a `price_cap` for any project zone.
+"""
+function _validate_system_market_files(config_root::AbstractString, investor_root::AbstractString)
+    markets_dir = joinpath(dirname(investor_root), "markets_data")
+    for filename in ("Energy.csv", "reserve_products.csv", "annual_growth.csv")
+        isfile(joinpath(markets_dir, filename)) ||
+            error("Missing system-level market input: $(joinpath(markets_dir, filename))")
+    end
+    path = joinpath(markets_dir, "Energy.csv")
+    energy = _read_csv_df(path)
+    _must_have_column(energy, :zones, path)
+    _must_have_column(energy, :price_cap, path)
+    missing_zones = sort(collect(setdiff(_project_zone_names(config_root), Set(_as_string.(energy.zones)))))
+    isempty(missing_zones) || error(
+        "$(path) is missing price_cap for zone(s): $(join(missing_zones, ", "))"
+    )
+    return nothing
+end
+
 function _validate_psy_generator_names(config_root::AbstractString, ts_root::AbstractString)
     isdir(ts_root) || return nothing
     zone_names = _project_zone_names(config_root)
@@ -267,17 +288,17 @@ function _required_derating_columns(config_root::AbstractString, investor_root::
 end
 
 """
-Errors if a scenario's `derating_dict.csv` lacks an `existing_/new_<type>_<zone>` or
-`existing_/new_STOR_<d>` column that the derating calculator assigns for a renewable or
-storage project.
+Errors if a scenario has no `derating_dict.csv`, or if it lacks an
+`existing_/new_<type>_<zone>` or `existing_/new_STOR_<d>` column that the derating
+calculator assigns for a renewable or storage project.
 """
 function _validate_derating_columns(config_root::AbstractString, investor_root::AbstractString)
     required = _required_derating_columns(config_root, investor_root)
-    isempty(required) && return nothing
     derating_root = joinpath(dirname(investor_root), "markets_data", "derating_data")
     for scenario in sort(collect(_project_scenario_names(config_root)))
         path = joinpath(derating_root, scenario, "derating_dict.csv")
-        isfile(path) || continue
+        isfile(path) || error("Missing derating template: $(path)")
+        isempty(required) && continue
         available = Set(names(_read_csv_df(path)))
         missing_columns = sort([column for column in keys(required) if !(column in available)])
         isempty(missing_columns) || error(
@@ -307,6 +328,7 @@ function validate_emis_project(project_root::AbstractString)
     _validate_option_techs(config_root, investor_root)
     _validate_technology_finance_coverage(config_root, investor_root)
     _validate_project_investor_bundles(investor_root)
+    _validate_system_market_files(config_root, investor_root)
     _validate_psy_generator_names(config_root, ts_root)
     _validate_derating_columns(config_root, investor_root)
 
