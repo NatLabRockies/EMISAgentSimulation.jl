@@ -47,6 +47,42 @@ function _copy_default_investor_inputs(base_dir::AbstractString, heterogeneity::
     return defaults_dir
 end
 
+"""
+Writes `markets_data/derating_data/<scenario>/derating_dict.csv` for each scenario whose spec
+did not supply one. The calculator assigns by row into this template, so it carries the
+default thermal/hydro/storage values plus `existing_`/`new_` columns for every renewable
+type-zone and storage duration used by the project files.
+"""
+function _seed_derating_templates(
+    base_dir::AbstractString,
+    heterogeneity::AbstractString,
+    defaults_dir::AbstractString,
+)
+    het_dir = joinpath(base_dir, heterogeneity)
+    config_root = joinpath(het_dir, "system_config")
+    investor_root = joinpath(het_dir, "investors")
+    derating_root = joinpath(het_dir, "markets_data", "derating_data")
+    scenarios = sort(collect(_project_scenario_names(config_root)))
+    unseeded = [s for s in scenarios if !isfile(joinpath(derating_root, s, "derating_dict.csv"))]
+    isempty(unseeded) && return nothing
+
+    baseline = _read_csv_df(joinpath(defaults_dir, "derating_baseline.csv"))
+    template = baseline[1:1, :]
+    for column in keys(_required_derating_columns(config_root, investor_root))
+        key = split(column, "_"; limit=2)[2]
+        for prefix in ("existing", "new")
+            name = "$(prefix)_$(key)"
+            name in names(template) && continue
+            template[!, name] = [key in names(baseline) ? Float64(baseline[1, key]) : 0.0]
+        end
+    end
+    for scenario in unseeded
+        mkpath(joinpath(derating_root, scenario))
+        CSV.write(joinpath(derating_root, scenario, "derating_dict.csv"), template)
+    end
+    return nothing
+end
+
 function _investor_key(name::AbstractString)
     return lowercase(replace(strip(name), "_" => ""))
 end
@@ -688,6 +724,8 @@ function initialize_emis_project(spec_dir::AbstractString; output_dir::AbstractS
             start_year=parse(Int, start_year),
         )
     end
+
+    _seed_derating_templates(base_dir, heterogeneity, defaults_dir)
 
     if !isnothing(reference_case_dir)
         reference_case_dir = normpath(String(reference_case_dir))

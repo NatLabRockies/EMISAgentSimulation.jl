@@ -155,3 +155,36 @@ end
     # NONSPIN has no file at all, so both are dropped.
     @test String.(filtered[:, "Reserve Product"]) == ["Spin", "Reg_Up"]
 end
+
+@testset "Project init system-level Energy.csv" begin
+    spec_dir = joinpath(PROJECT_ROOT, "config", "project_templates", "project_spec")
+    init_dir = joinpath(mktempdir(), "project_init_energy")
+    initialize_emis_project(spec_dir; output_dir=init_dir, reference_case_dir=nothing)
+    energy_path = joinpath(init_dir, "EMIS_RTS_Analysis", "Heterogeneous", "markets_data", "Energy.csv")
+
+    @test isfile(energy_path)
+
+    CSV.write(energy_path, DataFrame(zones=["other_zone"], price_cap=[1.0e4]))
+    @test_throws r"missing price_cap for zone\(s\): zone_1" validate_emis_project(init_dir)
+
+    rm(energy_path)
+    @test_throws r"Missing system-level market input.*Energy.csv" validate_emis_project(init_dir)
+end
+
+@testset "Project init seeds derating templates" begin
+    spec_dir = joinpath(PROJECT_ROOT, "config", "project_templates", "project_spec")
+    init_dir = joinpath(mktempdir(), "project_init_derating")
+    initialize_emis_project(spec_dir; output_dir=init_dir, reference_case_dir=nothing)
+    derating_dir = joinpath(init_dir, "EMIS_RTS_Analysis", "Heterogeneous", "markets_data", "derating_data")
+
+    scenarios = filter(isdir, joinpath.(derating_dir, readdir(derating_dir)))
+    @test !isempty(scenarios)
+    for scenario_dir in scenarios
+        derating = DataFrame(CSV.File(joinpath(scenario_dir, "derating_dict.csv")))
+        @test nrow(derating) == 1
+        @test all(in(names(derating)), ["ST", "CC", "HY", "STOR_4"])
+    end
+
+    rm(joinpath(first(scenarios), "derating_dict.csv"))
+    @test_throws r"Missing derating template" validate_emis_project(init_dir)
+end

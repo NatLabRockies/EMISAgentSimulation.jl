@@ -743,6 +743,15 @@ function create_sys_w_updated_ts(
         newtsdata = newtsdata .* proportion
         canonical_load_dir === nothing && (newtsdata = newtsdata .* 1000) # legacy ERCOT files are in GW; canonical load is already MW
         newtsdata = newtsdata ./ loadscaler # scale to system_config's default_rts_load peak
+        # TODO: The legacy path may have the same normalization issue unless its
+        # load data is already normalized for get_max_active_power. Leave legacy
+        # behavior unchanged pending a separate investigation.
+        if canonical_load_dir !== nothing
+            # Canonical profiles are MW; store dimensionless values because the
+            # forecast multiplier supplies this component's maximum MW. Keep the
+            # reference-year scaling and growth already present in the input data.
+            newtsdata = baseload == 0 ? zero.(newtsdata) : newtsdata ./ baseload
+        end
 
         for t in 1:length(timestep)
             rtseries = Vector{Float64}()
