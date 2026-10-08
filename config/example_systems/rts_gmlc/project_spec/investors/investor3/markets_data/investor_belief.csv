@@ -1,0 +1,4 @@
+parameters,initial_estimate,initial_error_cov,process_cov,measurement_cov
+load_zone_1,0.011593478,0.1,0.0001,0.001
+load_zone_2,0.011593478,0.1,0.0001,0.001
+load_zone_3,0.007211815,0.1,0.0001,0.001

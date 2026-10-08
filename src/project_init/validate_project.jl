@@ -203,6 +203,27 @@ function _validate_project_investor_bundles(investor_root::AbstractString)
     return nothing
 end
 
+"""
+Errors if a system-level `markets_data/` file read unconditionally at runtime is missing,
+or if `Energy.csv` lacks a `price_cap` for any project zone.
+"""
+function _validate_system_market_files(config_root::AbstractString, investor_root::AbstractString)
+    markets_dir = joinpath(dirname(investor_root), "markets_data")
+    for filename in ("Energy.csv", "reserve_products.csv", "annual_growth.csv")
+        isfile(joinpath(markets_dir, filename)) ||
+            error("Missing system-level market input: $(joinpath(markets_dir, filename))")
+    end
+    path = joinpath(markets_dir, "Energy.csv")
+    energy = _read_csv_df(path)
+    _must_have_column(energy, :zones, path)
+    _must_have_column(energy, :price_cap, path)
+    missing_zones = sort(collect(setdiff(_project_zone_names(config_root), Set(_as_string.(energy.zones)))))
+    isempty(missing_zones) || error(
+        "$(path) is missing price_cap for zone(s): $(join(missing_zones, ", "))"
+    )
+    return nothing
+end
+
 function _validate_psy_generator_names(config_root::AbstractString, ts_root::AbstractString)
     isdir(ts_root) || return nothing
     zone_names = _project_zone_names(config_root)
@@ -233,6 +254,61 @@ function _validate_psy_generator_names(config_root::AbstractString, ts_root::Abs
     return nothing
 end
 
+function _required_derating_columns(config_root::AbstractString, investor_root::AbstractString)
+    tech_path = joinpath(config_root, "technologies.csv")
+    techs = _read_csv_df(tech_path)
+    required = Dict{String, String}()
+    ("class" in names(techs) && isdir(investor_root)) || return required
+    tech_class = Dict(_as_string(row.unit_type) => _as_string(row.class) for row in eachrow(techs))
+    zones = _read_csv_df(joinpath(config_root, "zones.csv"))
+    zone_lookup = _build_zone_lookup(String.(zones.zone_name), zones)
+    for investor in readdir(investor_root), (filename, prefix) in
+        (("projectexisting.csv", "existing"), ("projectoptions.csv", "new"))
+        path = joinpath(investor_root, investor, filename)
+        isfile(path) || continue
+        projects = _read_csv_df(path)
+        all(in(names(projects)), ("GEN_UID", "Unit Type", "Zone")) || continue
+        for row in eachrow(projects)
+            unit_type = _as_string(row["Unit Type"])
+            class = get(tech_class, unit_type, "")
+            if class == "renewable"
+                zone = _as_string(row.Zone)
+                column = "$(prefix)_$(unit_type)_$(get(zone_lookup, zone, zone))"
+            elseif class == "storage" && "Duration Hr" in names(projects)
+                duration = tryparse(Float64, _as_string(row["Duration Hr"]))
+                duration === nothing && error("$(path): storage project $(row.GEN_UID) has non-numeric Duration Hr")
+                column = "$(prefix)_STOR_$(Int(round(duration)))"
+            else
+                continue
+            end
+            get!(required, column, "$(investor)/$(filename):$(row.GEN_UID)")
+        end
+    end
+    return required
+end
+
+"""
+Errors if a scenario has no `derating_dict.csv`, or if it lacks an
+`existing_/new_<type>_<zone>` or `existing_/new_STOR_<d>` column that the derating
+calculator assigns for a renewable or storage project.
+"""
+function _validate_derating_columns(config_root::AbstractString, investor_root::AbstractString)
+    required = _required_derating_columns(config_root, investor_root)
+    derating_root = joinpath(dirname(investor_root), "markets_data", "derating_data")
+    for scenario in sort(collect(_project_scenario_names(config_root)))
+        path = joinpath(derating_root, scenario, "derating_dict.csv")
+        isfile(path) || error("Missing derating template: $(path)")
+        isempty(required) && continue
+        available = Set(names(_read_csv_df(path)))
+        missing_columns = sort([column for column in keys(required) if !(column in available)])
+        isempty(missing_columns) || error(
+            "$(path) is missing derating column(s) required by project(s): " *
+            join(["$(column) ($(required[column]))" for column in missing_columns], ", ")
+        )
+    end
+    return nothing
+end
+
 function validate_emis_project(project_root::AbstractString)
     isdir(project_root) || error("Project root does not exist: $(project_root)")
 
@@ -252,7 +328,9 @@ function validate_emis_project(project_root::AbstractString)
     _validate_option_techs(config_root, investor_root)
     _validate_technology_finance_coverage(config_root, investor_root)
     _validate_project_investor_bundles(investor_root)
+    _validate_system_market_files(config_root, investor_root)
     _validate_psy_generator_names(config_root, ts_root)
+    _validate_derating_columns(config_root, investor_root)
 
     return project_root
 end

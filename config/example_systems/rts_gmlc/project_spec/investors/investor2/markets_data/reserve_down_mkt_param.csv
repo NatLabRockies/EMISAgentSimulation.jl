@@ -1,0 +1,4 @@
+zones,price_cap,perc_req
+zone_1,4000.0,0.1
+zone_2,4000.0,0.1
+zone_3,4000.0,0.1

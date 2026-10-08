@@ -1832,24 +1832,7 @@ function load_sienna_systems!(
                 for d in PSY.get_components(PSY.Generator, sys)
                     d.name in removegen_name && PSY.remove_component!(sys, d)
                 end
-                PSY.remove_component!(
-                    sys,
-                    PSY.get_component(PSY.VariableReserve, sys, "SPIN"),
-                )
-                PSY.remove_component!(
-                    sys,
-                    PSY.get_component(PSY.VariableReserveNonSpinning, sys, "NONSPIN"),
-                )
-                PSY.set_name!(
-                    sys,
-                    PSY.get_component(PSY.VariableReserve, sys, "REG_DN"),
-                    "Reg_Down",
-                )
-                PSY.set_name!(
-                    sys,
-                    PSY.get_component(PSY.VariableReserve, sys, "REG_UP"),
-                    "Reg_Up",
-                )
+                normalize_legacy_reserve_services!(sys)
                 PSY.set_units_base_system!(sys, PSY.IS.UnitSystem.DEVICE_BASE)
             end
         end
