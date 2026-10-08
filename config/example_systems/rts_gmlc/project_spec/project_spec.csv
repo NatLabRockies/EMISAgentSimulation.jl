@@ -2,7 +2,7 @@ key,value
 system_name,rts_gmlc_zonal
 system_filepath,rts_gmlc_zonal_sys.json
 reference_case_dir,
-scratch_dir,/scratch/pghosh
+scratch_dir,/tmp
 outage_filepath,ThermalFOR_2020.csv
 heterogeneity,Heterogeneous
 investors,investor1;investor2;investor3;investor4

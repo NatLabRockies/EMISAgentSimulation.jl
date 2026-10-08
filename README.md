@@ -64,3 +64,47 @@ corresponding `AgentSimulation`. The worklow for processing the input data for c
 the `AgentSimulation` is depicted below.
 
 <img src="simulation_creation.png" />
+
+## Running the Integration Test
+
+The unit tests (`julia --project=. -e 'using Pkg; Pkg.test()'`) are quick. The integration
+test runs a 2-year, 3-zone RTS-GMLC case end to end and checks the results. It needs a
+solver (Xpress) and takes 1-2 hours, so run it as a batch job rather than in an interactive
+session. Everything it uses is in [test/integration_test](test/integration_test):
+
+- `integration_test_rts_gmlc.sh`: the batch script that runs the whole test.
+- `setup_case.jl`: initializes the example spec, validates it and creates the case.
+- `check_run.jl`: runs the result checks; it can also be used on its own (see below).
+
+1. From the repository root, open [test/integration_test/integration_test_rts_gmlc.sh](test/integration_test/integration_test_rts_gmlc.sh)
+   and add your environment setup in the marked block (for example module loads, `JULIA_DEPOT_PATH`
+   and solver license variables).
+2. Submit it with your scheduler. With SLURM, from the repository root:
+
+   ```bash
+   sbatch --job-name=rts_gmlc_2yr --account=<account> --partition=<partition> --nodes=1 \
+          --time=04:00:00 --output=rts_gmlc_2yr_%j.out test/integration_test/integration_test_rts_gmlc.sh
+   ```
+
+   Settings can be changed by exporting variables before submitting; they are documented in the
+   script. The most useful are `EMIS_SCRATCH_DIR` (default `/scratch/$USER`),
+   `EMIS_RTS_OUTPUT_ROOT` (default: a folder under the scratch directory; needs several GB),
+   `CASE_NAME`, `RUN_NAME` and `RUN_ARGS` (extra arguments for the run script, such as `--hpc`).
+3. The script initializes the committed spec in `config/example_systems/rts_gmlc/project_spec`,
+   validates it, creates a case, runs 2 simulated years and then runs the result checks. The job
+   exits nonzero if a hard check fails. The check report is printed at the end of the job output,
+   and the results are in `<output root>/project/HPC_Analysis_Runs/<case name>/Results/<run name>`.
+
+To check any finished run, including runs from other cases, without re-running it:
+
+```bash
+julia --project=. test/integration_test/check_run.jl --results-dir <path to Results/<run name>>
+```
+
+The checks cover the expected result files, load peaks against the time series, zone-average energy
+price distributions, lost load, resource adequacy metrics (LOLE, NEUE), and installed, new and retired
+capacity by technology. Hard failures (missing files, load peak mismatch, NaN or negative prices or
+RA metrics, no installed capacity) fail the run; the other checks print warnings. The full report is
+written to `run_checks.csv` and `run_summary.csv` in the results directory. Options such as
+`--price-cap`, `--max-lost-load-share` and `--min-capacity-margin` are listed at the top of
+[test/integration_test/check_run.jl](test/integration_test/check_run.jl).
