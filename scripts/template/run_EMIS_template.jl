@@ -1,9 +1,4 @@
-try
-    using Xpress
-catch err
-    @warn "Xpress failed to load on first attempt; retrying" 
-    using Xpress
-end
+using Xpress
 using JuMP
 using EMISAgentSimulation
 using Dates
