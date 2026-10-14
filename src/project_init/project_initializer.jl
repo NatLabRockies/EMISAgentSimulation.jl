@@ -722,6 +722,7 @@ function initialize_emis_project(spec_dir::AbstractString; output_dir::AbstractS
             investor_dir=ownership === nothing ? nothing : joinpath(base_dir, heterogeneity, "investors"),
             defaults=project_defaults,
             start_year=parse(Int, start_year),
+            zones=DataFrames.DataFrame(CSV.File(joinpath(target_config_dir, "zones.csv"); stringtype=String)),
         )
     end
 

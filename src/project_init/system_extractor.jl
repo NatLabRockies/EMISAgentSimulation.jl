@@ -67,17 +67,34 @@ function _sorted_components(component_type, sys)
     return components
 end
 
-"""Extract stable zone identifiers and PSY area aliases."""
+"""
+Default `zones.csv` for a PSY system: one zone per `Area`, sorted by area name, in the
+format of `config/ercot_est/system_config/zones.csv` (zone N = `N`, `zone_N`, its area,
+`load_zone_N`). A project's own `zones.csv` takes precedence where one is supplied.
+"""
 function extract_zones(sys::PSY.System)
     areas = sort!(collect(PSY.get_components(PSY.Area, sys)); by=PSY.get_name)
     isempty(areas) && error("PSY system does not contain any Area components")
     names = PSY.get_name.(areas)
     return DataFrames.DataFrame(
-        zone_id=["zone_$(index)" for index in eachindex(names)],
-        zone_name=names,
+        zone_id=collect(eachindex(names)),
+        zone_name=["zone_$(index)" for index in eachindex(names)],
         area_name=names,
-        load_column=["load_$(name)" for name in names],
+        load_column=["load_zone_$(index)" for index in eachindex(names)],
     )
+end
+
+"""Map each PSY area name in `zones` (a `zones.csv` table) to its `zone_name`."""
+function _zone_by_area(zones::DataFrames.DataFrame)
+    _require_columns(zones, [:zone_name, :area_name], "zones.csv")
+    return Dict(String(strip(string(row.area_name))) => String(strip(string(row.zone_name))) for row in eachrow(zones))
+end
+
+function _zone_of_area(zone_by_area::Dict, area_name::AbstractString)
+    haskey(zone_by_area, area_name) || error(
+        "PSY Area \"$(area_name)\" has no row in zones.csv (area_name column)"
+    )
+    return zone_by_area[area_name]
 end
 
 function _component_capacity_mw(component, sys::PSY.System)
@@ -215,7 +232,10 @@ function _branch_row(branch, sys::PSY.System; dc::Bool)
     )
 end
 
-"""Extract supported AC and DC branches into reader-compatible tables."""
+"""
+Extract supported AC and DC branches into reader-compatible tables. `From Area`/`To Area`
+carry each endpoint's PSY area, which the reader maps to zones through `zones.csv`.
+"""
 function extract_branches(sys::PSY.System)
     ac_rows = DataFrames.DataFrame(
         "UID" => String[],
@@ -225,12 +245,16 @@ function extract_branches(sys::PSY.System)
         "X" => Float64[],
         "B" => Float64[],
         "Cont Rating" => Float64[],
+        "From Area" => String[],
+        "To Area" => String[],
     )
     dc_rows = DataFrames.DataFrame(
         "UID" => String[],
         "From Bus" => String[],
         "To Bus" => String[],
         "MW Load" => Float64[],
+        "From Area" => String[],
+        "To Area" => String[],
     )
     failures = String[]
     for (component_type, destination, is_dc) in (
@@ -240,10 +264,12 @@ function extract_branches(sys::PSY.System)
         for branch in _sorted_components(component_type, sys)
             try
                 row = _branch_row(branch, sys; dc=is_dc)
+                from_bus, to_bus = _branch_endpoints(branch)
+                areas = (PSY.get_name(PSY.get_area(from_bus)), PSY.get_name(PSY.get_area(to_bus)))
                 if is_dc
-                    push!(destination, row[1:4])
+                    push!(destination, (row[1:4]..., areas...))
                 else
-                    push!(destination, row[1:7])
+                    push!(destination, (row[1:7]..., areas...))
                 end
             catch exception
                 push!(failures, "$(PSY.get_name(branch)): $(sprint(showerror, exception))")
@@ -515,7 +541,11 @@ function _ownership_override(owner_row, column::AbstractString)
     return parsed === nothing ? text : parsed
 end
 
-"""Extract complete existing-project rows from PSY and explicit ownership input."""
+"""
+Extract complete existing-project rows from PSY and explicit ownership input. Each
+project's `Zone` is the `zone_name` that `zones` (the project's `zones.csv`; default
+`extract_zones(sys)`) assigns to the project's PSY area.
+"""
 function extract_fleet(
     sys::PSY.System,
     mapping::DataFrames.DataFrame,
@@ -523,8 +553,11 @@ function extract_fleet(
     ownership::DataFrames.DataFrame;
     defaults::DataFrames.DataFrame=load_project_defaults(),
     outage=nothing,
+    zones::Union{Nothing, DataFrames.DataFrame}=nothing,
 )
     _require_columns(ownership, [:Investor, :GEN_UID], "existing project ownership")
+    zone_by_area = DataFrames.nrow(ownership) == 0 ? Dict{String, String}() :
+        _zone_by_area(zones === nothing ? extract_zones(sys) : zones)
     _require_columns(technologies, [:unit_type, :category], "technologies.csv")
     validate_psy_classification_mapping(mapping, technologies)
     default_lookup = _defaults_by_unit(defaults)
@@ -564,7 +597,7 @@ function extract_fleet(
         row["Size"] = size
         row["Category"] = category
         row["Min Gen pu"] = min_pu
-        row["Zone"] = PSY.get_name(area)
+        row["Zone"] = _zone_of_area(zone_by_area, PSY.get_name(area))
         row["Bus ID"] = PSY.get_number(bus)
         metadata = _outage_metadata(outage, device, unit_type, size)
         row["FOR"] = metadata === nothing ?
@@ -615,16 +648,16 @@ function write_system_inputs(
     defaults::DataFrames.DataFrame=load_project_defaults(),
     outage=nothing,
     start_year::Union{Nothing, Integer}=nothing,
+    zones::Union{Nothing, DataFrames.DataFrame}=nothing,
 )
     mkpath(source_data_dir)
-    zones = extract_zones(sys)
+    zones === nothing && (zones = extract_zones(sys))
     gen = extract_gen_table(sys, mapping; technologies=technologies)
     gen = gen[:, ["GEN UID", "Unit Type", "PMax MW"]]
     branches = extract_branches(sys)
     available_products = reserve_timeseries_dir === nothing ? nothing :
         _reserve_products_with_timeseries(reserve_timeseries_dir)
     reserves = extract_reserves(sys; defaults=reserve_defaults, available_products=available_products)
-    CSV.write(joinpath(source_data_dir, "zones.csv"), zones)
     CSV.write(joinpath(source_data_dir, "gen.csv"), gen)
     CSV.write(joinpath(source_data_dir, "branch.csv"), branches.ac)
     CSV.write(joinpath(source_data_dir, "dc_branch.csv"), branches.dc)
@@ -643,6 +676,7 @@ function write_system_inputs(
             ownership;
             defaults=defaults,
             outage=outage,
+            zones=zones,
         )
         append!(report, fleet.report)
         start_year === nothing || validate_existing_project_lifetimes(

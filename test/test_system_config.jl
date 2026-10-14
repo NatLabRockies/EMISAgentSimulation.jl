@@ -64,14 +64,18 @@ using EMISAgentSimulation
     legacy_root = normpath(joinpath(@__DIR__, "..", "config", "ercot_est"))
     legacy = load_system_config(legacy_root)
     @test legacy.zone_names == ["zone_$(index)" for index in 1:8]
-    @test get_zone_name(legacy, "FarWest") == "zone_1"
-    @test get_zone_name(legacy, "North") == "zone_2"
-    @test get_zone_name(legacy, "West") == "zone_3"
-    @test get_zone_name(legacy, "Southern") == "zone_4"
-    @test get_zone_name(legacy, "NorthCentral") == "zone_5"
-    @test get_zone_name(legacy, "SouthCentral") == "zone_6"
-    @test get_zone_name(legacy, "Coast") == "zone_7"
-    @test get_zone_name(legacy, "East") == "zone_8"
+    # Format checks only: which area belongs to which zone is a fact about the data,
+    # checked against the system in test_zone_consistency.jl, not restated here.
+    legacy_zones = DataFrame(CSV.File(joinpath(legacy_root, "system_config", "zones.csv")))
+    @test legacy_zones.zone_id == 1:8
+    @test legacy_zones.zone_name == ["zone_$(id)" for id in legacy_zones.zone_id]
+    @test legacy_zones.load_column == ["load_zone_$(id)" for id in legacy_zones.zone_id]
+    @test allunique(legacy_zones.area_name)
+    for row in eachrow(legacy_zones)
+        @test get_zone_name(legacy, string(row.zone_id)) == row.zone_name
+        @test get_zone_name(legacy, row.area_name) == row.zone_name
+        @test get_zone_name(legacy, row.load_column) == row.zone_name
+    end
     @test get_default_scenario(legacy) == "scenario_1"
     @test EMISAgentSimulation.get_scenario_pcm_label(legacy, "scenario_1") == "baseline"
     @test EMISAgentSimulation.get_scenario_pcm_label(legacy, "scenario_2") == "central"

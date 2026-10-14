@@ -313,15 +313,6 @@ function create_capacity_mkt_system(initial_system::PSY.System,
         end
     end
 
-    #=
-    nodal_loads = PSY.get_components(PSY.StandardLoad, capacity_market_system)
-    for load in nodal_loads
-        zone = "zone_$(PSY.get_name(PSY.get_area(PSY.get_bus(load))))"
-        scaled_active_power = deepcopy(PSY.get_max_active_power(load)) * (1 + load_growth["load_$(zone)"]) ^ (capacity_forward_years)
-        PSY.set_max_active_power!(load, scaled_active_power)
-
-    end
-    =#
     return capacity_market_system
 end
 

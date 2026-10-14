@@ -1,4 +1,19 @@
 """
+Zone of one end (`side` = "From" or "To") of row `b` of a branch table. Uses the
+`<side> Area` column (written by `extract_branches`) through `zones.csv`'s `area_name`.
+Legacy tables without area columns fall back to the first digit of the bus number,
+which matches `zones.csv` only for ERCOT/RTS-style bus numbering.
+"""
+function _branch_end_zone(system_cfg::SystemConfig, branches::DataFrames.DataFrame, b::Int, side::String)
+    area_column = "$(side) Area"
+    if area_column in names(branches)
+        return get_zone_name(system_cfg, string(branches[b, area_column]))
+    end
+    @warn "$(area_column) column missing from branch data; using the first digit of the bus number as the zone" maxlog = 1
+    return get_zone_name(system_cfg, first("$(branches[b, "$(side) Bus"])", 1))
+end
+
+"""
 This function reads the RTS-GMLC timeseries data and parses it into the format
 compatible with AgentSimulation
 """
@@ -427,11 +442,8 @@ function read_rts(data_dir::String,
         read_data(joinpath(test_system_dir, "RTS_Data", "SourceData", "dc_branch.csv"))
 
     for b in 1:DataFrames.nrow(branches)
-        from_bus = "$(branches[b, "From Bus"])"
-        from_zone = get_zone_name(system_cfg, first(from_bus, 1))
-
-        to_bus = "$(branches[b, "To Bus"])"
-        to_zone = get_zone_name(system_cfg, first(to_bus, 1))
+        from_zone = _branch_end_zone(system_cfg, branches, b, "From")
+        to_zone = _branch_end_zone(system_cfg, branches, b, "To")
 
         similar_line = filter(
             l -> (
@@ -460,11 +472,8 @@ function read_rts(data_dir::String,
     end
 
     for b in 1:DataFrames.nrow(dc_branches)
-        from_bus = "$(dc_branches[b, "From Bus"])"
-        from_zone = get_zone_name(system_cfg, first(from_bus, 1))
-
-        to_bus = "$(dc_branches[b, "To Bus"])"
-        to_zone = get_zone_name(system_cfg, first(to_bus, 1))
+        from_zone = _branch_end_zone(system_cfg, dc_branches, b, "From")
+        to_zone = _branch_end_zone(system_cfg, dc_branches, b, "To")
 
         similar_line = filter(
             l -> (

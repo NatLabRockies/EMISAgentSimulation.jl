@@ -4,6 +4,7 @@ using CSV
 using DataFrames
 
 const PROJECT_ROOT = normpath(joinpath(@__DIR__, ".."))
+const RTS_SPEC_DIR = joinpath(PROJECT_ROOT, "config", "example_systems", "rts_gmlc", "project_spec")
 
 @testset "Project init validation" begin
     spec_dir = joinpath(PROJECT_ROOT, "config", "project_templates", "project_spec")
@@ -187,4 +188,43 @@ end
 
     rm(joinpath(first(scenarios), "derating_dict.csv"))
     @test_throws r"Missing derating template" validate_emis_project(init_dir)
+end
+
+function _replace_header!(path, from, to)
+    lines = readlines(path)
+    lines[1] = replace(lines[1], from => to)
+    write(path, join(lines, "\n") * "\n")
+end
+
+@testset "Validator reads the project's timeseries dir" begin
+    spec_dir = joinpath(PROJECT_ROOT, "config", "project_templates", "project_spec")
+    init_dir = joinpath(mktempdir(), "project_init_ts_root")
+    initialize_emis_project(spec_dir; output_dir=init_dir, reference_case_dir=nothing)
+    metadata = EMISAgentSimulation._read_project_metadata(init_dir)
+    ts_root = EMISAgentSimulation._base_project_paths(init_dir)[3]
+    @test ts_root == metadata["timeseries_data_dir"]
+    @test isdir(ts_root)
+end
+
+@testset "RTS-GMLC example validates against its timeseries" begin
+    init_dir = joinpath(mktempdir(), "rts_gmlc")
+    initialize_emis_project(RTS_SPEC_DIR; output_dir=init_dir, reference_case_dir=nothing)
+    @test validate_emis_project(init_dir) == init_dir
+
+    year_dir = joinpath(EMISAgentSimulation._base_project_paths(init_dir)[3], "scenario_1", "sim_year_1")
+
+    load_file = joinpath(year_dir, "Load", "REAL_TIME_regional_Load.csv")
+    original_load = read(load_file, String)
+    _replace_header!(load_file, ",3", ",99")
+    @test_throws r"load column 99 that matches no zone" validate_emis_project(init_dir)
+    CSV.write(load_file, select(DataFrame(CSV.File(load_file)), Not("99")))
+    @test_throws r"no load column for zone\(s\): zone_3" validate_emis_project(init_dir)
+    write(load_file, original_load)
+
+    wind_file = joinpath(year_dir, "WIND", "DAY_AHEAD_wind.csv")
+    original_wind = read(wind_file, String)
+    _replace_header!(wind_file, "309_WIND_1", "BOGUS_WIND")
+    @test_throws r"no column for WIND generator\(s\): 309_WIND_1" validate_emis_project(init_dir)
+    write(wind_file, original_wind)
+    @test validate_emis_project(init_dir) == init_dir
 end

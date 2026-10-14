@@ -14,6 +14,7 @@ include("test_system_config.jl")
 include("test_project_input_validation.jl")
 include("test_project_init.jl")
 include("test_constructed_systems_generator.jl")
+include("test_zone_consistency.jl")
 
 # Context-dependent tests — require the caller to have defined:
 #   case, simulation_years, test_system_dir  (for test_base_checks.jl)

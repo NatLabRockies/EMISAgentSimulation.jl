@@ -572,45 +572,25 @@ function update_PSY_outage_timeseries!(sys_UC::PSY.System,
 end
 
 """
-This function finds the buses located in each zone.
-"""
-function find_zonal_bus(zone::String, sys::PSY.System)
-    # buses = PSY.get_components(PSY.Bus, sys)
-
-    # zonal_bus = nothing
-
-    # for b in buses
-    #     if "zone_$(PSY.get_name(PSY.get_area(b)))" == zone
-    #         zonal_bus = b
-    #     end
-    # end
-
-    zonal_bus = PSY.get_component(PSY.ACBus, sys, zone)
-
-    return zonal_bus
-end
-
-"""
     find_zonal_area(zone, sys, system_config = nothing)
 
-Return the PSY `Area` corresponding to `zone`, or `nothing` if no match exists.
-`zone` may be the PSY area name or, when `system_config` is provided, a configured
-zone name mapped from the area's `area_name` alias. The positional `zone_N` form is
-also supported for legacy ERCOT cases without a custom system configuration.
+Return the PSY `Area` corresponding to `zone`. `zone` may be the PSY area name or, when
+`system_config` is provided, the `zone_name` that `zones.csv` maps from the area's
+`area_name`. Errors if no area matches.
 """
 function find_zonal_area(
     zone::String,
     sys::PSY.System,
     system_config::Union{Nothing, SystemConfig} = nothing,
 )
-    for (index, area) in enumerate(PSY.get_components(PSY.Area, sys))
+    for area in PSY.get_components(PSY.Area, sys)
         area_name = PSY.get_name(area)
         config_zone = isnothing(system_config) ? area_name : get_zone_name(system_config, area_name)
-        if zone == area_name || zone == config_zone || zone == "zone_$(index)"
+        if zone == area_name || zone == config_zone
             return area
         end
     end
-    return nothing
+    error("No PSY Area matches zone \"$(zone)\"; check area_name in zones.csv")
 end
 
 """
@@ -955,41 +935,3 @@ function convert_thermal_fast_start!(system::PSY.System)
     end
 end
 
-function apply_PSY_past_load_growth!(sys::PSY.System,
-    load_growth::AxisArrays.AxisArray{Float64, 1},
-    simulation_dir::String)
-
-    # update load timeseries.
-    nodal_loads = PSY.get_components(PSY_LOADS, sys)
-    system_config = load_system_config(simulation_dir)
-
-    for load in nodal_loads
-        area_name = PSY.get_name(PSY.get_area(PSY.get_bus(load)))
-        zone = "load_$(get_zone_name(system_config, area_name))"
-        scaled_active_power =
-            deepcopy(PSY.get_max_active_power(load)) * (1 + load_growth[zone])
-        PSY.set_max_active_power!(load, scaled_active_power)
-    end
-
-    average_load_growth = Statistics.mean(load_growth)
-
-    # update service requirement timeseries.
-    services = get_system_services(sys)
-    ordc_products = split(
-        read_data(joinpath(simulation_dir, "markets_data", "reserve_products.csv"))[
-            1,
-            "ordc_products",
-        ],
-        "; ",
-    )
-    for service in services
-        service_name = PSY.get_name(service)
-        if !(service_name in ordc_products || service_name == "Clean_Energy")
-            scaled_requirement =
-                deepcopy(PSY.get_requirement(service)) * (1 + average_load_growth)
-            PSY.set_requirement!(service, scaled_requirement)
-        end
-    end
-
-    return
-end

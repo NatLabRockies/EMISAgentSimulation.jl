@@ -1934,75 +1934,38 @@ function create_simulation(sys_MD::PSY.System,
 
     system_config = load_system_config(simulation_dir)
     for zone in zones
-        # bus = find_zonal_bus(String(zone), sys_UC)
         area = find_zonal_area(String(zone), sys_UC, system_config)
-        # zone_num = parse(Int64, last(zone, 1))
-        if isnothing(zone)
-            energy_price_ed[zone, 1, :] = zeros(data_length_ed)
-            energy_price_uc[zone, 1, :] = zeros(data_length_uc)
-            energy_price_md[zone, 1, :] = zeros(data_length_md)
-            energy_voll[zone, 1, :] = zeros(data_length_ed)
-            energy_voll_uc[zone, 1, :] = zeros(data_length_uc)
-            energy_voll_md[zone, 1, :] = zeros(data_length_md)
-        else
-            if single_stage_bool == false
-                energy_price_ed[zone, 1, :] =
-                    abs.(
-                        round.(
-                            dual_values_ed["CopperPlateBalanceConstraint__Area"][
-                                dual_values_ed["CopperPlateBalanceConstraint__Area"].name .== PSY.get_name(
-                                    area,
-                                ),
-                                :value,
-                            ];
-                            digits = 5,
-                        ),
-                    ) / base_power
-                energy_price_uc[zone, 1, :] =
-                    abs.(
-                        round.(
-                            dual_values_uc["CopperPlateBalanceConstraint__Area"][
-                                dual_values_uc["CopperPlateBalanceConstraint__Area"].name .== PSY.get_name(
-                                    area,
-                                ),
-                                :value,
-                            ];
-                            digits = 5,
-                        ),
-                    ) / base_power
-                if md_market_bool == true
-                    energy_price_md[zone, 1, :] =
-                        abs.(
-                            round.(
-                                dual_values_md["CopperPlateBalanceConstraint__Area"][
-                                    dual_values_md["CopperPlateBalanceConstraint__Area"].name .== PSY.get_name(
-                                        area,
-                                    ),
-                                    :value,
-                                ];
-                                digits = 5,
+        if single_stage_bool == false
+            energy_price_ed[zone, 1, :] =
+                abs.(
+                    round.(
+                        dual_values_ed["CopperPlateBalanceConstraint__Area"][
+                            dual_values_ed["CopperPlateBalanceConstraint__Area"].name .== PSY.get_name(
+                                area,
                             ),
-                        ) / base_power
-                    energy_voll_md[zone, 1, :] =
-                        abs.(
-                            round.(
-                                result_variables_md["SystemBalanceSlackUp__Area"][
-                                    result_variables_md["SystemBalanceSlackUp__Area"].name .== PSY.get_name(
-                                        area,
-                                    ),
-                                    :value,
-                                ];
-                                digits = 5,
+                            :value,
+                        ];
+                        digits = 5,
+                    ),
+                ) / base_power
+            energy_price_uc[zone, 1, :] =
+                abs.(
+                    round.(
+                        dual_values_uc["CopperPlateBalanceConstraint__Area"][
+                            dual_values_uc["CopperPlateBalanceConstraint__Area"].name .== PSY.get_name(
+                                area,
                             ),
-                        ) / base_power
-                else
-                    energy_price_md[zone, 1, :] = zeros(data_length_md)
-                end
-                energy_voll[zone, 1, :] =
+                            :value,
+                        ];
+                        digits = 5,
+                    ),
+                ) / base_power
+            if md_market_bool == true
+                energy_price_md[zone, 1, :] =
                     abs.(
                         round.(
-                            result_variables_ed["SystemBalanceSlackUp__Area"][
-                                result_variables_ed["SystemBalanceSlackUp__Area"].name .== PSY.get_name(
+                            dual_values_md["CopperPlateBalanceConstraint__Area"][
+                                dual_values_md["CopperPlateBalanceConstraint__Area"].name .== PSY.get_name(
                                     area,
                                 ),
                                 :value,
@@ -2010,11 +1973,11 @@ function create_simulation(sys_MD::PSY.System,
                             digits = 5,
                         ),
                     ) / base_power
-                energy_voll_uc[zone, 1, :] =
+                energy_voll_md[zone, 1, :] =
                     abs.(
                         round.(
-                            result_variables_uc["SystemBalanceSlackUp__Area"][
-                                result_variables_uc["SystemBalanceSlackUp__Area"].name .== PSY.get_name(
+                            result_variables_md["SystemBalanceSlackUp__Area"][
+                                result_variables_md["SystemBalanceSlackUp__Area"].name .== PSY.get_name(
                                     area,
                                 ),
                                 :value,
@@ -2022,33 +1985,59 @@ function create_simulation(sys_MD::PSY.System,
                             digits = 5,
                         ),
                     ) / base_power
-                # energy_voll[zone, 1, :] += abs.(round.(result_variables_ed["SystemBalanceSlackDown__ACBus"][:, string(PSY.get_number(bus))], digits = 5)) / base_power
             else
-                energy_price_uc[zone, 1, :] =
-                    abs.(
-                        round.(
-                            dual_values_uc["CopperPlateBalanceConstraint__Area"][
-                                dual_values_uc["CopperPlateBalanceConstraint__Area"].name .== PSY.get_name(
-                                    area,
-                                ),
-                                :value,
-                            ];
-                            digits = 5,
-                        ),
-                    ) / base_power
-                energy_voll_uc[zone, 1, :] =
-                    abs.(
-                        round.(
-                            result_variables_uc["SystemBalanceSlackUp__Area"][
-                                result_variables_uc["SystemBalanceSlackUp__Area"].name .== PSY.get_name(
-                                    area,
-                                ),
-                                :value,
-                            ];
-                            digits = 5,
-                        ),
-                    ) / base_power
+                energy_price_md[zone, 1, :] = zeros(data_length_md)
             end
+            energy_voll[zone, 1, :] =
+                abs.(
+                    round.(
+                        result_variables_ed["SystemBalanceSlackUp__Area"][
+                            result_variables_ed["SystemBalanceSlackUp__Area"].name .== PSY.get_name(
+                                area,
+                            ),
+                            :value,
+                        ];
+                        digits = 5,
+                    ),
+                ) / base_power
+            energy_voll_uc[zone, 1, :] =
+                abs.(
+                    round.(
+                        result_variables_uc["SystemBalanceSlackUp__Area"][
+                            result_variables_uc["SystemBalanceSlackUp__Area"].name .== PSY.get_name(
+                                area,
+                            ),
+                            :value,
+                        ];
+                        digits = 5,
+                    ),
+                ) / base_power
+            # energy_voll[zone, 1, :] += abs.(round.(result_variables_ed["SystemBalanceSlackDown__ACBus"][:, string(PSY.get_number(bus))], digits = 5)) / base_power
+        else
+            energy_price_uc[zone, 1, :] =
+                abs.(
+                    round.(
+                        dual_values_uc["CopperPlateBalanceConstraint__Area"][
+                            dual_values_uc["CopperPlateBalanceConstraint__Area"].name .== PSY.get_name(
+                                area,
+                            ),
+                            :value,
+                        ];
+                        digits = 5,
+                    ),
+                ) / base_power
+            energy_voll_uc[zone, 1, :] =
+                abs.(
+                    round.(
+                        result_variables_uc["SystemBalanceSlackUp__Area"][
+                            result_variables_uc["SystemBalanceSlackUp__Area"].name .== PSY.get_name(
+                                area,
+                            ),
+                            :value,
+                        ];
+                        digits = 5,
+                    ),
+                ) / base_power
         end
     end
 
