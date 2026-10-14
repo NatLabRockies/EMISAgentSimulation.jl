@@ -28,7 +28,8 @@ hourly, preprocessed data for every scenario and simulation year listed in
 Required format:
 
 - Header fields: `Year,Month,Day,Period` followed by value columns.
-- Load value columns match `zones.csv` `load_column` values.
+- Load value column headers are `zones.csv` `zone_id` values: column `N` holds the load of
+    zone `N`, i.e. of the PSY area in that row's `area_name`.
 - Wind and PV value columns match PSY renewable component names. If a caller uses
     different names, it supplies the component-to-column mapping directly to the builder.
 - Reserve value columns match PSY service names. If a caller uses different names, it
