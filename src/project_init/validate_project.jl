@@ -19,12 +19,8 @@ function _must_have_column(df::DataFrames.DataFrame, column::Symbol, path::Abstr
 end
 
 function _base_project_paths(project_root::AbstractString)
-    metadata_path = joinpath(project_root, "project_metadata.csv")
-    if isfile(metadata_path)
-        metadata = Dict{String, String}()
-        for row in CSV.File(metadata_path; stringtype=String)
-            metadata[strip(string(row.key))] = strip(string(row.value))
-        end
+    if isfile(joinpath(project_root, "project_metadata.csv"))
+        metadata = _read_project_metadata(project_root)
         base_dir = get(metadata, "base_dir", project_root)
         heterogeneity = get(metadata, "heterogeneity", "Heterogeneous")
         config_root = joinpath(base_dir, heterogeneity, "system_config")
@@ -231,30 +227,43 @@ function _validate_system_market_files(config_root::AbstractString, investor_roo
     return nothing
 end
 
-function _validate_psy_generator_names(config_root::AbstractString, ts_root::AbstractString)
+"""
+Errors if a wind (WT) or PV (PVe) generator in the project's PSY system has no column in
+its scenario's DA/RT `WIND`/`PV` csv. The runtime (`rts_psy_creator.jl`) only warns and
+leaves such a generator without a time series. Extra columns are allowed, since option
+units are not in the base system. Skipped when the project has no system file.
+"""
+function _validate_psy_generator_names(project_root::AbstractString, ts_root::AbstractString)
     isdir(ts_root) || return nothing
-    zone_names = _project_zone_names(config_root)
+    isfile(joinpath(project_root, "project_metadata.csv")) || return nothing
+    metadata = _read_project_metadata(project_root)
+    system_file = get(metadata, "system_file", "")
+    isempty(system_file) && return nothing
+    system_path = joinpath(metadata["test_system_dir"], system_file)
+    isfile(system_path) || error("Project system file not found: $(system_path)")
+    sys = PSY.System(system_path; runchecks=false)
+    generator_names(prime_mover) = [
+        PSY.get_name(gen) for gen in
+        PSY.get_components(gen -> PSY.get_prime_mover_type(gen) == prime_mover, PSY.Generator, sys)
+    ]
+    vre_files = (
+        ("WIND", "wind", generator_names(PSY.PrimeMovers.WT)),
+        ("PV", "pv", generator_names(PSY.PrimeMovers.PVe)),
+    )
     for scenario in readdir(ts_root)
         scenario_path = joinpath(ts_root, scenario)
         isdir(scenario_path) || continue
         for sim_year in readdir(scenario_path)
             year_path = joinpath(scenario_path, sim_year)
             isdir(year_path) || continue
-            for kind in ("WIND", "PV", "RTPV", "Hydro")
-                kind_dir = joinpath(year_path, kind)
-                isdir(kind_dir) || continue
-                for file in readdir(kind_dir)
-                    path = joinpath(kind_dir, file)
-                    isfile(path) || continue
-                    if endswith(lowercase(file), ".csv")
-                        df = _read_csv_df(path)
-                        for name in String.(names(df))
-                            if !(name in zone_names || name in ("Year", "Month", "Day", "Period"))
-                                continue
-                            end
-                        end
-                    end
-                end
+            for (kind, suffix, generators) in vre_files, stage in ("DAY_AHEAD", "REAL_TIME")
+                isempty(generators) && continue
+                path = joinpath(year_path, kind, "$(stage)_$(suffix).csv")
+                isfile(path) || error("Missing $(kind) time series file: $(path)")
+                missing_generators = sort(setdiff(generators, names(_read_csv_df(path))))
+                isempty(missing_generators) || error(
+                    "$(path) has no column for $(kind) generator(s): $(join(missing_generators, ", "))"
+                )
             end
         end
     end
@@ -336,7 +345,7 @@ function validate_emis_project(project_root::AbstractString)
     _validate_technology_finance_coverage(config_root, investor_root)
     _validate_project_investor_bundles(investor_root)
     _validate_system_market_files(config_root, investor_root)
-    _validate_psy_generator_names(config_root, ts_root)
+    _validate_psy_generator_names(project_root, ts_root)
     _validate_derating_columns(config_root, investor_root)
 
     return project_root
