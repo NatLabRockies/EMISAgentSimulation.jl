@@ -440,7 +440,7 @@ function _write_projectoptions_for_investor(
         defaults;
         reference_options=reference_options,
     )
-    validate_project_option_cost_curve(completed_options, joinpath(investor_dir, "projectoptions.csv"))
+    validate_project_option_cost_curve(completed_options, joinpath(investor_dir, "projectoptions.csv"), technologies)
     CSV.write(joinpath(investor_dir, "projectoptions.csv"), completed_options)
     return completed_options
 end

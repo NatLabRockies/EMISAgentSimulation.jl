@@ -146,11 +146,19 @@ function _normalize_default_value(field, value)
     return isinteger(parsed) ? string(Int(parsed)) : string(parsed)
 end
 
-function validate_project_option_cost_curve(df::DataFrames.DataFrame, path::AbstractString)
+function validate_project_option_cost_curve(
+    df::DataFrames.DataFrame,
+    path::AbstractString,
+    technologies::DataFrames.DataFrame,
+)
     if !("Unit Type" in names(df)) || !("Output_pct_0" in names(df))
         return nothing
     end
-    thermal_types = Set(["ST", "CT", "CC", "GT", "RE_CT", "IC", "NU_ST"])
+    _require_columns(technologies, [:unit_type, :class], "technologies.csv")
+    thermal_types = Set(
+        uppercase(strip(string(row.unit_type))) for row in eachrow(technologies) if
+        string(row.class) == "thermal"
+    )
     for row in eachrow(df)
         unit_type = uppercase(strip(string(row[Symbol("Unit Type")])) )
         unit_type in thermal_types || continue
