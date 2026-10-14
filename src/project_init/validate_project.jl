@@ -29,7 +29,7 @@ function _base_project_paths(project_root::AbstractString)
         heterogeneity = get(metadata, "heterogeneity", "Heterogeneous")
         config_root = joinpath(base_dir, heterogeneity, "system_config")
         investor_root = joinpath(base_dir, heterogeneity, "investors")
-        ts_root = joinpath(project_root, "timeseries")
+        ts_root = get(metadata, "timeseries_data_dir", joinpath(project_root, "timeseries"))
         return config_root, investor_root, ts_root
     end
     return project_root, joinpath(project_root, "investors"), joinpath(project_root, "timeseries")
@@ -77,12 +77,15 @@ function _validate_probability_sum(config_root::AbstractString)
     return nothing
 end
 
+"""
+Errors if a regional Load csv has a zone column that `zones.csv` cannot resolve, or if a
+zone has no column. Columns are resolved through the same `SystemConfig` alias lookup
+(`zone_id`/`area_name`/`load_column`/position) the runtime uses in
+`_canonical_zone_load_frame`, so this checks the file exactly as the simulation reads it.
+"""
 function _validate_load_zone_columns(config_root::AbstractString, ts_root::AbstractString)
-    zones_path = joinpath(config_root, "zones.csv")
-    zones = _read_csv_df(zones_path)
-    _must_have_column(zones, :zone_name, zones_path)
-    zone_names = Set(_as_string.(zones.zone_name))
     isdir(ts_root) || return nothing
+    cfg = load_system_config(dirname(config_root))
 
     valid_scenarios = _project_scenario_names(config_root)
     for scenario in readdir(ts_root)
@@ -96,15 +99,19 @@ function _validate_load_zone_columns(config_root::AbstractString, ts_root::Abstr
             isdir(year_path) || continue
             load_dir = joinpath(year_path, "Load")
             isdir(load_dir) || continue
-            load_file = joinpath(load_dir, "DAY_AHEAD_regional_Load.csv")
-            isfile(load_file) || continue
-            load_df = _read_csv_df(load_file)
-            if :Year in names(load_df) && :Month in names(load_df) && :Day in names(load_df) && :Period in names(load_df)
-                for zone in zone_names
-                    if !(String(zone) in String.(names(load_df)))
-                        error("Load timeseries for $(scenario)/$(sim_year) is missing zone column $(zone)")
-                    end
+            for filename in ("DAY_AHEAD_regional_Load.csv", "REAL_TIME_regional_Load.csv")
+                load_file = joinpath(load_dir, filename)
+                isfile(load_file) || continue
+                columns = _as_string.(names(_read_csv_df(load_file))[cfg.zone_column_start:end])
+                resolved = Set{String}()
+                for column in columns
+                    haskey(cfg.zone_lookup, column) ||
+                        error("$(load_file) has load column $(column) that matches no zone in zones.csv")
+                    push!(resolved, cfg.zone_lookup[column])
                 end
+                missing_zones = sort(setdiff(cfg.zone_names, resolved))
+                isempty(missing_zones) ||
+                    error("$(load_file) has no load column for zone(s): $(join(missing_zones, ", "))")
             end
         end
     end
