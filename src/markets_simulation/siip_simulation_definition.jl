@@ -6,11 +6,18 @@
 # assign_dual_variable! which only accepts a single D<:PSY.Service. Both are bugs: this
 # override mirrors what construct_service! does — fetch only the named service and register
 # its dual individually.
+#
+# PSI's method takes T <: PSY.Service; this one is limited to the service types EMIS builds
+# ServiceModels for, so it adds a more specific method instead of replacing PSI's (which is
+# not allowed during precompilation). test/test_PSI.jl checks that every service type EMIS
+# uses dispatches here.
+const EMIS_DUAL_SERVICE_TYPES = Union{PSY.VariableReserve, PSY.ReserveDemandCurve}
+
 function PSI.add_constraint_dual!(
     container::PSI.OptimizationContainer,
     sys::PSY.System,
     model::PSI.ServiceModel{T, D},
-) where {T <: PSY.Service, D <: PSI.AbstractServiceFormulation}
+) where {T <: EMIS_DUAL_SERVICE_TYPES, D <: PSI.AbstractServiceFormulation}
     if !isempty(PSI.get_duals(model))
         name = PSI.get_service_name(model)
         service = PSY.get_component(T, sys, name)
@@ -49,26 +56,37 @@ PSI.should_write_resulting_value(::Type{SSI.StorageEnergyShortageVariable}) = fa
 # DevicePower which has isapprox bounds checks. When Xpress returns EnergyVariable = soc_max + ε
 # (within default FEASTOL ~1e-6), the IC for the next step has soc_max - ic = -ε < 0, making
 # ReserveCoverageConstraint at t=1 a single-constraint IIS. This override clamps to [soc_min, soc_max].
+#
+# PSI's method takes a Union of the two IC vector types below; one method per vector type is
+# more specific, so EMIS adds methods instead of replacing PSI's (which is not allowed during
+# precompilation).
 function PSI.update_initial_conditions!(
-    ics::T,
-    state::PSI.SimulationState,
-    ::Dates.Millisecond,
-) where {
-    T <: Union{
-        Vector{
-            Union{
-                PSI.InitialCondition{PSI.InitialEnergyLevel, Nothing},
-                PSI.InitialCondition{PSI.InitialEnergyLevel, Float64},
-            },
-        },
-        Vector{
-            Union{
-                PSI.InitialCondition{PSI.InitialEnergyLevel, Nothing},
-                PSI.InitialCondition{PSI.InitialEnergyLevel, JuMP.VariableRef},
-            },
+    ics::Vector{
+        Union{
+            PSI.InitialCondition{PSI.InitialEnergyLevel, Nothing},
+            PSI.InitialCondition{PSI.InitialEnergyLevel, Float64},
         },
     },
-}
+    state::PSI.SimulationState,
+    ::Dates.Millisecond,
+)
+    return _clamp_energy_level_ics!(ics, state)
+end
+
+function PSI.update_initial_conditions!(
+    ics::Vector{
+        Union{
+            PSI.InitialCondition{PSI.InitialEnergyLevel, Nothing},
+            PSI.InitialCondition{PSI.InitialEnergyLevel, JuMP.VariableRef},
+        },
+    },
+    state::PSI.SimulationState,
+    ::Dates.Millisecond,
+)
+    return _clamp_energy_level_ics!(ics, state)
+end
+
+function _clamp_energy_level_ics!(ics, state::PSI.SimulationState)
     for ic in ics
         storage = PSI.get_component(ic)
         var_val = PSI.get_system_state_value(
@@ -102,26 +120,27 @@ end
 # On = 1+1-0 = 2 > 1. Fix: if On[τ-1]=0 in decision state (unit was actually off), clamp
 # IC→0 so On = 0+1-0 = 1 ✓. The try/catch handles the UC context where τ-sim_resolution
 # falls outside the decision dataset range.
+#
+# As above, one method per IC vector type, so EMIS adds methods instead of replacing PSI's.
 const DS = PSI.DeviceStatus
 
 function PSI.update_initial_conditions!(
-    ics::T,
+    ics::Vector{Union{PSI.InitialCondition{DS, Nothing}, PSI.InitialCondition{DS, Float64}}},
     state::PSI.SimulationState,
     sim_resolution::Dates.Millisecond,
-) where {
-    T <: Union{
-        Vector{Union{
-            PSI.InitialCondition{DS, Nothing},
-            PSI.InitialCondition{DS, Float64},
-        }},
-        Vector{
-            Union{
-                PSI.InitialCondition{DS, Nothing},
-                PSI.InitialCondition{DS, JuMP.VariableRef},
-            },
-        },
-    },
-}
+)
+    return _update_device_status_ics!(ics, state, sim_resolution)
+end
+
+function PSI.update_initial_conditions!(
+    ics::Vector{Union{PSI.InitialCondition{DS, Nothing}, PSI.InitialCondition{DS, JuMP.VariableRef}}},
+    state::PSI.SimulationState,
+    sim_resolution::Dates.Millisecond,
+)
+    return _update_device_status_ics!(ics, state, sim_resolution)
+end
+
+function _update_device_status_ics!(ics, state::PSI.SimulationState, sim_resolution::Dates.Millisecond)
     for ic in ics
         isnothing(PSI.get_value(ic)) && continue
         comp_type = PSI.get_component_type(ic)
