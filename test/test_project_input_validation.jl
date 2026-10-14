@@ -175,3 +175,17 @@ const EXISTING_TEMPLATE = joinpath(
     mkpath(joinpath(investor_dir, "markets_data"))
     @test_throws ErrorException EMISAgentSimulation._validate_investor_market_bundle(investor_dir)
 end
+
+@testset "Cost-curve check uses technologies.csv thermal class" begin
+    options = DataFrame(
+        "Unit Type" => ["MY_GAS"],
+        "Output_pct_0" => ["0.4"],
+        "HR_avg_0" => ["NA"],   # incomplete curve point
+    )
+    path = "projectoptions.csv"
+    custom = DataFrame(unit_type=["MY_GAS"], class=["thermal"])
+    @test_throws r"incomplete curve point" EMISAgentSimulation.validate_project_option_cost_curve(options, path, custom)
+
+    not_thermal = DataFrame(unit_type=["MY_GAS"], class=["renewable"])
+    @test EMISAgentSimulation.validate_project_option_cost_curve(options, path, not_thermal) === nothing
+end
