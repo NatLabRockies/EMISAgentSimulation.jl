@@ -594,13 +594,6 @@ function find_zonal_area(
 end
 
 """
-Returns the "zone_<n>" identifier for a given PSY.Area name, using `ZONE_NUMBER_MAP`.
-"""
-function get_zone_for_area(area_name::String)
-    return "zone_$(ZONE_NUMBER_MAP[area_name])"
-end
-
-"""
 This function transforms the timeseries of PSY Systems.
 """
 

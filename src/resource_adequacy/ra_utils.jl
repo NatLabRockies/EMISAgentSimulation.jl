@@ -583,6 +583,7 @@ function create_base_system(initial_system::PSY.System,
                     @info "CT template bus=$(ct_bus_id) → area=$(PSY.get_name(PSY.get_area(first(ct_bus_match))))"
                 end
 
+                system_config = load_system_config(simulation_dir)
                 while !(adequacy_conditions_met)
                     area_lole = Dict{String, Float64}()
                     for area in PSY.get_components(PSY.Area, capacity_market_system)
@@ -596,7 +597,7 @@ function create_base_system(initial_system::PSY.System,
                     target_bus =
                         first(get_buses_in_area(capacity_market_system, target_area_name))
                     target_bus_id = string(PSY.get_number(target_bus))
-                    target_zone = get_zone_for_area(target_area_name)
+                    target_zone = get_zone_name(system_config, target_area_name)
                     @info "Targeting area $(target_area_name) (bus $(PSY.get_name(target_bus))) for incremental CTs"
                     scalar = 2
                     ratio = 0
