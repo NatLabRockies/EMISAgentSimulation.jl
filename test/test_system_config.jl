@@ -84,3 +84,37 @@ using EMISAgentSimulation
     @test legacy.base_load_year == 2020
     @test_throws ErrorException load_system_config(joinpath(tmpdir, "missing"))
 end
+
+@testset "Generator table unit types resolve to technologies.csv" begin
+    root = mktempdir()
+    config_dir = joinpath(root, "system_config")
+    cp(joinpath(@__DIR__, "..", "config", "ercot_est", "system_config"), config_dir)
+    rm(joinpath(config_dir, "unit_type_aliases.csv"))
+    source_dir = joinpath(root, "sys", "RTS_Data", "SourceData")
+    mkpath(source_dir)
+    write_gen(unit_types) = CSV.write(
+        joinpath(source_dir, "gen.csv"),
+        DataFrame("GEN UID" => ["g$(i)" for i in eachindex(unit_types)],
+                  "Unit Type" => unit_types, "PMax MW" => ones(length(unit_types))),
+    )
+    sys_dir = joinpath(root, "sys")
+
+    # Already technologies.csv unit types: kept, no alias file needed.
+    write_gen(["HY", "CT", "WT", "PVe"])
+    @test EMISAgentSimulation.read_generator_table(sys_dir, root)[!, "Unit Type"] == ["HY", "CT", "WT", "PVe"]
+
+    # Legacy source names: an error without aliases, converted with them.
+    write_gen(["HYDRO", "NG-CT", "COAL", "WT"])
+    @test_throws r"HYDRO, NG-CT" EMISAgentSimulation.read_generator_table(sys_dir, root)
+    CSV.write(joinpath(config_dir, "unit_type_aliases.csv"),
+              DataFrame(source_unit_type = ["HYDRO", "NG-CT", "COAL"], unit_type = ["HY", "CT", "ST"]))
+    @test EMISAgentSimulation.read_generator_table(sys_dir, root)[!, "Unit Type"] == ["HY", "CT", "ST", "WT"]
+
+    # A name in neither file is reported, not guessed.
+    write_gen(["HYDRO", "MYSTERY"])
+    @test_throws r"MYSTERY" EMISAgentSimulation.read_generator_table(sys_dir, root)
+
+    @test EMISAgentSimulation.vre_kind("Wind") == :wind
+    @test EMISAgentSimulation.vre_kind("Solar PV") == :pv
+    @test EMISAgentSimulation.vre_kind("Gas CT") === nothing
+end

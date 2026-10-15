@@ -30,6 +30,10 @@ These files must be in the copied input folder:
 
 - `project_spec.csv`: paths, investors, and generated directory names
 - `zones.csv`: EMIS zones and load-column names
+- `unit_type_aliases.csv` (optional): `source_unit_type,unit_type` rows mapping unit-type
+  names used in a system's `gen.csv` (e.g. legacy RTS/NTP names such as `NG-CT`, `HYDRO`)
+  to `technologies.csv` unit types. Names already in `technologies.csv` need no row; any
+  other unknown name is an error. Projects built by `initialize_emis_project` don't need it.
 - `technologies.csv`: unit-type classifications and technology defaults
 - `scenarios.csv`: scenario names, PCM labels, and weather years
 - `projectoptions.csv`: minimal new-build candidates

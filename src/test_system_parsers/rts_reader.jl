@@ -122,9 +122,7 @@ function read_rts(data_dir::String,
         net_load_df_rt[:, "load_$(zone_name)"] = scaled_test_sys_load_rt[:, zone]
     end
 
-    existing_generator_data = DataFrames.DataFrame(
-        CSV.File(joinpath(test_system_dir, "RTS_Data", "SourceData", "gen.csv")),
-    )
+    existing_generator_data = read_generator_table(test_system_dir, data_dir)
 
     wind_timeseries_file = joinpath(
         test_system_dir,
@@ -234,8 +232,8 @@ function read_rts(data_dir::String,
     gen_availability_df_rt = scaled_test_sys_load_rt[:, 1:4]
 
     for i in 1:DataFrames.nrow(existing_generator_data)
-        technology_category = lowercase(get_technology_category(system_cfg, String(existing_generator_data[i, "Unit Type"])))
-        if occursin("wind", technology_category)
+        technology_category = get_technology_category(system_cfg, String(existing_generator_data[i, "Unit Type"]))
+        if vre_kind(technology_category) == :wind
             gen_availability_df[:, existing_generator_data[i, "GEN UID"]] =
                 wind_timeseries_data[:, existing_generator_data[i, "GEN UID"]] /
                 existing_generator_data[i, "PMax MW"]
@@ -247,7 +245,7 @@ function read_rts(data_dir::String,
                 wind_timeseries_data[:, existing_generator_data[i, "GEN UID"]]
             net_load_df_rt[:, existing_generator_data[i, "GEN UID"]] =
                 wind_timeseries_data_rt[:, existing_generator_data[i, "GEN UID"]]
-        elseif occursin("solar", technology_category) || occursin("pv", technology_category)
+        elseif vre_kind(technology_category) == :pv
             gen_availability_df[:, existing_generator_data[i, "GEN UID"]] =
                 pv_timeseries_data[:, existing_generator_data[i, "GEN UID"]] /
                 existing_generator_data[i, "PMax MW"]
@@ -266,8 +264,7 @@ function read_rts(data_dir::String,
             gen_availability_df_rt[:, existing_generator_data[i, "GEN UID"]] =
                 rtpv_timeseries_data_rt[:, existing_generator_data[i, "GEN UID"]] /
                 existing_generator_data[i, "PMax MW"]
-        elseif existing_generator_data[i, "Unit Type"] == "HYDRO" ||
-               existing_generator_data[i, "Unit Type"] == "ROR"
+        elseif occursin("hydro", lowercase(technology_category))
             gen_availability_df[:, existing_generator_data[i, "GEN UID"]] =
                 hydro_timeseries_data[:, existing_generator_data[i, "GEN UID"]] /
                 existing_generator_data[i, "PMax MW"]

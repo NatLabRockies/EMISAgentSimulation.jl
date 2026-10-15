@@ -1,3 +1,12 @@
+# Known raw PSY reserve service names that don't match on-disk time-series file names by
+# case alone. Mirrors system_extractor.jl's RESERVE_PRODUCT_ALIASES; duplicated here
+# rather than shared, since src/project_init/ may depend on the rest of the package but
+# not the other way around.
+const _RESERVE_NAME_ALIASES = Dict(
+    "REG_DN" => "Reg_Down",
+    "REG_UP" => "Reg_Up",
+)
+
 function prune_system_devices!(
     sys::PSY.System,
     prune_dict::Dict{Type{<:PSY.Component}, Array{AbstractString}},
@@ -361,14 +370,7 @@ function _canonical_load_peak(system_cfg::SystemConfig, load_df::DataFrames.Data
     return maximum(sum(eachcol(zone_frame)))
 end
 
-# Known raw PSY reserve service names that don't match on-disk time-series file names by
-# case alone. Mirrors system_extractor.jl's RESERVE_PRODUCT_ALIASES; duplicated here
-# rather than shared, since src/project_init/ may depend on the rest of the package but
-# not the other way around.
-const _RESERVE_NAME_ALIASES = Dict(
-    "REG_DN" => "Reg_Down",
-    "REG_UP" => "Reg_Up",
-)
+
 
 """Find a canonical reserve time-series file for `product` under `reserves_dir`,
 matching case-insensitively and falling back to `_RESERVE_NAME_ALIASES`."""

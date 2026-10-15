@@ -275,6 +275,37 @@ function get_technology_category(cfg::SystemConfig, unit_type::AbstractString)
     return String(technology["category"])
 end
 
+"""
+    vre_kind(category)
+
+`:wind`, `:pv`, or `nothing` for a `technologies.csv` category; the rule that selects which
+generators take wind or PV availability profiles.
+"""
+function vre_kind(category::AbstractString)
+    lowered = lowercase(category)
+    occursin("wind", lowered) && return :wind
+    (occursin("solar", lowered) || occursin("pv", lowered)) && return :pv
+    return nothing
+end
+
+"""
+    load_unit_type_aliases(data_dir)
+
+Map of unit-type names used in a system's source data (e.g. a legacy `gen.csv`) to
+`technologies.csv` unit types, from the optional `unit_type_aliases.csv`
+(`source_unit_type,unit_type`) next to `zones.csv`. Empty when the file is absent.
+"""
+function load_unit_type_aliases(data_dir::AbstractString)
+    path = joinpath(_resolve_system_config_dir(data_dir), "unit_type_aliases.csv")
+    isfile(path) || return Dict{String, String}()
+    aliases = read_data(path)
+    (hasproperty(aliases, :source_unit_type) && hasproperty(aliases, :unit_type)) ||
+        error("$(path) must have source_unit_type and unit_type columns")
+    return Dict(
+        _coerce_string(row.source_unit_type) => _coerce_string(row.unit_type) for row in eachrow(aliases)
+    )
+end
+
 function is_mopr_exempt(cfg::SystemConfig, unit_type::AbstractString)
     technology = get(cfg.technology_lookup, String(unit_type), nothing)
     isnothing(technology) && error("Unknown technology unit type: $(unit_type)")

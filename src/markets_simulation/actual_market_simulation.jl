@@ -377,17 +377,15 @@ function calculate_reserve_scaling_factor(simulation::AgentSimulation)
     case = get_case(simulation)
 
     test_system_dir = get_sys_dir(case)
-    existing_generator_data = DataFrames.DataFrame(
-        CSV.File(joinpath(test_system_dir, "RTS_Data", "SourceData", "gen.csv")),
-    )
+    data_dir = get_data_dir(case)
+    system_config = load_system_config(data_dir)
+    is_pv_or_wind(unit_type) =
+        !isnothing(vre_kind(get_technology_category(system_config, String(unit_type))))
+
+    existing_generator_data = read_generator_table(test_system_dir, data_dir)
     initial_pv_wind_capacity = sum(
-        existing_generator_data[
-            (existing_generator_data[
-                :,
-                "Unit Type",
-            ] .== "WIND") .| (existing_generator_data[:, "Unit Type"] .== "PV"),
-            "PMax MW",
-        ],
+        existing_generator_data[is_pv_or_wind.(existing_generator_data[:, "Unit Type"]), "PMax MW"];
+        init = 0.0,
     )
 
     current_portfolio = vcat(get_existing.(get_investors(simulation))...)
@@ -395,7 +393,7 @@ function calculate_reserve_scaling_factor(simulation::AgentSimulation)
     current_pv_wind_capacity = 0.0
 
     for project in current_portfolio
-        if get_type(get_tech(project)) == "WT" || get_type(get_tech(project)) == "PVe"
+        if is_pv_or_wind(get_type(get_tech(project)))
             current_pv_wind_capacity = current_pv_wind_capacity + get_maxcap(project)
         end
     end
