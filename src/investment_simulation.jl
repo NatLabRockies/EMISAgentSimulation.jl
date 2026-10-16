@@ -177,7 +177,6 @@ function run_agent_simulation(
         #     iteration_year, simulation_years, get_data_dir(case),
         #     get_rt_resolution(case),
         #     get_results_dir(simulation), get_outage_dir(case))
-        # @info "Resource adequacies: $(resource_adequacies)"
 
         # Parallelize the processing of scenarios using Distributed.pmap
         # NOTE: pmap risks OOM because each worker receives a full sys_PRAS dict copy
@@ -267,7 +266,6 @@ function run_agent_simulation(
         capacity_market_projects = Project[]
 
         for project in get_activeprojects(simulation)
-            # @info "Year $(iteration_year): Updating operation costs for project $(get_name(project))"
             end_life_year = get_end_life_year(project)
             construction_year = get_construction_year(project)
             if end_life_year >= capacity_market_year &&
@@ -276,7 +274,6 @@ function run_agent_simulation(
             end
 
             # Update variable operation cost based on annual carbon tax for SIIP market clearing
-            # @info "Updating variable operation"
             update_operation_cost!(
                 project,
                 sys_MDs[iteration_year],
@@ -313,13 +310,6 @@ function run_agent_simulation(
 
         # Find which markets to simulate.
         markets = union(hcat(get_markets.(get_investors(simulation))...))
-
-        # for d in PSY.get_components(PSYE.ThermalCleanEnergy,sys_UCs[iteration_year])
-        #     if "CleanEnergyConstraint" ∉ PSY.get_name.(d.services)
-        #         println("$(PSY.get_name(d))")
-        #         add_clean_energy_contribution!(sys_UCs[iteration_year], d)
-        #     end
-        # end
 
         # Create realzed market prices for existing projects.
         @info "Creating realized market data for existing projects to calculate profits and update forecasts for next iteration"
@@ -419,7 +409,6 @@ function run_agent_simulation(
         for investor in get_investors(simulation)
             projects = get_projects(investor)
             for (i, project) in enumerate(projects)
-                # @info "$(i): Updating realized profits for $(get_name(project))"
                 update_realized_profits!(project,
                     realized_market_prices,
                     realized_capacity_factors_md,

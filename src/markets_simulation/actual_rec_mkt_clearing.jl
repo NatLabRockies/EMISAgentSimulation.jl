@@ -131,17 +131,17 @@ function rec_market_clearing_non_binding(rec_requirement::Float64,
     #Define Objective Function - Social Welfare Maxmization
     JuMP.@objective(rec_mkt, Min, total_supply_cost + v_REC * ACP)
 
-    println("Actual REC Market Clearing:")
+    @info "Actual REC Market Clearing:"
     JuMP.optimize!(rec_mkt)
 
-    println(JuMP.termination_status(rec_mkt))
-    println(JuMP.objective_value(rec_mkt))
+    @info "Termination Status: $(JuMP.termination_status(rec_mkt))"
+    @info "Objective Value: $(JuMP.objective_value(rec_mkt))"
 
     #REC Market Clearing Price is the shadow variable of the REC balance constraint
     rec_price = AxisArrays.AxisArray(reshape([JuMP.dual(mkt_clear)], 1), [1])
     rec_accepted_bid =
         Dict(supply_curve[s][1] => value.(Q_supply[s]) for s in 1:n_supply_seg)
-    println(rec_price)
+    @info "REC Price: $(rec_price)"
     #------------------------------------------------------------------------------------------------
     return rec_price, rec_accepted_bid
 end
@@ -198,17 +198,17 @@ function rec_market_clearing_binding(rec_requirement::Float64,
     #Define Objective Function - Social Welfare Maxmization
     JuMP.@objective(rec_mkt, Min, total_supply_cost)
 
-    println("Actual REC Market Clearing:")
+    @info "Actual REC Market Clearing:"
     JuMP.optimize!(rec_mkt)
 
-    println(JuMP.termination_status(rec_mkt))
-    println(JuMP.objective_value(rec_mkt))
+    @info "Termination Status: $(JuMP.termination_status(rec_mkt))"
+    @info "Objective Value: $(JuMP.objective_value(rec_mkt))"
 
     #REC Market Clearing Price is the shadow variable of the REC balance constraint
     rec_price = AxisArrays.AxisArray(reshape([JuMP.dual(mkt_clear)], 1), [1])
     rec_accepted_bid =
         Dict(supply_curve[s][1] => value.(Q_supply[s]) for s in 1:n_supply_seg)
-    println(rec_price)
+    @info "REC Price: $(rec_price)"
     #------------------------------------------------------------------------------------------------
     return rec_price, rec_accepted_bid
 end
@@ -230,13 +230,10 @@ function update_rec_correction_factors!(active_projects::Vector{Project},
         tech = get_type(get_tech(project))
 
         if project_name in keys(realized_capacity_factors)
-            #println(project_name)
             expected_rec_production = get_expected_rec_certificates(project)
-            #println(expected_rec_production)
             actual_rec_production =
                 sum(realized_capacity_factors[project_name]) * get_maxcap(project) *
                 rt_resolution / 60
-            #println(actual_rec_production)
             zone_tech_expected["$(zone)_$(tech)"] += expected_rec_production
             zone_tech_actual["$(zone)_$(tech)"] += actual_rec_production
         end

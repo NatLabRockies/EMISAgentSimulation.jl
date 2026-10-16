@@ -1,12 +1,17 @@
 name = "EMISAgentSimulation"
 uuid = "31190161-dc2b-4b0d-b10a-53550de1824a"
-version = "0.1.0"
-authors = ["manwar2 "]
+version = "0.2.0"
+authors = [
+    "Bethany Frew <bethany.frew@nlr.gov>",
+    "Purboday Ghosh <purboday.ghosh@nlr.gov>",
+    "Abdelrahman Ayad <abdelrahman.ayad@nlr.gov>",
+    "Muhammad Bashar Anwar",
+    "Nongchao Guo",
+    ]
 
 [deps]
 AxisArrays = "39de3d68-74b9-583c-8d2d-e117c070f3a9"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
-Cbc = "9961bab8-2fa3-5c5a-9d89-47fab24efd76"
 ClusterManagers = "34f1f09b-3a8b-5176-ab39-66d58a4d544e"
 Clustering = "aaaa29a8-35af-508c-8bc3-b662a17a0fe5"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
@@ -33,7 +38,6 @@ PowerSimulations = "e690365d-45e2-57bb-ac84-44ba829e73c4"
 PowerSystems = "bcd98974-b02a-5e2f-9ee0-a103f5c450dd"
 PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
-Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 SiennaPRASInterface = "4b496c86-8d00-441d-b504-079c710e0aa7"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
@@ -42,7 +46,6 @@ TimeSeries = "9e3dc215-6440-5c97-bce1-76c03772f85e"
 TimeZones = "f269a46b-ccf7-5d73-abea-4c690281aa53"
 TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
 UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
-XLSX = "fdbf4ff8-1666-58a4-91e7-1b58723a45e0"
 Xpress = "9e70acf3-d6c9-5be6-b5bd-4e2c73e3e054"
 
 [compat]

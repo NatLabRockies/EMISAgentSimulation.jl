@@ -118,8 +118,8 @@ function chronological_clustering(xi, K)
         [size(clusters[clusters .== cluster], 1) for cluster in unique_clusters]
 
     # Print the representative periods and their corresponding time-period durations.
-    #println("Representative Periods:", representative_periods)
-    #println("Time-Period Durations:", time_period_durations)
+    @info "Representative Periods: $(representative_periods)"
+    @info "Time-Period Durations: $(time_period_durations)"
 
     return cluster_hours
 end

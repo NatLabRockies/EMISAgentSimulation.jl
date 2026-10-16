@@ -56,20 +56,6 @@ end
 ##############################################
 # Converting FOR and MTTR to λ and μ
 ##############################################
-##TODO: AA: remove duplicate function after validation
-## Duplicate function
-# function outage_to_rate(outage_data::Tuple{Float64, Int64})
-#     for_gen = outage_data[1]
-#     mttr = outage_data[2]
-#     if (mttr != 0)
-#         μ = 1 / mttr
-#     else
-#         μ = 1.0
-#     end
-#     λ = (μ * for_gen) / (1 - for_gen)
-
-#     return (λ = λ, μ = μ)
-# end
 
 #######################################################
 # Aux Functions
@@ -1265,109 +1251,6 @@ function make_pras_system(sys::PSY.System;
     return pras_system
 end
 
-function generate_csv_outage_profile(pras_system::PRAS.SystemModel;
-    location::Union{Nothing, String} = nothing, num_runs::Union{Nothing, Int} = nothing,
-    num_scenarios::Union{Nothing, Int} = nothing)
-    """
-    generate_outage_profile(pras_system,num_runs,psy_sys,num_scenarios,location)
-    Process the assess results to get timeseries of generator status and include 
-    this timeseries data to the corresponding component in PSY System and exported
-    using to_json method (serializing the PSY System).
-    
-    ...
-    # Arguments
-    - `pras_system::PRAS.SystemModel`: PRAS System
-    - `num_runs::Int64`: Number of PRAS runs
-    - `psy_sys::PSY.System`: PSY System
-    - `num_scenarios::Int64`: Number of scenarios of user interest.
-    - `location::String`: Location to store outage profile.
-    ...
-    # Examples
-    ```julia-repl
-    julia> generate_outage_profile(results,pras_sys,psy_sys,1)
-    PSY System exported using to_json method in InfrastructureSystems
-    ```
-    """
-    #kwargs handling
-    if (location === nothing)
-        location = dirname(dirname(@__DIR__))
-        @warn "Location to save the exported PSY System not specified. Using the data folder of the module."
-    end
-
-    if (num_runs === nothing)
-        num_runs = 100
-        @warn "Number of samples of PRAS Assess not specified. Using 10,000 samples."
-    end
-
-    if (num_scenarios === nothing)
-        num_scenarios = 1
-        @warn "Number of scenarios to be exported not specified. Only exporting one scenario."
-    end
-
-    # Run PRAS Analysis
-    @info "Running PRAS SequentialMonteCarlo Resource Adequacy analysis for $(num_runs) runs..."
-    shortfall_samples, gens_avail, stors_avail, gen_stors_avail, lines_avail = PRAS.assess(
-        pras_system,
-        PRAS.SequentialMonteCarlo(; samples = num_runs),
-        PRAS.ShortfallSamples(),
-        PRAS.GeneratorAvailability(),
-        PRAS.StorageAvailability(),
-        PRAS.GeneratorStorageAvailability(),
-        PRAS.LineAvailability(),
-    )
-    @info "Successfully completed PRAS Runs. Exporting outage profiles now..."
-    # Setup to save the new PSY System with scenario timeseries data
-    #working_dir = pwd();
-    working_dir = location
-    dt_now = Dates.format(Dates.now(), "dd-u-yy-H-M-S")
-
-    dir_name = joinpath(
-        working_dir,
-        "data",
-        "Generated-Outage-Profile-JSON",
-        string(UUIDs.uuid4()),
-        dt_now,
-    )
-
-    #  **TODO: IF generating systems for multiple scenarios, remember to delete the timeseries data from previous scenario.
-    asset_dict = Dict([
-        (:generators, (gens_avail, PSY.Generator)),
-        (:storages, (stors_avail, PSY.Storage)),
-        (:generatorstorages, (gen_stors_avail, PSY.StaticInjection)),
-        (:lines, (lines_avail, PSY.Branch)),
-    ])
-    asset_keys=[]
-
-    for k in keys(asset_dict)
-        if (length(getfield(pras_system, k)) != 0)
-            push!(asset_keys, k)
-        end
-    end
-    @info "Scenarios of interest will be sorted according to sample unserved energy. The availability for individual asset types will be exported to CSV sheets."
-
-    sample_idx = sortperm(shortfall_samples[]; rev = true)
-
-    for i in 1:num_scenarios
-        mkpath(joinpath(dir_name, string(i)))
-
-        for k in asset_keys
-            asset_status_all = asset_dict[k][1].available[:, :, sample_idx[i]]
-            asset_names = getfield(asset_dict[k][1], k)
-
-            df_outage = DataFrames.DataFrame()
-
-            for (j, asset_name) in enumerate(asset_names)
-                df_outage[!, asset_name] = asset_status_all[j, :]
-            end
-
-            csv_path = joinpath(dir_name, string(i), string(asset_dict[k][2], ".csv"))
-            CSV.write(csv_path, df_outage; writeheader = true)
-        end
-        @info "Succesfully exported the outage profile for scenario $(i)."
-    end
-    @info "Succesfully exported the outage profiles. The CSV files for all asset types for all scenarios are available here : $(dir_name)."
-end
-
 #######################################################
 # Main Function to make the PRAS System
 #######################################################
@@ -1478,7 +1361,6 @@ function add_csv_time_series!(sys_DA::PSY.System, sys_RT::PSY.System,
 
         # Adding TimeSeries Data to PSY System
         try
-            # @info "Adding availability time series data for $(asset_name) Generator to DA System..."
             PSY.add_time_series!(
                 sys_DA,
                 PSY.get_component(PSY.Generator, sys_DA, asset_name),
@@ -1489,7 +1371,6 @@ function add_csv_time_series!(sys_DA::PSY.System, sys_RT::PSY.System,
         end
 
         try
-            # @info "Adding availability time series data for $(asset_name) Generator to RT System..."
             PSY.add_time_series!(
                 sys_RT,
                 PSY.get_component(PSY.Generator, sys_RT, asset_name),

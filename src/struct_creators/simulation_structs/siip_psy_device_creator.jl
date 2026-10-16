@@ -131,7 +131,6 @@ This function creates a PowerSystems EnergyReservoirStorage unit.
 EnergyReservoirStorage in PSY: https://nrel-sienna.github.io/PowerSystems.jl/stable/model_library/generated_EnergyReservoirStorage/#EnergyReservoirStorage
 """
 function create_PSY_generator(gen::BatteryEMIS{<: BuildPhase}, sys::PSY.System)
-    # @info "Creating PSY EnergyReservoirStorage for battery $(get_name(gen))"
     tech = get_tech(gen)
     base_power = get_base_power(gen)
     gen_name = get_name(gen)

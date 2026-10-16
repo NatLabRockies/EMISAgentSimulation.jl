@@ -105,12 +105,6 @@ function add_profitable_option(projects::Vector{Project},
                             portfolio_preference_multipliers,
                             solver)
 
-                    #= println(get_name(project))
-                    println(annual_profit)
-                    println(project_utility)
-                    println(counter_by_zone[get_zone(get_tech(project))])
-                    println(max_new_options[get_name(project)]) =#
-
                     if project_utility >= 0
                         new_option = deepcopy(project)
                         push!(profitable_type_options, new_option)
@@ -162,12 +156,6 @@ function add_profitable_option(projects::Vector{Project},
                             capacity_forward_years,
                             portfolio_preference_multipliers,
                             solver)
-
-                    #= println(get_name(option))
-                    println(annual_profit)
-                    println(project_utility)
-                    println(counter_by_zone[get_zone(get_tech(option))])
-                    println(max_new_options[get_name(option)]) =#
 
                     if project_utility < 0 || annual_profit < -1 ||
                        counter_by_zone[get_zone(get_tech(option))] >

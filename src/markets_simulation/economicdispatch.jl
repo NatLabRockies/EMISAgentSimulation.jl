@@ -345,10 +345,10 @@ function economicdispatch(system::MarketClearingProblem{Z, T},
         end_day_storage_level[g in storage_projects, p in invperiods, t in end_of_day],
         storage_level[g, p, t] == init_storage[g] * max_storage[g]) # Maximum storage level after reserve provision
 
-    println("Actual Energy and A/S Market Clearing:")
+    @info "Actual Energy and A/S Market Clearing:"
     JuMP.optimize!(m)
-    println(JuMP.termination_status(m))
-    println(JuMP.objective_value(m))
+    @info "Termination Status: $(JuMP.termination_status(m))"
+    @info "Objective Value: $(JuMP.objective_value(m))"
 
     energy_dual = JuMP.dual.(energy_market)
     reserve_up_dual = JuMP.dual.(reserve_up_market)

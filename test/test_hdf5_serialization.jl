@@ -15,17 +15,17 @@ import PowerSystems as PSY
 
 function vals_equal(a, b, path::String = "root")::Bool
     if typeof(a) != typeof(b)
-        println("FAIL [$path]: type $(typeof(a)) ≠ $(typeof(b))")
+        @info "FAIL [$path]: type $(typeof(a)) ≠ $(typeof(b))"
         return false
     end
     if a isa AxisArrays.AxisArray
         if collect(a) != collect(b)
-            println("FAIL [$path]: AxisArray data differs")
+            @info "FAIL [$path]: AxisArray data differs"
             return false
         end
         for (i, (ax_a, ax_b)) in enumerate(zip(AxisArrays.axes(a), AxisArrays.axes(b)))
             if AxisArrays.axisvalues(ax_a) != AxisArrays.axisvalues(ax_b)
-                println("FAIL [$path]: AxisArray axis $i values differ")
+                @info "FAIL [$path]: AxisArray axis $i values differ"
                 return false
             end
         end
@@ -33,14 +33,14 @@ function vals_equal(a, b, path::String = "root")::Bool
     end
     if a isa Dict
         if keys(a) != keys(b)
-            println("FAIL [$path]: Dict keys $(keys(a)) ≠ $(keys(b))")
+            @info "FAIL [$path]: Dict keys $(keys(a)) ≠ $(keys(b))"
             return false
         end
         return all(vals_equal(a[k], b[k], "$path.$k") for k in keys(a))
     end
     if a isa AbstractArray
         if size(a) != size(b)
-            println("FAIL [$path]: array size $(size(a)) ≠ $(size(b))")
+            @info "FAIL [$path]: array size $(size(a)) ≠ $(size(b))"
             return false
         end
         return a == b
@@ -52,7 +52,7 @@ function vals_equal(a, b, path::String = "root")::Bool
         return true
     end
     ok = (a == b)
-    ok || println("FAIL [$path]: $a ≠ $b")
+    ok || @info "FAIL [$path]: $a ≠ $b"
     return ok
 end
 

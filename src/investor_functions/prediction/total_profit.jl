@@ -137,8 +137,6 @@ function update_expected_profit!(project::P,
         for y in 1:profit_array_length
     ]
 
-    #println(get_name(project))
-    #println("expected_annual_operating_profit is $(expected_annual_operating_profit) & expected_capacity_revenues is $(expected_capacity_revenues) & expected_rec_revenues is $(expected_rec_revenues)")
 
     #Calculate capacity market going forward cost.
     expected_capacity_going_forward_cost =

@@ -288,13 +288,13 @@ function calculate_operating_profit(gen::P,
     JuMP.optimize!(m)
 
     if Int(JuMP.termination_status(m)) != 1
-        println(JuMP.termination_status(m))
-        println(get_name(gen))
+        @info "Termination status: $(JuMP.termination_status(m))"
+        @info "Generator: $(get_name(gen))"
         f = open("failed_operating_profit_jump_model.txt", "w")
         print(f, m)
         close(f)
         JuMP.compute_conflict!(m)
-        println(get_maxcap(gen))
+        @info "Max capacity: $(get_maxcap(gen))"
     end
 
     profit_array = AxisArrays.AxisArray(value.(profit),
@@ -628,8 +628,8 @@ function calculate_operating_profit(storage::P,
     JuMP.optimize!(m)
 
     if Int(JuMP.termination_status(m)) != 1
-        println(JuMP.termination_status(m))
-        println(get_name(storage))
+        @info "JuMP termination status: $(JuMP.termination_status(m))"
+        @info "Storage: $(get_name(storage))"
         f = open("failed_operating_profit_jump_model.txt", "w")
         print(f, m)
         close(f)

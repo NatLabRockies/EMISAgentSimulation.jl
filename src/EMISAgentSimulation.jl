@@ -363,8 +363,6 @@ import MathOptInterface: AbstractOptimizer
 
 const MOI = MathOptInterface
 
-using Revise
-
 import PowerSystems:
     get_value,
     set_value

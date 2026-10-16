@@ -205,7 +205,6 @@ function add_capacity_market_project!(capacity_market_system::PSY.System,
     timeseries_data_dir::String,
     availability_df_rt::DataFrame)
 
-    # @info "Adding project $(get_name(project)) to capacity market system - scenario $(scenario) for year $(target_year)"
 
     # Must check against ALL stored components (including unavailable ones), since PSY
     # enforces name uniqueness on the full component store, not just available techs.
@@ -289,7 +288,6 @@ function create_capacity_mkt_system(initial_system::PSY.System,
         filter(project -> !in(typeof(project), option_leaftypes), active_projects)
 
     for project in non_option_projects
-        # @info "Evaluating project $(get_name(project)) for inclusion in capacity market system for year $(capacity_market_year)"
         end_life_year = get_end_life_year(project)
         construction_year = get_construction_year(project)
 
@@ -434,7 +432,6 @@ function update_delta_irm!(initial_system::PSY.System,
                         ratio = max(1, scalar * ratio / length(keys(ra_targets)))
 
                         for i in 1:ceil(ratio)
-                            # @info i
                             @info "Updating delta IRM for scenario: $(scenario) - Year: $(iteration_year)"
                             incremental_project = deepcopy(ct_project_template)
                             set_name!(incremental_project, "addition_CT_project_$(count)")
@@ -485,7 +482,7 @@ function update_delta_irm!(initial_system::PSY.System,
                                 samples = PRAS_N_SAMPLES,
                                 simulation_years = simulation_years,
                             )
-                            #println(ra_metrics)
+                            @info "RA Metrics: $(ra_metrics)"
                             adequacy_conditions_met, scarcity_conditions_met =
                                 check_ra_conditions(ra_targets, ra_metrics)
                             count += 1

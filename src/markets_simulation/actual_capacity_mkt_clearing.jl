@@ -164,10 +164,10 @@ function capacity_market_clearing(demand_curve::CapacityMarket,
     #Define Objective Function - Social Welfare Maxmization
     JuMP.@objective(cap_mkt, Max, total_dem_welfare - total_supply_cost)
 
-    println("Actual Capacity Market Clearing:")
+    @info "Actual Capacity Market Clearing:"
     JuMP.optimize!(cap_mkt)
-    println(JuMP.termination_status(cap_mkt))
-    println(JuMP.objective_value(cap_mkt))
+    @info "Termination Status: $(JuMP.termination_status(cap_mkt))"
+    @info "Objective Value: $(JuMP.objective_value(cap_mkt))"
 
     #Capacity Market Clearing Price is the shadow variable of the capacity balance constraint
     cap_price = AxisArrays.AxisArray(reshape([JuMP.dual(mkt_clear)], 1), [1])
@@ -175,7 +175,7 @@ function capacity_market_clearing(demand_curve::CapacityMarket,
         supply_curve[s][1] => value.(Q_supply[s]) / supply_curve[s][2] for
         s in 1:n_supply_seg
     )
-    println(cap_price)
+    @info "Capacity Price: $(cap_price)"
     #------------------------------------------------------------------------------------------------
     return cap_price, cap_accepted_bid
 end

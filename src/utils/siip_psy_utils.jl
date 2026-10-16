@@ -387,7 +387,7 @@ function update_PSY_timeseries!(
     )
     for service in services
         service_name = PSY.get_name(service)
-        println("Current service is $(service_name)")
+        @info "Current service is $(service_name)"
         if service_name in ordc_products
             ### TODO: CHange when ORDC is available
             ### NY_change: ORDC timeseries is not available now
@@ -866,7 +866,6 @@ function calculate_total_load(
                 "max_active_power"),
         )
 
-        # @info "Calculating load for $(PSY.get_name(load)), load length is $(length(ts_data))"
 
         total_load +=
             sum(TS.values(ts_data[period_of_interest]) * PSY.get_max_active_power(load)) *
