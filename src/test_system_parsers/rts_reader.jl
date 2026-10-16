@@ -47,7 +47,8 @@ function read_rts(data_dir::String,
     if test_sys_num_hours >= DEFAULT_HOURS_PER_YEAR
         test_sys_hour_weight = ones(test_sys_num_hours)
     else
-        test_sys_hour_weight = ones(test_sys_num_hours) * DEFAULT_HOURS_PER_YEAR / test_sys_num_hours
+        test_sys_hour_weight =
+            ones(test_sys_num_hours) * DEFAULT_HOURS_PER_YEAR / test_sys_num_hours
     end
 
     system_cfg = load_system_config(data_dir)
