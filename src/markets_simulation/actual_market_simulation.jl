@@ -144,7 +144,6 @@ function create_realized_marketdata(simulation::AgentSimulation,
                 end
             end
         end
-        #println("Clean energy contribution for day $(day) is $(round(daily_cec_production * 100.0 / daily_total_production, digits = 2)) percent")
     end
 
     @info "Total Annual clean energy contribution is $(round(total_cec_production * 100.0 / total_production, digits = 2)) percent"
@@ -275,7 +274,6 @@ function create_realized_marketdata(simulation::AgentSimulation,
     end
 
     clean_energy_percentage = min(1.0, (total_clean_production / total_demand))
-    #println(clean_energy_percentage)
 
     if in(:REC, market_names)
         if length(rec_supply_curve) >= 1
@@ -291,22 +289,6 @@ function create_realized_marketdata(simulation::AgentSimulation,
                 rec_supply_curve,
                 solver,
             )
-
-            # if iteration_year <= rec_non_binding_years
-
-            #     rec_energy_requirment = min(total_clean_production, rec_energy_requirment)
-            #     #println(rec_energy_requirment)
-            #     rec_price, rec_accepted_bids = rec_market_clearing_non_binding(rec_energy_requirment, pricecap_rec, rec_supply_curve, solver)
-            # else
-            #     total = 0
-            #     for i in rec_supply_curve
-            #         total += i[2]
-            #     end
-            #     #println(total)
-            #     rec_energy_requirment = min(total_clean_production, rec_energy_requirment)
-            #     #println(rec_energy_requirment)
-            #     rec_price, rec_accepted_bids = rec_market_clearing_binding(rec_energy_requirment, pricecap_rec, rec_supply_curve, solver)
-            # end
 
             set_rec_price!(market_prices, "realized", rec_price)
         end
