@@ -61,8 +61,8 @@ function create_project_queuecost(size::Float64,
             M2 = queue_cost_data[M2_row, "greater than 1000 MW"] * size
         end
     else
-        D1 = 0;
-        D2 = 0;
+        D1 = 0
+        D2 = 0
         M2 = 0
     end
     queue_cost = [D1 + D2, M2]
@@ -91,7 +91,6 @@ function add_investor_project_availability!(test_system_dir::String,
     gen_diff = setdiff(gennames, psy_gens)
 
     for project in projects
-        # println("this is $(get_name(project))")
         project_name = get_name(project)
         tech = get_tech(project)
         type_zone_id = "$(get_type(tech))_$(get_zone(tech))"
@@ -330,13 +329,6 @@ function create_operation_cost(
 
     start_up_cost = fuel_cost * projectdata["Start Heat Cold MBTU"] * 1000.0
     shut_down_cost = 0.0
-
-    # #TODO: for debugging cost curve end point: max_power is 67 and cost curve ends at 60
-    # if projectdata["GEN_UID"] == "GREENS_BAYOU_GT4"
-    #     @info "Debugging operation cost for project: $(projectdata["GEN_UID"])"
-    #     @info "var_cost: $(var_cost), fixed: $(fixed), start_up_cost: $(start_up_cost), shut_down_cost: $(shut_down_cost)"
-    #     @info "Size: $(size)"
-    # end
 
     ### NY_change: parse into new operation cost format
     value_curve_vec = []
@@ -680,8 +672,6 @@ function create_tech_type(name::String,
             FOR,
             MTTR,
             base_power)
-        # @info "Inside create_tech_type created for battery project: $(name), type: $(type), size: $(size), storage_capacity: $(storage_capacity)"
-        # @info tech
         return BatteryEMIS{BuildPhase}(name,
             tech,
             decision_year,
@@ -886,10 +876,6 @@ function create_tech_type(name::String,
     FOR = projectdata["FOR"]
     MTTR = projectdata["MTTR Hr"]
 
-    # @info type
-    # @info "input_active_power_limits: $(input_active_power_limits), output_active_power_limits: $(output_active_power_limits)"
-    # @info "storage_level_limits: $(storage_level_limits), storage_capacity_mwh: $(storage_capacity_mwh), device_base_power: $(device_base_power)"
-    # @info "initial_storage_capacity_level: $(initial_storage_capacity_level), rating: $(rating), efficiency: $(efficiency)"
 
     tech = BatteryTech(type,
         (
@@ -915,10 +901,6 @@ function create_tech_type(name::String,
         FOR,
         MTTR,
         device_base_power)
-    # @info "Inside Tech created for battery project: $(name), type: $(type)"
-    # @info "$(storage_level_limits), storage_capacity_mwh: $(storage_capacity_mwh), device_base_power: $(device_base_power)"
-    # @info "approximate duration hr from storage capacity and power limits: $(storage_capacity_mwh / output_active_power_limits[:max]) hours"
-    # @info tech
 
     return BatteryEMIS{BuildPhase}(name,
         tech,

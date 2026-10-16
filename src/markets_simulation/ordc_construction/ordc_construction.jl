@@ -99,9 +99,6 @@ function construct_ordc(sys::PSY.System,
             timeseries_data_dir,
         )
 
-        #println("MRR_$(product): ", MRR)
-        #println("Penalty_$(product): ", penalty)
-
         seasons = chop.(split(product_data[1, "seasons"], ";"); head = 1, tail = 1)
         timeblocks = chop.(split(product_data[1, "timeblocks"], ";"); head = 1, tail = 1)
 
@@ -465,7 +462,7 @@ function add_psy_ordc!(simulation_dir::String,
         ))
     # start_datetime = Dates.DateTime("2019-01-01T00:00:00")
     # finish_datetime = start_datetime + Dates.Hour(8759)
-    time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
+    time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime)
 
     additional_timestep = length(time_stamps) - DEFAULT_HOURS_PER_YEAR
 
@@ -580,12 +577,4 @@ function add_psy_ordc!(simulation_dir::String,
 
     return
 end
-
-#=
-system = SystemModel("../PLEXOS2PRAS/test/rts/rts_interfaces.pras")
-nsamples = 100
-
-unavailable = unavailabilities(system, nsamples) # samples x timesteps
-mus = vec(mean(unavailable, dims=1))
-sigmas = vec(std(unavailable, dims=1))
-=#
+

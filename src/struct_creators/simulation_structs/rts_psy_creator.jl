@@ -106,7 +106,7 @@ function create_rts_sys(rts_dir::String,
             sys_MD_initial = PSY.System(
                 joinpath(rts_dir, initial_Sienna_system_name);
                 time_series_directory = scratch_dir,
-            );
+            )
             # create MD system
             create_sys_w_updated_ts(
                 ntp_ts_data_dir,
@@ -132,7 +132,7 @@ function create_rts_sys(rts_dir::String,
             runchecks = runchecks,
         )
         fix_multistart_cost_curves!(sys_MD)
-        push!(sys_MDs, sys_MD);
+        push!(sys_MDs, sys_MD)
 
         UC_filename = joinpath(
             rts_dir,
@@ -147,7 +147,7 @@ function create_rts_sys(rts_dir::String,
             sys_UC_initial = PSY.System(
                 joinpath(rts_dir, initial_Sienna_system_name);
                 time_series_directory = scratch_dir,
-            );
+            )
             create_sys_w_updated_ts(
                 ntp_ts_data_dir,
                 sys_UC_initial,
@@ -173,7 +173,7 @@ function create_rts_sys(rts_dir::String,
             runchecks = runchecks,
         )
         fix_multistart_cost_curves!(sys_UC)
-        push!(sys_UCs, sys_UC);
+        push!(sys_UCs, sys_UC)
 
         for scenario in scenarios
             if scenario == "scenario_1"
@@ -199,7 +199,7 @@ function create_rts_sys(rts_dir::String,
                 sys_ED_initial = PSY.System(
                     joinpath(rts_dir, initial_Sienna_system_name);
                     time_series_directory = scratch_dir,
-                );
+                )
                 create_sys_w_updated_ts(
                     ntp_ts_data_dir,
                     sys_ED_initial,
@@ -225,7 +225,7 @@ function create_rts_sys(rts_dir::String,
                 runchecks = runchecks,
             )
             fix_multistart_cost_curves!(sys_ED)
-            push!(sys_EDs_dict[scenario], sys_ED);
+            push!(sys_EDs_dict[scenario], sys_ED)
         end
         sys_EDs = sys_EDs_dict[pcm_scenario]
 
@@ -417,7 +417,7 @@ function create_sys_w_updated_ts(
     end
 
     # timestep here indicate how many MD periods are being constructed
-    timestep = StepRange(start_datetime_MD, sys_MD_res * interval, finish_datetime_MD);
+    timestep = StepRange(start_datetime_MD, sys_MD_res * interval, finish_datetime_MD)
     first_stage_total = Int((finish_datetime_MD - start_datetime_MD) / sys_MD_res + 1)
     additional_timestep = Int(
         horizon - (first_stage_total-(interval*(length(timestep)-1))) +
@@ -428,7 +428,6 @@ function create_sys_w_updated_ts(
         step = sys_MD_res,
         length = DEFAULT_HOURS_PER_YEAR + additional_timestep,
     )
-    # @info "Line 294 - Constructing time series with timestep length: $(length(timestep)) and additional timestep: $(additional_timestep)."
     for component in
         get_components(x -> has_time_series(x, Deterministic), HydroDispatch, sys_MD)
         forecast = get_time_series(Deterministic, component, "max_active_power")
@@ -493,7 +492,7 @@ function create_sys_w_updated_ts(
         Generator,
         sys_MD,
     )
-        # println("Processing generator: $(get_name(d))")
+        
         #create dictionary
         # revisedts = Dict{DateTime, Array{Float64}}()
         revisedts = DataStructures.SortedDict{DateTime, Vector{Float64}}()
@@ -600,9 +599,8 @@ function create_sys_w_updated_ts(
     end
 
     for d in get_components(PSY_LOADS, sys_MD)
-        # println("Processing region: $(get_name(get_bus(d)))")
-        #create dictionary
-        # revisedts = Dict{DateTime, Array{Float64}}()
+        @info "Processing load: $(get_name(d))"
+        # create dictionary
         bus = PSY.get_bus(d)
         zone = PSY.get_area(bus)
         revisedts = DataStructures.SortedDict{DateTime, Vector{Float64}}()
@@ -719,9 +717,8 @@ function create_sys_w_updated_ts(
         DataFrame(; REG_DN = regdown_ts[!, "RegDown"], REG_UP = regup_ts[!, "RegUp"])
 
     for d in get_components(x -> PSY.get_name(x) in ["REG_DN", "REG_UP"], Service, sys_MD)
-        # println("Processing serve: $(get_name(d))")
-        #create dictionary
-        # revisedts = Dict{DateTime, Array{Float64}}()
+        @info "Processing service: $(get_name(d))"
+        # Create dictionary
         revisedts = DataStructures.SortedDict{DateTime, Vector{Float64}}()
 
         newtsdata = reg_profile[!, PSY.get_name(d)]
@@ -830,7 +827,7 @@ function create_PRAS_sys_json(
         start_datetime_PRAS,
         sys_PRAS_res * sys_PRAS_interval,
         finish_datetime_PRAS,
-    );
+    )
 
     ts_objects = Dict{String, Any}()
     ts_objects["gens"] = collect(
@@ -863,7 +860,6 @@ function create_PRAS_sys_json(
             # append!(reconstruct_single_ts, reconstruct_single_ts[1:sys_PRAS_horizon - 1])
             # dates = range(DateTime("2018-01-01T00:00:00"), step = sys_PRAS_res, length = length(timestep) + sys_PRAS_horizon - 1)
             dates = range(SIM_START_DATE; step = sys_PRAS_res, length = length(timestep))
-            # @info "Line 633 - Reconstructing time series for component $(name) with length: $(length(reconstruct_single_ts))."
             data = TS.TimeArray(dates, reconstruct_single_ts)
             single_time_series = SingleTimeSeries("max_active_power", data)
             add_time_series!(sys_PRAS, component_PRAS, single_time_series)
@@ -893,7 +889,6 @@ function create_PRAS_sys_json(
         # append!(reconstruct_single_ts, reconstruct_single_ts[1:sys_PRAS_horizon - 1])
         # dates = range(DateTime("2018-01-01T00:00:00"), step = sys_PRAS_res, length = length(timestep) + sys_PRAS_horizon - 1)
         dates = range(SIM_START_DATE; step = sys_PRAS_res, length = length(timestep))
-        # @info "Line 644 - Creating time series for service $(name) with length: $(length(reconstruct_single_ts))."
         data = TS.TimeArray(dates, reconstruct_single_ts)
         single_time_series = SingleTimeSeries("requirement", data)
         add_time_series!(sys_PRAS, service_PRAS, single_time_series)
@@ -907,7 +902,6 @@ function create_PRAS_sys_json(
             newtsdata = values(
                 get_time_series(SingleTimeSeries, component, "max_active_power").data,
             )
-            # @info "Line 668 - Processing component $(PSY.get_name(component)) with original time series length: $(length(newtsdata))."
 
             for t in 1:(length(timestep) - 1)
                 rtseries=Vector{Float64}()
@@ -917,7 +911,6 @@ function create_PRAS_sys_json(
                 push!(revisedts, datetimeindex => rtseries)
             end
 
-            # @info "Line 677 - Processing component $(PSY.get_name(component)) with revised time series length: $(length(revisedts))."
             # convert to deterministic time series
             revisedts_deterministic = PSY.Deterministic(;
                 name = "max_active_power",
@@ -942,7 +935,6 @@ function create_PRAS_sys_json(
             push!(revisedts, datetimeindex => rtseries)
         end
 
-        # @info "Line 701 - Processing service $(PSY.get_name(service)) with revised time series length: $(length(revisedts))."
         # convert to deterministic time series
         revisedts_deterministic = PSY.Deterministic(;
             name = "requirement",
@@ -995,7 +987,7 @@ function create_PRAS_sys_NY_json(
     finish_datetime_PRAS =
         start_datetime_PRAS +
         Dates.Hour(DEFAULT_HOURS_PER_YEAR * sys_PRAS_res * length(sys_EDs) - sys_PRAS_res)
-    timestep = StepRange(start_datetime_PRAS, sys_PRAS_res, finish_datetime_PRAS);
+    timestep = StepRange(start_datetime_PRAS, sys_PRAS_res, finish_datetime_PRAS)
 
     ts_objects = Dict{String, Any}()
 
@@ -1036,7 +1028,6 @@ end
 function fix_multistart_cost_curves!(sys::PSY.System)
     base_power = PSY.get_base_power(sys)
     for unit in PSY.get_components(PSY.ThermalMultiStart, sys)
-        # @info "Checking cost curve for multi-start unit $(PSY.get_name(unit))"
         cost = PSY.get_operation_cost(unit)
         vc = PSY.get_variable(cost)
         curve = PSY.get_value_curve(vc)
@@ -1046,7 +1037,6 @@ function fix_multistart_cost_curves!(sys::PSY.System)
             points = PSY.get_points(curve)
             if points[end].x < pmax_mw
                 # @warn "$(PSY.get_name(unit)): PiecewisePointCurve ends at $(points[end].x) MW < Pmax $(pmax_mw) MW — extending"
-                # @info "Original points: $(points)"
                 slope = points[end].x > 0 ? points[end].y / points[end].x : 1.0
                 new_points = vcat(points, [(x = pmax_mw, y = pmax_mw * slope)])
                 new_curve = PSY.PiecewisePointCurve(new_points)
@@ -1065,9 +1055,7 @@ function fix_multistart_cost_curves!(sys::PSY.System)
             x_coords = PSY.get_x_coords(curve)
             if x_coords[end] < pmax_mw - 1e-3 # allow small numerical tolerance
                 # @warn "$(PSY.get_name(unit)): PiecewiseIncrementalCurve ends at $(x_coords[end]) MW < Pmax $(pmax_mw) MW — extending"
-                # @info "Original x coords: $(x_coords)"
                 slopes = PSY.get_slopes(curve)
-                # @info "Original slopes: $(slopes)"
                 new_x = vcat(x_coords, pmax_mw)
                 new_slopes = vcat(slopes, slopes[end])  # extend with last slope
                 new_curve = PSY.PiecewiseIncrementalCurve(
@@ -1084,7 +1072,6 @@ function fix_multistart_cost_curves!(sys::PSY.System)
                 )
             end
         else
-            # @debug "$(PSY.get_name(unit)): $(typeof(curve)) — no extension needed"
         end
     end
 end

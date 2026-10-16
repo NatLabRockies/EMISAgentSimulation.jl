@@ -14,7 +14,6 @@ This struct contains all data for running a CEM for price forecasts or for endoo
 """
 
 struct MarketClearingProblem{Z, T}
-
     zones::Vector{String}
     lines::Vector{ZonalLine}
     capital_cost_multiplier::Float64
@@ -38,29 +37,39 @@ struct MarketClearingProblem{Z, T}
         rep_hour_weight::Vector{Vector{Float64}},
         avg_block_size::Int64,
         fixed_block_size::Bool,
-        chron_weights::Vector{Matrix{Int64}}
+        chron_weights::Vector{Matrix{Int64}},
     ) where {Z, T}
-
         for y in 1:length(rep_hour_weight)
             @assert T == length(rep_hour_weight[y])
             @assert T == size(chron_weights[y], 2)
         end
-        @assert length(zones) ==  Z
+        @assert length(zones) == Z
         @assert length(inv_periods) == length(carbon_tax)
-        
+
         if !allunique(getproperty.(projects, :name))
             @warn "Project names in the market clearing problem are not unique. Rmoving duplicate projects."
             n_projects = length(projects)
             seen = Set()
-            projects = filter(s -> s.name ∉ seen && (push!(seen, s.name); true), projects);
+            projects = filter(s -> s.name ∉ seen && (push!(seen, s.name); true), projects)
             @info "Removed $(n_projects - length(projects)) duplicate projects."
             @assert allunique(getproperty.(projects, :name))
         else
             @assert allunique(getproperty.(projects, :name))
             @info "Project names in the market clearing problem are unique."
         end
-        
-        new{Z, T}(zones, lines, capital_cost_multiplier, inv_periods, carbon_tax, projects, rep_period_interval, rep_hour_weight, avg_block_size, fixed_block_size, chron_weights)
-    end
 
+        new{Z, T}(
+            zones,
+            lines,
+            capital_cost_multiplier,
+            inv_periods,
+            carbon_tax,
+            projects,
+            rep_period_interval,
+            rep_hour_weight,
+            avg_block_size,
+            fixed_block_size,
+            chron_weights,
+        )
+    end
 end

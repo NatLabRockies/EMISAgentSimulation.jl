@@ -1,26 +1,6 @@
 # This file contains functions for calling, running and post-processing
 # SIIP PSI Simulation for actual Energy and A/S Market Clearing
 
-# PSI's ServiceModel dispatch for add_constraint_dual! calls get_available_components which
-# returns ALL services of the type (not just the named one), then passes the collection to
-# assign_dual_variable! which only accepts a single D<:PSY.Service. Both are bugs: this
-# override mirrors what construct_service! does — fetch only the named service and register
-# its dual individually.
-function PSI.add_constraint_dual!(
-    container::PSI.OptimizationContainer,
-    sys::PSY.System,
-    model::PSI.ServiceModel{T, D},
-) where {T <: PSY.Service, D <: PSI.AbstractServiceFormulation}
-    if !isempty(PSI.get_duals(model))
-        name = PSI.get_service_name(model)
-        service = PSY.get_component(T, sys, name)
-        (service === nothing || !PSY.get_available(service)) && return
-        for constraint_type in PSI.get_duals(model)
-            PSI.assign_dual_variable!(container, constraint_type, service, D)
-        end
-    end
-    return
-end
 
 # PSI's generic AbstractPowerModel dispatch for add_constraint_dual! fetches ACBus components
 # and registers duals keyed on ACBus. For AreaBalancePowerModel the actual constraint is
@@ -45,112 +25,7 @@ end
 
 PSI.should_write_resulting_value(::Type{SSI.StorageEnergyShortageVariable}) = false
 
-# PSI's InitialEnergyLevel IC update propagates the raw solver value with no clamping, unlike
-# DevicePower which has isapprox bounds checks. When Xpress returns EnergyVariable = soc_max + ε
-# (within default FEASTOL ~1e-6), the IC for the next step has soc_max - ic = -ε < 0, making
-# ReserveCoverageConstraint at t=1 a single-constraint IIS. This override clamps to [soc_min, soc_max].
-function PSI.update_initial_conditions!(
-    ics::T,
-    state::PSI.SimulationState,
-    ::Dates.Millisecond,
-) where {
-    T <: Union{
-        Vector{
-            Union{
-                PSI.InitialCondition{PSI.InitialEnergyLevel, Nothing},
-                PSI.InitialCondition{PSI.InitialEnergyLevel, Float64},
-            },
-        },
-        Vector{
-            Union{
-                PSI.InitialCondition{PSI.InitialEnergyLevel, Nothing},
-                PSI.InitialCondition{PSI.InitialEnergyLevel, JuMP.VariableRef},
-            },
-        },
-    },
-}
-    for ic in ics
-        storage = PSI.get_component(ic)
-        var_val = PSI.get_system_state_value(
-            state,
-            PSI.EnergyVariable(),
-            PSI.get_component_type(ic),
-        )
-        raw = var_val[PSI.get_component_name(ic)]
-        capacity = PSY.get_storage_capacity(storage)
-        cf = PSY.get_conversion_factor(storage)
-        limits = PSY.get_storage_level_limits(storage)
-        soc_min_mwh = limits.min * capacity * cf
-        soc_max_mwh = limits.max * capacity * cf
-        clamped = clamp(raw, soc_min_mwh, soc_max_mwh)
-        if clamped != raw
-            @warn "InitialEnergyLevel for $(PSI.get_component_name(ic)) clamped $(raw) → $(clamped) MWh (solver bound violation)"
-        end
-        PSI.set_ic_quantity!(ic, clamped)
-    end
-    return
-end
-
-# DeviceStatus IC override for ThermalBasicUnitCommitment units in the ED.
-# ThermalMultiStart currently uses ThermalBasicDispatch (no DeviceStatus ICs), so this
-# override is a no-op for those units. It remains as a safety net in case the formulation
-# changes, and applies to any other type dispatched here (e.g. ThermalFastStartSIIP if it
-# ever exhibits the same startup-boundary IC issue).
-#
-# Problem: CommitmentConstraint On = IC + Start - Stop can become infeasible if the UC and
-# ED IC chains diverge. Example: ED lookahead sets IC=1, but UC also fixes Start=1, giving
-# On = 1+1-0 = 2 > 1. Fix: if On[τ-1]=0 in decision state (unit was actually off), clamp
-# IC→0 so On = 0+1-0 = 1 ✓. The try/catch handles the UC context where τ-sim_resolution
-# falls outside the decision dataset range.
 const DS = PSI.DeviceStatus
-
-function PSI.update_initial_conditions!(
-    ics::T,
-    state::PSI.SimulationState,
-    sim_resolution::Dates.Millisecond,
-) where {
-    T <: Union{
-        Vector{Union{
-            PSI.InitialCondition{DS, Nothing},
-            PSI.InitialCondition{DS, Float64},
-        }},
-        Vector{
-            Union{
-                PSI.InitialCondition{DS, Nothing},
-                PSI.InitialCondition{DS, JuMP.VariableRef},
-            },
-        },
-    },
-}
-    for ic in ics
-        isnothing(PSI.get_value(ic)) && continue
-        comp_type = PSI.get_component_type(ic)
-        comp_name = PSI.get_component_name(ic)
-        var_val = PSI.get_system_state_value(state, PSI.OnVariable(), comp_type)
-        raw = var_val[comp_name]
-
-        if PSI.get_component(ic) isa PSY.ThermalMultiStart && raw ≈ 1.0
-            try
-                key = PSI.VariableKey(PSI.OnVariable, comp_type)
-                sys_data = PSI.get_system_state_data(state, key)
-                current_ts = PSI.get_update_timestamp(sys_data)
-                prev_ts = current_ts - sim_resolution
-                decision_data = PSI.get_decision_state_data(state, key)
-                prev_val = PSI.get_dataset_value(decision_data, prev_ts)
-                if prev_val[comp_name] ≈ 0.0
-                    @warn "DeviceStatus IC for ThermalMultiStart $comp_name clamped 1.0 → 0.0 (startup at $current_ts: On[$prev_ts]=0)"
-                    PSI.set_ic_quantity!(ic, 0.0)
-                    continue
-                end
-            catch
-                # prev_ts outside decision dataset range (UC context) — use raw IC
-            end
-        end
-
-        PSI.set_ic_quantity!(ic, raw)
-    end
-    return
-end
 
 function adjust_reserve_voll!(sys::PSY.System,
     problem::PSI.OperationModel,
@@ -192,9 +67,6 @@ function adjust_reserve_voll!(sys::PSY.System,
         # we don't have slack for Primary and Synchronous reserves?
         if name == "Clean_Energy"
             delta_cost = default_service_slack_cost * 5
-            #delta_cost = -default_service_slack_cost
-            # slack_variables = variables[PSI.VariableKey{PSI.ReserveRequirementSlack, PSY.VariableReserve{PSY.ReserveUp}}("Clean_Energy")]
-            # println(PSY.get_requirement(s))
         elseif name == "Reg_Up" || name == "Inertia"
             reserve_data = read_data(
                 joinpath(
@@ -838,8 +710,6 @@ function create_md_template(inertia_product)
         )
         # PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalBasicDispatch)
         # PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalBasicDispatch)
-        # PSI.set_device_model!(template, PSY.ThermalStandard, RPSI.ThermalStandardUCOutages)
-        # PSI.set_device_model!(template, ThermalFastStartSIIP, RPSI.ThermalStandardUCOutages)
         PSI.set_device_model!(template, PSY.RenewableDispatch, PSI.RenewableFullDispatch)
         PSI.set_device_model!(template, PSY.RenewableNonDispatch, PSI.FixedOutput)
         PSI.set_device_model!(template, PSY.StandardLoad, PSI.StaticPowerLoad)
@@ -901,25 +771,7 @@ function create_md_template(inertia_product)
         #     ),
         # )
 
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.VariableReserve{PSY.ReserveUp},
-        #         EMISEx.InertiaReserve,
-        #         "Inertia",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
         # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.VariableReserve{PSY.ReserveUp},
-        #         EMISEx.CleanEnergyReserve,
-        #         "Clean_Energy",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
         # )
     else
         template = PSI.ProblemTemplate(
@@ -939,8 +791,6 @@ function create_md_template(inertia_product)
         )
         # PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalBasicDispatch)
         # PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalBasicDispatch)
-        # PSI.set_device_model!(template, PSY.ThermalStandard, RPSI.ThermalStandardUCOutages)
-        # PSI.set_device_model!(template, ThermalFastStartSIIP, RPSI.ThermalStandardUCOutages)
         PSI.set_device_model!(template, PSY.RenewableDispatch, PSI.RenewableFullDispatch)
         PSI.set_device_model!(template, PSY.RenewableNonDispatch, PSI.FixedOutput)
         PSI.set_device_model!(template, PSY.StandardLoad, PSI.StaticPowerLoad)
@@ -1002,15 +852,6 @@ function create_md_template(inertia_product)
         #     ),
         # )
 
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.VariableReserve{PSY.ReserveUp},
-        #         EMISEx.CleanEnergyReserve,
-        #         "Clean_Energy",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
         # )
     end
 
@@ -1037,8 +878,6 @@ function create_uc_template(inertia_product)
             PSY.ThermalMultiStart,
             PSI.ThermalBasicUnitCommitment,
         )
-        # PSI.set_device_model!(template, PSY.ThermalStandard, RPSI.ThermalStandardUCOutages)
-        # PSI.set_device_model!(template, ThermalFastStartSIIP, RPSI.ThermalStandardUCOutages)
         PSI.set_device_model!(template, PSY.RenewableDispatch, PSI.RenewableFullDispatch)
         PSI.set_device_model!(template, PSY.RenewableNonDispatch, PSI.FixedOutput)
         PSI.set_device_model!(template, PSY.StandardLoad, PSI.StaticPowerLoad)
@@ -1097,25 +936,7 @@ function create_uc_template(inertia_product)
         #         duals = [PSI.RequirementConstraint],
         #     ),
         # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.VariableReserve{PSY.ReserveUp},
-        #         EMISEx.InertiaReserve,
-        #         "Inertia",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
         # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.VariableReserve{PSY.ReserveUp},
-        #         EMISEx.CleanEnergyReserve,
-        #         "Clean_Energy",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
         # )
     else
         template = PSI.ProblemTemplate(
@@ -1136,8 +957,6 @@ function create_uc_template(inertia_product)
             PSY.ThermalMultiStart,
             PSI.ThermalBasicUnitCommitment,
         )
-        # PSI.set_device_model!(template, PSY.ThermalStandard, RPSI.ThermalStandardUCOutages)
-        # PSI.set_device_model!(template, ThermalFastStartSIIP, RPSI.ThermalStandardUCOutages)
         PSI.set_device_model!(template, PSY.RenewableDispatch, PSI.RenewableFullDispatch)
         PSI.set_device_model!(template, PSY.RenewableNonDispatch, PSI.FixedOutput)
         PSI.set_device_model!(template, PSY.StandardLoad, PSI.StaticPowerLoad)
@@ -1199,15 +1018,6 @@ function create_uc_template(inertia_product)
         #     ),
         # )
 
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.VariableReserve{PSY.ReserveUp},
-        #         EMISEx.CleanEnergyReserve,
-        #         "Clean_Energy",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
         # )
     end
 
@@ -1238,9 +1048,6 @@ function create_ed_template(inertia_product)
             PSY.ThermalMultiStart,
             PSI.ThermalBasicUnitCommitment,
         )
-        # PSI.set_device_model!(template, PSY.ThermalStandard, RPSI.ThermalDispatchOutages)
-        # PSI.set_device_model!(template, PSY.ThermalStandard, RPSI.ThermalRampLimitedOutages)
-        # PSI.set_device_model!(template, ThermalFastStartSIIP, RPSI.ThermalStandardUCOutages)
         PSI.set_device_model!(template, PSY.RenewableDispatch, PSI.RenewableFullDispatch)
         PSI.set_device_model!(template, PSY.RenewableNonDispatch, PSI.FixedOutput)
         PSI.set_device_model!(template, PSY.StandardLoad, PSI.StaticPowerLoad)
@@ -1305,15 +1112,6 @@ function create_ed_template(inertia_product)
         #         duals = [PSI.RequirementConstraint],
         #     ),
         # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.VariableReserve{PSY.ReserveUp},
-        #         EMISEx.InertiaReserve,
-        #         "Inertia",
-        #         use_slacks=true,
-        #         duals = [PSI.RequirementConstraint],
-        #     )
         # )
     else
         template = PSI.ProblemTemplate(
@@ -1334,9 +1132,6 @@ function create_ed_template(inertia_product)
             PSY.ThermalMultiStart,
             PSI.ThermalBasicUnitCommitment,
         )
-        # PSI.set_device_model!(template, PSY.ThermalStandard, RPSI.ThermalDispatchOutages)
-        # PSI.set_device_model!(template, PSY.ThermalStandard, RPSI.ThermalRampLimitedOutages)
-        # PSI.set_device_model!(template, ThermalFastStartSIIP, RPSI.ThermalStandardUCOutages)
         PSI.set_device_model!(template, PSY.RenewableDispatch, PSI.RenewableFullDispatch)
         PSI.set_device_model!(template, PSY.RenewableNonDispatch, PSI.FixedOutput)
         PSI.set_device_model!(template, PSY.StandardLoad, PSI.StaticPowerLoad)
@@ -1436,7 +1231,6 @@ function create_problem(
                 name = "ED",
                 optimizer_solve_log_print = false,
                 warm_start = true,
-                # horizon =2,
                 calculate_conflict = true,
                 store_variable_names = true,
                 export_pwl_vars = true,
@@ -1450,7 +1244,6 @@ function create_problem(
                 name = "ED",
                 optimizer_solve_log_print = false,
                 warm_start = true,
-                # horizon =2,
                 calculate_conflict = true,
                 store_variable_names = true,
                 export_pwl_vars = true,
@@ -1524,10 +1317,6 @@ function create_simulation(sys_MD::PSY.System,
     siip_system;
     kwargs...)
 
-    # to_json(sys_MD, "/kfs2/projects/gmlcmarkets/Phase2_EMIS_Analysis/Feb2024_ERCOT_2011_MARKET_Test_NGUO_LDES/HPC_Analysis_Runs/storage_ff_debug/modified_test_sys/MD_sys.json", force=true)
-    # to_json(sys_UC, "/kfs2/projects/gmlcmarkets/Phase2_EMIS_Analysis/Feb2024_ERCOT_2011_MARKET_Test_NGUO_LDES/HPC_Analysis_Runs/storage_ff_debug/modified_test_sys/UC_sys.json", force=true)
-    # to_json(sys_ED, "/kfs2/projects/gmlcmarkets/Phase2_EMIS_Analysis/Feb2024_ERCOT_2011_MARKET_Test_NGUO_LDES/HPC_Analysis_Runs/storage_ff_debug/modified_test_sys/ED_sys.json", force=true)
-
     # hacky way to incorporate reserve voll
     base_power = PSY.get_base_power(sys_UC)
     reserve_data = read_data(
@@ -1557,7 +1346,6 @@ function create_simulation(sys_MD::PSY.System,
                 PSY.get_components(PSY.HydroTurbine, sys),
             ])
                 if !(service in PSY.get_services(device))
-                    # @info "Adding $(service) to $(device)"
                     PSY.add_service!(device, service, sys)
                 end
             end
@@ -1617,11 +1405,6 @@ function create_simulation(sys_MD::PSY.System,
                 #         number_of_periods = 1,
                 #     ),
                 # ],
-                # RPSI.SemiContinuousOutageFeedforward(
-                #     component_type = PSY.ThermalStandard,
-                #     source = PSI.OnVariable,
-                #     affected_values = [PSI.ActivePowerVariable],
-                # ),
             )
         else
             feedforward_dict = Dict(
@@ -1664,11 +1447,6 @@ function create_simulation(sys_MD::PSY.System,
                 #         number_of_periods = 1,
                 #     ),
                 # ],
-                # RPSI.SemiContinuousOutageFeedforward(
-                #     component_type = PSY.ThermalStandard,
-                #     source = PSI.OnVariable,
-                #     affected_values = [PSI.ActivePowerVariable],
-                # ),
             )
         end
 
@@ -1678,7 +1456,7 @@ function create_simulation(sys_MD::PSY.System,
                 uc_problem,
                 ed_problem,
             ],
-        );
+        )
 
     elseif md_market_bool == false && single_stage_bool == false
         if isempty(inertia_product)
@@ -1704,11 +1482,6 @@ function create_simulation(sys_MD::PSY.System,
                         source = PSI.OnVariable,
                         affected_values = [PSI.ActivePowerVariable],
                     ),
-                    # RPSI.SemiContinuousOutageFeedforward(
-                    #     component_type = PSY.ThermalStandard,
-                    #     source = PSI.OnVariable,
-                    #     affected_values = [PSI.ActivePowerVariable],
-                    # ),
                 ],
                 # "ED" => [
                 #     SSI.EnergyLimitFeedforward(
@@ -1742,11 +1515,6 @@ function create_simulation(sys_MD::PSY.System,
                         source = PSI.OnVariable,
                         affected_values = [PSI.ActivePowerVariable],
                     ),
-                    # RPSI.SemiContinuousOutageFeedforward(
-                    #     component_type = PSY.ThermalStandard,
-                    #     source = PSI.OnVariable,
-                    #     affected_values = [PSI.ActivePowerVariable],
-                    # ),
                 ],
             )
         end
@@ -1756,7 +1524,7 @@ function create_simulation(sys_MD::PSY.System,
                 uc_problem,
                 ed_problem,
             ],
-        );
+        )
 
     elseif md_market_bool == false && single_stage_bool == true
         feedforward_dict = []
@@ -1765,7 +1533,7 @@ function create_simulation(sys_MD::PSY.System,
             decision_models = [
                 uc_problem,
             ],
-        );
+        )
 
     else
         @error "invalid stage combination"
@@ -1797,7 +1565,7 @@ function create_simulation(sys_MD::PSY.System,
 
     energy_voll_cost = AxisArrays.AxisArray(energy_mkt_data.price_cap * 1.0, zones)
 
-    sequence = create_sequence(models, feedforward_dict, single_stage_bool);
+    sequence = create_sequence(models, feedforward_dict, single_stage_bool)
 
     if md_market_bool == true
         sim = PSI.Simulation(;
@@ -1807,7 +1575,7 @@ function create_simulation(sys_MD::PSY.System,
             sequence = sequence,
             simulation_folder = ".",
             # initial_time = Dates.DateTime("2018-02-28T00:00:00")
-        );
+        )
     else
         sim = PSI.Simulation(;
             name = "emis_$(case_name)",
@@ -1816,7 +1584,7 @@ function create_simulation(sys_MD::PSY.System,
             sequence = sequence,
             simulation_folder = ".",
             # initial_time = Dates.DateTime("2018-02-28T00:00:00")
-        );
+        )
     end
 
     current_siip_sim[1] = sim
@@ -2052,14 +1820,12 @@ function create_simulation(sys_MD::PSY.System,
 
     @info "Recorded sienna energy prices"
 
-    #println(any(isnan, energy_price))
+    @info "Any NaN in energy_price: $(any(isnan, energy_price))"
     replace!(energy_price_ed, NaN => 0.0)
     replace!(energy_price_uc, NaN => 0.0)
     replace!(energy_price_md, NaN => 0.0)
     scale_voll(energy_price_ed, rt_resolution)
 
-    #println(any(isnan, energy_price))
-    #println(Statistics.mean(energy_price))
 
     if !single_stage_bool
         for service in get_system_services(sys_ED)
@@ -2511,5 +2277,5 @@ function create_simulation(sys_MD::PSY.System,
     reserve_voll,
     reserve_voll_uc,
     reserve_voll_md,
-    inertia_voll;
+    inertia_voll
 end

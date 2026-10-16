@@ -18,5 +18,5 @@ struct Imperfect <: Forecast
     scenario_data::Vector{Scenario}
 end
 
-get_scenario_data(forecast::F) where F<: Forecast = forecast.scenario_data
+get_scenario_data(forecast::F) where {F <: Forecast} = forecast.scenario_data
 get_kalman_filter(forecast::Imperfect) = forecast.kalman_filter

@@ -16,4 +16,3 @@ get_synchronous(prod::Product) = nothing
 get_synchronous(prod::Inertia) = prod.synchronous
 get_h_constant(prod::Product) = nothing
 get_h_constant(prod::Inertia) = prod.h_constant
-

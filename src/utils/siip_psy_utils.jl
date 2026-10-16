@@ -387,7 +387,7 @@ function update_PSY_timeseries!(
     )
     for service in services
         service_name = PSY.get_name(service)
-        println("Current service is $(service_name)")
+        @info "Current service is $(service_name)"
         if service_name in ordc_products
             ### TODO: CHange when ORDC is available
             ### NY_change: ORDC timeseries is not available now
@@ -481,32 +481,32 @@ function update_PSY_outage_timeseries!(sys_UC::PSY.System,
         outage_csv_location;
         add_scenario = outagescenario,
         iteration_year = iteration_year,
-    ); # align outage structure to be the same as PRAS-ED (same value persist 36 times)
+    ) # align outage structure to be the same as PRAS-ED (same value persist 36 times)
 
     # Check to see if all ThermalStandard has time series data
     # For generators that don't have time series, add artifical outage time series
     file_location = joinpath(outage_csv_location, "1/Generator_year$(iteration_year).csv")
-    df_outage_profile = DataFrames.DataFrame(CSV.File(file_location));
+    df_outage_profile = DataFrames.DataFrame(CSV.File(file_location))
     for d in PSY.get_components(ThermalGen, sys_UC)
         if ~("outage" in get_time_series_names(Deterministic, d))
             @info "Adding outage time series to new generators..."
-            first_ts_temp_DA = first(PSY.get_time_series_multiple(sys_UC));
-            len_ts_data_DA = length(first_ts_temp_DA.data);
+            first_ts_temp_DA = first(PSY.get_time_series_multiple(sys_UC))
+            len_ts_data_DA = length(first_ts_temp_DA.data)
             days_of_interest = range(1; length = len_ts_data_DA)
-            num_days = length(days_of_interest);
+            num_days = length(days_of_interest)
             period_of_interest = range(
                 days_of_interest.start==1 ? 1 : (24*days_of_interest.start)+1;
                 length = num_days*24,
             )
-            N = length(period_of_interest);
-            start_datetime_DA = PSY.IS.get_initial_timestamp(first_ts_temp_DA);
+            N = length(period_of_interest)
+            start_datetime_DA = PSY.IS.get_initial_timestamp(first_ts_temp_DA)
             sys_DA_res_in_hour = PSY.get_time_series_resolutions(sys_UC)[1]
             start_datetime_DA =
                 start_datetime_DA +
-                Dates.Hour((period_of_interest.start-1)*sys_DA_res_in_hour);
-            finish_datetime_DA = start_datetime_DA + Dates.Hour((N-1)*sys_DA_res_in_hour);
+                Dates.Hour((period_of_interest.start-1)*sys_DA_res_in_hour)
+            finish_datetime_DA = start_datetime_DA + Dates.Hour((N-1)*sys_DA_res_in_hour)
             all_timestamps =
-                StepRange(start_datetime_DA, sys_DA_res_in_hour, finish_datetime_DA);
+                StepRange(start_datetime_DA, sys_DA_res_in_hour, finish_datetime_DA)
             allnames = PSY.get_name.(
                 PSY.get_components(
                     ThermalFastStartSIIP,
@@ -742,7 +742,7 @@ function add_psy_inertia!(simulation_dir::String,
             collect(PSY.get_components(PSY.HydroDispatch, sys)),
             collect(PSY.get_components(PSY.HydroTurbine, sys)),
             collect(PSY.get_components(PSY.EnergyReservoirStorage, sys)),
-        );
+        )
 
     PSY.add_service!(sys, inertia_reserve, contri_devices)
 
@@ -758,19 +758,19 @@ function add_psy_inertia!(simulation_dir::String,
                 SIM_START_DATE,
                 Dates.Hour(1),
                 SIM_END_DATE,
-            );
+            )
         elseif type == "ED"
             time_stamps = StepRange(
                 SIM_START_DATE,
                 Dates.Hour(1),
                 SIM_END_DATE,
-            );
+            )
         else
             error("Type should be UC or ED")
         end
 
         ts_data = ones(length(time_stamps))
-        ts = TimeSeries.TimeArray(time_stamps, ts_data);
+        ts = TimeSeries.TimeArray(time_stamps, ts_data)
         forecast = PSY.SingleTimeSeries("requirement", ts)
         PSY.add_time_series!(sys, inertia_reserve, forecast)
     end
@@ -803,7 +803,7 @@ function add_psy_clean_energy_constraint!(sys::PSY.System,
             forecast_count * sys_interval/sys_resolution +
             (sys_horizon - sys_interval/sys_resolution) - 1
         ))
-    time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
+    time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime)
     #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     clean_energy_ts_data = zeros(length(time_stamps))
@@ -853,7 +853,7 @@ function add_psy_clean_energy_constraint!(sys::PSY.System,
             collect(PSY.get_components(PSY.RenewableDispatch, sys)),
             collect(PSY.get_components(PSY.HydroDispatch, sys)),
             collect(PSY.get_components(PSY.HydroTurbine, sys)),
-        );
+        )
 
     PSY.add_service!(sys, clean_energy_reserve, contri_devices)
 
@@ -879,7 +879,6 @@ function calculate_total_load(
                 "max_active_power"),
         )
 
-        # @info "Calculating load for $(PSY.get_name(load)), load length is $(length(ts_data))"
 
         total_load +=
             sum(TS.values(ts_data[period_of_interest]) * PSY.get_max_active_power(load)) *

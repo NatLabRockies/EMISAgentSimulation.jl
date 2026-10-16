@@ -29,12 +29,12 @@ mutable struct Investor
     avg_block_size::Int64
     fixed_block_size::Bool
     chron_weights::Dict{String, Dict{Int64, Matrix{Int64}}}
-    forecast::F where F <: Forecast
+    forecast::F where {F <: Forecast}
     cap_cost_multiplier::Float64
-    preference_multiplier_range::NamedTuple{(:min, :max),Tuple{Float64,Float64}}
+    preference_multiplier_range::NamedTuple{(:min, :max), Tuple{Float64, Float64}}
     portfolio_preference_multipliers::Dict{Tuple{String, String}, Vector{Float64}}
     max_annual_projects::Int64
-    risk_preference::T where T <: RiskPreference
+    risk_preference::T where {T <: RiskPreference}
     retirement_lookback::Int64
 end
 
@@ -55,8 +55,8 @@ get_max_annual_projects(investor::Investor) = investor.max_annual_projects
 get_risk_preference(investor::Investor) = investor.risk_preference
 get_retirement_lookback(investor::Investor) = investor.retirement_lookback
 get_preference_multiplier_range(investor::Investor) = investor.preference_multiplier_range
-get_portfolio_preference_multipliers(investor::Investor) = investor.portfolio_preference_multipliers
-
+get_portfolio_preference_multipliers(investor::Investor) =
+    investor.portfolio_preference_multipliers
 
 # Get projects based on their buildphases
 function get_existing(investor::Investor)
@@ -101,8 +101,14 @@ end
 
 function find_active_invested_projects(projects::Vector{<: Project})
     leaftypes_option = leaftypes(Project{Option})
-    leaftypes_retired= leaftypes(Project{Retired})
-    active_invested_projects = filter(project -> (!in(typeof(project), leaftypes_option) && !in(typeof(project), leaftypes_retired) ), projects)
+    leaftypes_retired = leaftypes(Project{Retired})
+    active_invested_projects = filter(
+        project -> (
+            !in(typeof(project), leaftypes_option) &&
+            !in(typeof(project), leaftypes_retired)
+        ),
+        projects,
+    )
 
     return active_invested_projects
 end
@@ -115,7 +121,7 @@ function find_option_projects(projects::Vector{<: Project})
 end
 
 function set_market_prices!(investor::Investor,
-                           market_prices::MarketPrices)
+    market_prices::MarketPrices)
     investor.market_prices = market_prices
 end
 
@@ -123,6 +129,12 @@ function get_preference_multiplier(investor::Investor, tech::String, zone::Strin
     return investor.portfolio_preference_multipliers[(tech, zone)]
 end
 
-function set_preference_multiplier!(investor::Investor, tech::String, zone::String, iteration_year::Int64, value::Float64)
+function set_preference_multiplier!(
+    investor::Investor,
+    tech::String,
+    zone::String,
+    iteration_year::Int64,
+    value::Float64,
+)
     investor.portfolio_preference_multipliers[(tech, zone)][iteration_year] = value
 end

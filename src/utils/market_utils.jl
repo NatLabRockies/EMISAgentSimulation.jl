@@ -34,41 +34,71 @@ This functions returns capacity market demand curve parameters
 included in CEM for price projection and endogeneous Economic Dispatch.
 """
 function make_capacity_demand_vectors(capmarkets::Vector{CapacityMarket})
-   break_points =  getproperty.(capmarkets, :break_points)
-   price_points =  getproperty.(capmarkets, :price_points)
-   num_segments = length.(break_points) .- 1
-   segment_size = [zeros(num_segments[i]) for i in 1:length(capmarkets)]
-   segment_grad = [zeros(num_segments[i]) for i in 1:length(capmarkets)]
-   for p in 1:length(capmarkets)
+    break_points = getproperty.(capmarkets, :break_points)
+    price_points = getproperty.(capmarkets, :price_points)
+    num_segments = length.(break_points) .- 1
+    segment_size = [zeros(num_segments[i]) for i in 1:length(capmarkets)]
+    segment_grad = [zeros(num_segments[i]) for i in 1:length(capmarkets)]
+    for p in 1:length(capmarkets)
         for segment in 1:num_segments[p]
-           segment_size[p][segment] = break_points[p][segment + 1] - break_points[p][segment]
-           if segment_size[p][segment] != 0
-                segment_grad[p][segment] = (price_points[p][segment + 1] - price_points[p][segment]) /  segment_size[p][segment]
-           end
+            segment_size[p][segment] =
+                break_points[p][segment + 1] - break_points[p][segment]
+            if segment_size[p][segment] != 0
+                segment_grad[p][segment] =
+                    (price_points[p][segment + 1] - price_points[p][segment]) /
+                    segment_size[p][segment]
+            end
         end
     end
 
-   return segment_size, segment_grad, price_points, num_segments
+    return segment_size, segment_grad, price_points, num_segments
 end
 
 """
 This functions returns operating reserve demand curve parameters
 included in CEM for price projection and endogeneous Economic Dispatch.
 """
-function make_ORDC_vectors(ordc_markets::Vector{Dict{String, ReserveORDCMarket{T}}}) where T
-
+function make_ORDC_vectors(
+    ordc_markets::Vector{Dict{String, ReserveORDCMarket{T}}},
+) where {T}
     inv_periods = length(ordc_markets)
 
     products = unique(keys(ordc_markets[p]) for p in inv_periods)[1]
 
-    num_segments = Dict(product => AxisArrays.AxisArray(Array{Int64, 2}(undef, inv_periods, T), 1:inv_periods, 1:T) for product in products)
-    segment_size = Dict(product => AxisArrays.AxisArray(Array{Vector{Float64}, 2}(undef, inv_periods, T), 1:inv_periods, 1:T) for product in products)
-    segment_grad = Dict(product => AxisArrays.AxisArray(Array{Vector{Float64}, 2}(undef, inv_periods, T), 1:inv_periods, 1:T) for product in products)
-    price_points = Dict(product => AxisArrays.AxisArray(Array{Vector{Float64}, 2}(undef, inv_periods, T), 1:inv_periods, 1:T) for product in products)
+    num_segments = Dict(
+        product => AxisArrays.AxisArray(
+            Array{Int64, 2}(undef, inv_periods, T),
+            1:inv_periods,
+            1:T,
+        ) for product in products
+    )
+    segment_size = Dict(
+        product => AxisArrays.AxisArray(
+            Array{Vector{Float64}, 2}(undef, inv_periods, T),
+            1:inv_periods,
+            1:T,
+        ) for product in products
+    )
+    segment_grad = Dict(
+        product => AxisArrays.AxisArray(
+            Array{Vector{Float64}, 2}(undef, inv_periods, T),
+            1:inv_periods,
+            1:T,
+        ) for product in products
+    )
+    price_points = Dict(
+        product => AxisArrays.AxisArray(
+            Array{Vector{Float64}, 2}(undef, inv_periods, T),
+            1:inv_periods,
+            1:T,
+        ) for product in products
+    )
 
     for product in products
-        break_points =  [getproperty(ordc_markets[p][product], :break_points) for p in 1:inv_periods]
-        price_points_raw = [getproperty(ordc_markets[p][product], :price_points) for p in 1:inv_periods]
+        break_points =
+            [getproperty(ordc_markets[p][product], :break_points) for p in 1:inv_periods]
+        price_points_raw =
+            [getproperty(ordc_markets[p][product], :price_points) for p in 1:inv_periods]
 
         stepped = getproperty(ordc_markets[1][product], :stepped)
 
@@ -80,68 +110,87 @@ function make_ORDC_vectors(ordc_markets::Vector{Dict{String, ReserveORDCMarket{T
                 price_points[product][p, t] = price_points_raw[p][t]
 
                 if stepped
-
                     for segment in 1:num_segments[product][p, t]
-                        segment_size[product][p, t][segment] = break_points[p][t][segment + 1] - break_points[p][t][segment]
-                        price_points[product][p, t][segment] = price_points[product][p, t][segment + 1]
+                        segment_size[product][p, t][segment] =
+                            break_points[p][t][segment + 1] - break_points[p][t][segment]
+                        price_points[product][p, t][segment] =
+                            price_points[product][p, t][segment + 1]
                     end
 
                 else
-
                     for segment in 1:num_segments[product][p, t]
-                        segment_size[product][p, t][segment] = break_points[p][t][segment + 1] - break_points[p][t][segment]
+                        segment_size[product][p, t][segment] =
+                            break_points[p][t][segment + 1] - break_points[p][t][segment]
                         if segment_size[product][p, t][segment] != 0
-                            segment_grad[product][p, t][segment] = (price_points[product][p, t][segment + 1] - price_points[product][p, t][segment]) /  segment_size[product][p, t][segment]
+                            segment_grad[product][p, t][segment] =
+                                (
+                                    price_points[product][p, t][segment + 1] -
+                                    price_points[product][p, t][segment]
+                                ) / segment_size[product][p, t][segment]
                         end
                     end
-
                 end
             end
         end
-
     end
 
     return segment_size, segment_grad, price_points, num_segments
- end
+end
 
- """
- This functions returns capacity market demand curve parameters
- included in the actual clearing of capacity markets.
- """
+"""
+This functions returns capacity market demand curve parameters
+included in the actual clearing of capacity markets.
+"""
 function make_capacity_demand(capmarket::CapacityMarket)
-    break_points =  getproperty(capmarket, :break_points)
-    price_points =  getproperty(capmarket, :price_points)
+    break_points = getproperty(capmarket, :break_points)
+    price_points = getproperty(capmarket, :price_points)
     num_segments = length(break_points) - 1
     segment_size = zeros(num_segments)
     segment_grad = zeros(num_segments)
-         for segment in 1:num_segments
-            segment_size[segment] = break_points[segment + 1] - break_points[segment]
-            if segment_size[segment] != 0
-                segment_grad[segment] = (price_points[segment + 1] - price_points[segment]) /  segment_size[segment]
-            end
-         end
+    for segment in 1:num_segments
+        segment_size[segment] = break_points[segment + 1] - break_points[segment]
+        if segment_size[segment] != 0
+            segment_grad[segment] =
+                (price_points[segment + 1] - price_points[segment]) / segment_size[segment]
+        end
+    end
 
     return segment_size, segment_grad, price_points
- end
+end
 
- """
+"""
 This functions returns capital cost multiplier curve parameters
 included in CEM for price projection and endogeneous Economic Dispatch.
 """
 function make_capital_cost_curve(options_by_type::Dict{String, Vector{String}},
-                              annualized_cap_cost::AxisArrays.AxisArray{Float64, 2},
-                              basecostunits::AxisArrays.AxisArray{Int64, 1},
-                              maxnewoptions::AxisArrays.AxisArray{Int64, 1},
-                              capital_cost_multiplier::Float64)
-
+    annualized_cap_cost::AxisArrays.AxisArray{Float64, 2},
+    basecostunits::AxisArrays.AxisArray{Int64, 1},
+    maxnewoptions::AxisArrays.AxisArray{Int64, 1},
+    capital_cost_multiplier::Float64)
     invperiods = size(annualized_cap_cost, 2)
     types = collect(keys(options_by_type))
 
-    num_segments = AxisArrays.AxisArray(round.(Int, 2 * ones(length(types), invperiods)), types, 1:invperiods)
+    num_segments = AxisArrays.AxisArray(
+        round.(Int, 2 * ones(length(types), invperiods)),
+        types,
+        1:invperiods,
+    )
 
-    segment_size = AxisArrays.AxisArray(Array{Vector{Float64}, 2}(undef, length(types), invperiods), types, 1:invperiods)
-    segment_grad = AxisArrays.AxisArray(Array{Vector{Float64}, 2}(undef, length(types), invperiods), types, 1:invperiods)
-    costpoints = AxisArrays.AxisArray(Array{Vector{Float64}, 2}(undef, length(types), invperiods), types, 1:invperiods)
+    segment_size = AxisArrays.AxisArray(
+        Array{Vector{Float64}, 2}(undef, length(types), invperiods),
+        types,
+        1:invperiods,
+    )
+    segment_grad = AxisArrays.AxisArray(
+        Array{Vector{Float64}, 2}(undef, length(types), invperiods),
+        types,
+        1:invperiods,
+    )
+    costpoints = AxisArrays.AxisArray(
+        Array{Vector{Float64}, 2}(undef, length(types), invperiods),
+        types,
+        1:invperiods,
+    )
 
     for t in types
         for p in 1:invperiods
@@ -168,11 +217,11 @@ end
 This function updates the expected capacity factors of projects which are not in Option phase.
 """
 function update_capacity_factors!(project::P,
-                                 scenario_name::String,
-                                 capacity_factors::Dict{String, Array{Float64, 2}}) where P <: Project{<: BuildPhase}
-            for product in get_products(project)
-                set_capacity_factors!(product, scenario_name, capacity_factors[get_name(project)])
-            end
+    scenario_name::String,
+    capacity_factors::Dict{String, Array{Float64, 2}}) where {P <: Project{<: BuildPhase}}
+    for product in get_products(project)
+        set_capacity_factors!(product, scenario_name, capacity_factors[get_name(project)])
+    end
     return
 end
 
@@ -180,13 +229,16 @@ end
 This function updates the expected capacity factors of Option projects.
 """
 function update_capacity_factors!(project::P,
-                                 scenario_name::String,
-                                 capacity_factors::Dict{String, Array{Float64, 2}}) where P <: Project{Option}
-
-            tech = get_tech(project)
-            for product in get_products(project)
-                set_capacity_factors!(product, scenario_name, capacity_factors["option_$(get_type(tech))_$(get_zone(tech))"])
-            end
+    scenario_name::String,
+    capacity_factors::Dict{String, Array{Float64, 2}}) where {P <: Project{Option}}
+    tech = get_tech(project)
+    for product in get_products(project)
+        set_capacity_factors!(
+            product,
+            scenario_name,
+            capacity_factors["option_$(get_type(tech))_$(get_zone(tech))"],
+        )
+    end
     return
 end
 
@@ -194,11 +246,11 @@ end
 This function updates the expected capacity factors of projects which are not in Option phase.
 """
 function update_total_utilization!(project::P,
-                                 scenario_name::String,
-                                 total_utilization::Dict{String, Array{Float64, 2}}) where P <: Project{<: BuildPhase}
-
+    scenario_name::String,
+    total_utilization::Dict{String, Array{Float64, 2}}) where {P <: Project{<: BuildPhase}}
     project_total_utilization = total_utilization[get_name(project)]
-    project.finance_data.scenario_total_utilization[scenario_name] = project_total_utilization
+    project.finance_data.scenario_total_utilization[scenario_name] =
+        project_total_utilization
 
     return
 end
@@ -207,12 +259,13 @@ end
 This function updates the expected capacity factors of Option projects.
 """
 function update_total_utilization!(project::P,
-                                 scenario_name::String,
-                                 total_utilization::Dict{String, Array{Float64, 2}}) where P <: Project{Option}
-
+    scenario_name::String,
+    total_utilization::Dict{String, Array{Float64, 2}}) where {P <: Project{Option}}
     tech = get_tech(project)
-    project_total_utilization = total_utilization["option_$(get_type(tech))_$(get_zone(tech))"]
-    project.finance_data.scenario_total_utilization[scenario_name] = project_total_utilization
+    project_total_utilization =
+        total_utilization["option_$(get_type(tech))_$(get_zone(tech))"]
+    project.finance_data.scenario_total_utilization[scenario_name] =
+        project_total_utilization
 
     return
 end
@@ -221,11 +274,16 @@ end
 This function updates the expected accepted capacity percentage of projects which are not in Option phase.
 """
 function update_capacity_accepted_perc!(project::P,
-                                 scenario_name::String,
-                                 capacity_accepted_perc::Dict{String, Array{Float64, 1}}) where P <: Project{<: BuildPhase}
-            for product in get_products(project)
-                set_accepted_perc!(product, scenario_name, capacity_accepted_perc[get_name(project)])
-            end
+    scenario_name::String,
+    capacity_accepted_perc::Dict{String, Array{Float64, 1}},
+) where {P <: Project{<: BuildPhase}}
+    for product in get_products(project)
+        set_accepted_perc!(
+            product,
+            scenario_name,
+            capacity_accepted_perc[get_name(project)],
+        )
+    end
     return
 end
 
@@ -233,13 +291,16 @@ end
 This function updates the expected accepted capacity percentage of Option projects.
 """
 function update_capacity_accepted_perc!(project::P,
-                                 scenario_name::String,
-                                 capacity_accepted_perc::Dict{String, Array{Float64, 1}}) where P <: Project{Option}
-
-            tech = get_tech(project)
-            for product in get_products(project)
-                set_accepted_perc!(product, scenario_name, capacity_accepted_perc["option_$(get_type(tech))_$(get_zone(tech))"])
-            end
+    scenario_name::String,
+    capacity_accepted_perc::Dict{String, Array{Float64, 1}}) where {P <: Project{Option}}
+    tech = get_tech(project)
+    for product in get_products(project)
+        set_accepted_perc!(
+            product,
+            scenario_name,
+            capacity_accepted_perc["option_$(get_type(tech))_$(get_zone(tech))"],
+        )
+    end
     return
 end
 
@@ -247,10 +308,10 @@ end
 This function does nothing if the product is not of Capacity type.
 """
 function update_initial_capacity_revenues!(project::P,
-                                 product::T,
-                                 initial_capacity_prices::Vector{Float64},
-                                 year::Int64,
-                                 pcm_scenario::String) where {P <: Project{<: BuildPhase}, T <: Product}
+    product::T,
+    initial_capacity_prices::Vector{Float64},
+    year::Int64,
+    pcm_scenario::String) where {P <: Project{<: BuildPhase}, T <: Product}
     return
 end
 
@@ -258,24 +319,24 @@ end
 This function updates the capacity market revenues of project at the start of the simulation.
 """
 function update_initial_capacity_revenues!(project::P,
-                                 product::Capacity,
-                                 initial_capacity_prices::Vector{Float64},
-                                 year::Int64,
-                                 pcm_scenario::String) where P <: Project{<: BuildPhase}
-
+    product::Capacity,
+    initial_capacity_prices::Vector{Float64},
+    year::Int64,
+    pcm_scenario::String) where {P <: Project{<: BuildPhase}}
     finance_data = get_finance_data(project)
-    
+
     for scenario_name in keys(get_scenario_profit(finance_data))
-        
-        capacity_revenue = initial_capacity_prices[year] * get_maxcap(project) * get_project_derating(project, scenario_name)
+        capacity_revenue =
+            initial_capacity_prices[year] * get_maxcap(project) *
+            get_project_derating(project, scenario_name)
 
         update_forward_profit!(product, finance_data, scenario_name, year, capacity_revenue)
 
         if scenario_name == pcm_scenario
             set_realized_profit!(get_finance_data(project),
-                            get_name(product),
-                            year,
-                            capacity_revenue)
+                get_name(product),
+                year,
+                capacity_revenue)
         end
     end
 
@@ -286,10 +347,10 @@ end
 This function does nothing if the product is not of Capacity or REC type.
 """
 function update_bid!(product::T,
-                     capacity_market_bid::Float64,
-                     rec_market_bid::Float64,
-                     energy_production::Float64,
-                     iteration_year::Int64) where T <: Product
+    capacity_market_bid::Float64,
+    rec_market_bid::Float64,
+    energy_production::Float64,
+    iteration_year::Int64) where {T <: Product}
     return
 end
 
@@ -297,11 +358,10 @@ end
 This function updates the Capacity market bid of projects.
 """
 function update_bid!(product::Capacity,
-                     capacity_market_bid::Float64,
-                     rec_market_bid::Float64,
-                     energy_production::Float64,
-                     iteration_year::Int64)
-
+    capacity_market_bid::Float64,
+    rec_market_bid::Float64,
+    energy_production::Float64,
+    iteration_year::Int64)
     set_capacity_bid!(product, capacity_market_bid)
 
     return
@@ -311,21 +371,33 @@ end
 This function updates the REC market bid of projects.
 """
 function update_bid!(product::REC,
-                     capacity_market_bid::Float64,
-                     rec_market_bid::Float64,
-                     energy_production::Float64,
-                     iteration_year::Int64)
-
+    capacity_market_bid::Float64,
+    rec_market_bid::Float64,
+    energy_production::Float64,
+    iteration_year::Int64)
     set_rec_bid!(product, rec_market_bid)
-    set_expected_rec_certificates!(product, energy_production * get_rec_correction_factor(product, iteration_year))
+    set_expected_rec_certificates!(
+        product,
+        energy_production * get_rec_correction_factor(product, iteration_year),
+    )
     return
 end
 
-function calculate_carbon_cost_ratio(product::Product, carbon_cost_ratio::Float64, carbon_tax::Vector{Float64}, year::Int64)
+function calculate_carbon_cost_ratio(
+    product::Product,
+    carbon_cost_ratio::Float64,
+    carbon_tax::Vector{Float64},
+    year::Int64,
+)
     return carbon_cost_ratio
 end
 
-function calculate_carbon_cost_ratio(product::CarbonTax, carbon_cost_ratio::Float64, carbon_tax::Vector{Float64}, year::Int64)
+function calculate_carbon_cost_ratio(
+    product::CarbonTax,
+    carbon_cost_ratio::Float64,
+    carbon_tax::Vector{Float64},
+    year::Int64,
+)
     carbon_cost = get_emission_intensity(product) * carbon_tax[year]
     ratio = carbon_cost / get_fuel_cost(product)
     if !isnan(ratio)
@@ -334,11 +406,19 @@ function calculate_carbon_cost_ratio(product::CarbonTax, carbon_cost_ratio::Floa
     return carbon_cost_ratio
 end
 
-function update_device_operation_cost!(project::P, sys_UC::PSY.System, operation_cost) where P <: Project{<:BuildPhase}
+function update_device_operation_cost!(
+    project::P,
+    sys_UC::PSY.System,
+    operation_cost,
+) where {P <: Project{<:BuildPhase}}
     return
 end
 
-function update_device_operation_cost!(project::P, sys_UC::PSY.System, operation_cost) where P <: Project{Existing}
+function update_device_operation_cost!(
+    project::P,
+    sys_UC::PSY.System,
+    operation_cost,
+) where {P <: Project{Existing}}
     name = get_name(project)
     device = PSY.get_components_by_name(PSY.Device, sys_UC, name)[1]
     # device.operation_cost.variable.cost = var_cost
@@ -349,27 +429,44 @@ function update_device_operation_cost!(project::P, sys_UC::PSY.System, operation
     return
 end
 
-function update_operation_cost!(project::P, sys_UC::PSY.System, carbon_tax::Vector{Float64}, year::Int64) where P <: Project{<:BuildPhase}
+function update_operation_cost!(
+    project::P,
+    sys_UC::PSY.System,
+    carbon_tax::Vector{Float64},
+    year::Int64,
+) where {P <: Project{<:BuildPhase}}
     return
 end
 
-function update_operation_cost!(project::P, sys_UC::Nothing, carbon_tax::Vector{Float64}, year::Int64) where P <: Project{<:BuildPhase}
+function update_operation_cost!(
+    project::P,
+    sys_UC::Nothing,
+    carbon_tax::Vector{Float64},
+    year::Int64,
+) where {P <: Project{<:BuildPhase}}
     return
 end
 
-function update_operation_cost!(project::P, sys_UC::PSY.System, carbon_tax::Vector{Float64}, year::Int64) where P <: Project{Existing}
+function update_operation_cost!(
+    project::P,
+    sys_UC::PSY.System,
+    carbon_tax::Vector{Float64},
+    year::Int64,
+) where {P <: Project{Existing}}
     operation_cost = get_operation_cost(get_tech(project))
     if !(isnothing(operation_cost))
         products = get_products(project)
         carbon_cost_ratio = 0.0
 
         for product in products
-            carbon_cost_ratio = calculate_carbon_cost_ratio(product, carbon_cost_ratio, carbon_tax, year)
+            carbon_cost_ratio =
+                calculate_carbon_cost_ratio(product, carbon_cost_ratio, carbon_tax, year)
         end
 
         total_cost_scalar = 1 + carbon_cost_ratio
 
-        if typeof(operation_cost) == PSY.ThermalGenerationCost || typeof(operation_cost) == PSY.HydroGenerationCost
+        if typeof(operation_cost) == PSY.ThermalGenerationCost ||
+           typeof(operation_cost) == PSY.HydroGenerationCost
             fixed = deepcopy(PSY.get_fixed(operation_cost))
             fixed = fixed * total_cost_scalar
         end
@@ -384,14 +481,22 @@ function update_operation_cost!(project::P, sys_UC::PSY.System, carbon_tax::Vect
             for i in 1:length(points)
                 push!(new_value_curve_vec, (points[i][1], points[i][2] * total_cost_scalar))
             end
-        
+
             new_value_curve = PSY.PiecewisePointCurve(new_value_curve_vec)
             cost_curve = PSY.CostCurve(new_value_curve)
 
-            if get_tech(project).type == "CC" || get_tech(project).type == "CT" || get_tech(project).type == "GT" || get_tech(project).type == "ST" || get_tech(project).type == "NU_ST" || get_tech(project).type == "RE_CT" || get_tech(project).type == "IC"
+            if get_tech(project).type == "CC" || get_tech(project).type == "CT" ||
+               get_tech(project).type == "GT" || get_tech(project).type == "ST" ||
+               get_tech(project).type == "NU_ST" || get_tech(project).type == "RE_CT" ||
+               get_tech(project).type == "IC"
                 start_up_cost = deepcopy(PSY.get_start_up(operation_cost))
                 shut_down_cost = deepcopy(PSY.get_shut_down(operation_cost))
-                operation_cost = PSY.ThermalGenerationCost(cost_curve, fixed, start_up_cost, shut_down_cost)
+                operation_cost = PSY.ThermalGenerationCost(
+                    cost_curve,
+                    fixed,
+                    start_up_cost,
+                    shut_down_cost,
+                )
             elseif get_tech(project).type == "HY"
                 operation_cost = PSY.HydroGenerationCost(cost_curve, fixed)
             elseif get_tech(project).type == "WT" || get_tech(project).type == "PVe"
@@ -401,19 +506,26 @@ function update_operation_cost!(project::P, sys_UC::PSY.System, carbon_tax::Vect
             end
 
         elseif typeof(value_curve) == LinearCurve
-
             new_value_curve = deepcopy(PSY.get_variable(operation_cost).value_curve)
             power_units = deepcopy(PSY.get_variable(operation_cost).power_units)
             fuel_cost = deepcopy(get_fuel_cost(project.tech)) * total_cost_scalar
             vom_cost = deepcopy(PSY.get_variable(operation_cost).vom_cost)
             cost_curve = PSY.FuelCurve(new_value_curve, power_units, fuel_cost)
 
-            if get_tech(project).type == "CC" || get_tech(project).type == "CT" || get_tech(project).type == "GT" || get_tech(project).type == "ST" || get_tech(project).type == "NU_ST" || get_tech(project).type == "RE_CT" || get_tech(project).type == "IC"
+            if get_tech(project).type == "CC" || get_tech(project).type == "CT" ||
+               get_tech(project).type == "GT" || get_tech(project).type == "ST" ||
+               get_tech(project).type == "NU_ST" || get_tech(project).type == "RE_CT" ||
+               get_tech(project).type == "IC"
                 start_up_cost = deepcopy(PSY.get_start_up(operation_cost))
                 shut_down_cost = deepcopy(PSY.get_shut_down(operation_cost))
-                operation_cost = PSY.ThermalGenerationCost(cost_curve, fixed, start_up_cost, shut_down_cost)
+                operation_cost = PSY.ThermalGenerationCost(
+                    cost_curve,
+                    fixed,
+                    start_up_cost,
+                    shut_down_cost,
+                )
             elseif get_tech(project).type == "HY"
-                operation_cost = PSY.HydroGenerationCost(cost_curve, fixed)                
+                operation_cost = PSY.HydroGenerationCost(cost_curve, fixed)
             elseif get_tech(project).type == "WT" || get_tech(project).type == "PVe"
                 cost_curve = PSY.CostCurve(new_value_curve)
                 operation_cost = PSY.RenewableGenerationCost(cost_curve)
@@ -444,7 +556,7 @@ end
 
 function move_elements_to_end!(vector, x::Int64)
     n = length(vector)
-    
+
     if x > n
         error("Cannot move more elements than the length of the vector.")
     end
@@ -454,8 +566,7 @@ end
 function sum_time_blocks(
     vector,
     time_blocks::Vector{Vector{Int64}},
-    )
-    
+)
     len = length(vector)
     aggregated_vector = Int64[]
 
@@ -466,29 +577,26 @@ function sum_time_blocks(
     return aggregated_vector
 end
 
-
 function sum_time_blocks(
     vector,
     block_size::Int64,
-    start_index::Int64
-    )
+    start_index::Int64,
+)
     vector = move_elements_to_end!(vector, start_index)
     len = length(vector)
     aggregated_vector = Int64[]
 
     for i in 1:block_size:len
-        push!(aggregated_vector, sum(vector[i:i + block_size - 1]))
+        push!(aggregated_vector, sum(vector[i:(i + block_size - 1)]))
     end
 
     return aggregated_vector
 end
 
-
 function mean_time_blocks(
     vector,
     time_blocks::Vector{Vector{Int64}},
-    )
-    
+)
     len = length(vector)
     aggregated_vector = []
 
@@ -499,18 +607,17 @@ function mean_time_blocks(
     return aggregated_vector
 end
 
-
 function mean_time_blocks(
     vector,
     block_size::Int64,
-    start_index::Int64
-    )
+    start_index::Int64,
+)
     vector = move_elements_to_end!(vector, start_index)
     len = length(vector)
     aggregated_vector = []
 
     for i in 1:block_size:len
-        push!(aggregated_vector, mean(vector[i:i + block_size - 1]))
+        push!(aggregated_vector, mean(vector[i:(i + block_size - 1)]))
     end
 
     return aggregated_vector
@@ -519,8 +626,7 @@ end
 function representative_time_blocks(
     vector,
     time_blocks::Vector{Vector{Int64}},
-    )
-
+)
     len = length(vector)
     aggregated_vector = []
 
@@ -534,9 +640,8 @@ end
 function representative_time_blocks(
     vector,
     block_size::Int64,
-    start_index::Int64
-    )
-
+    start_index::Int64,
+)
     len = length(vector)
     aggregated_vector = []
 
@@ -553,40 +658,85 @@ function aggregate_timeseries(
     T,
     invperiods,
     generator_projects, availability,
-    zones, demand_e, 
+    zones, demand_e,
     reserve_up_products, demand_ru,
     reserve_down_products, demand_rd,
     ordc_products, ordc_numsegments, ordc_segmentsize, ordc_segmentgrad, ordc_price_points,
-    rep_hour_weight
-    )
-
+    rep_hour_weight,
+)
     TB = Int(T / block_size)
-    opperiods = 1:TB 
+    opperiods = 1:TB
 
     if block_size > 1
         # Aggregated timeseries
-        availability_agg = Dict(g => AxisArrays.AxisArray(zeros(length(invperiods), TB), invperiods, opperiods) for g in generator_projects)
+        availability_agg = Dict(
+            g => AxisArrays.AxisArray(zeros(length(invperiods), TB), invperiods, opperiods) for g in generator_projects
+        )
 
-        demand_e_agg = AxisArrays.AxisArray(zeros(length(zones), length(invperiods), TB), zones, invperiods, opperiods)
-        demand_ru_agg = Dict(product => AxisArrays.AxisArray(zeros(length(invperiods), TB), invperiods, opperiods) for product in reserve_up_products)
-        demand_rd_agg = Dict(product => AxisArrays.AxisArray(zeros(length(invperiods), TB), invperiods, opperiods) for product in reserve_down_products)
-        
-        
-        ordc_numsegments_agg = Dict(product => AxisArrays.AxisArray(Array{Int64, 2}(undef, length(invperiods), TB), invperiods, opperiods) for product in ordc_products)
-        ordc_segmentsize_agg = Dict(product => AxisArrays.AxisArray(Array{Vector{Float64}, 2}(undef, length(invperiods), TB), invperiods, opperiods) for product in ordc_products)
-        ordc_segmentgrad_agg = Dict(product => AxisArrays.AxisArray(Array{Vector{Float64}, 2}(undef, length(invperiods), TB), invperiods, opperiods) for product in ordc_products)
-        ordc_pricepoints_agg = Dict(product => AxisArrays.AxisArray(Array{Vector{Float64}, 2}(undef, length(invperiods), TB), invperiods, opperiods) for product in ordc_products)
+        demand_e_agg = AxisArrays.AxisArray(
+            zeros(length(zones), length(invperiods), TB),
+            zones,
+            invperiods,
+            opperiods,
+        )
+        demand_ru_agg = Dict(
+            product => AxisArrays.AxisArray(
+                zeros(length(invperiods), TB),
+                invperiods,
+                opperiods,
+            ) for product in reserve_up_products
+        )
+        demand_rd_agg = Dict(
+            product => AxisArrays.AxisArray(
+                zeros(length(invperiods), TB),
+                invperiods,
+                opperiods,
+            ) for product in reserve_down_products
+        )
 
-        rep_block_weight = Dict(p => Vector{Int64}() for p in invperiods)   
+        ordc_numsegments_agg = Dict(
+            product => AxisArrays.AxisArray(
+                Array{Int64, 2}(undef, length(invperiods), TB),
+                invperiods,
+                opperiods,
+            ) for product in ordc_products
+        )
+        ordc_segmentsize_agg = Dict(
+            product => AxisArrays.AxisArray(
+                Array{Vector{Float64}, 2}(undef, length(invperiods), TB),
+                invperiods,
+                opperiods,
+            ) for product in ordc_products
+        )
+        ordc_segmentgrad_agg = Dict(
+            product => AxisArrays.AxisArray(
+                Array{Vector{Float64}, 2}(undef, length(invperiods), TB),
+                invperiods,
+                opperiods,
+            ) for product in ordc_products
+        )
+        ordc_pricepoints_agg = Dict(
+            product => AxisArrays.AxisArray(
+                Array{Vector{Float64}, 2}(undef, length(invperiods), TB),
+                invperiods,
+                opperiods,
+            ) for product in ordc_products
+        )
 
-        time_blocks_dict = Dict(p => Vector{Vector{Int64}}() for p in invperiods)   
+        rep_block_weight = Dict(p => Vector{Int64}() for p in invperiods)
+
+        time_blocks_dict = Dict(p => Vector{Vector{Int64}}() for p in invperiods)
 
         for p in invperiods
+            rep_block_weight[p] =
+                sum_time_blocks(rep_hour_weight[p], block_size, start_index)
+            time_blocks = [
+                collect(
+                    (start_index + (i - 1) * block_size + 1):(start_index + i * block_size),
+                ) for i in 1:TB
+            ]
 
-            rep_block_weight[p] = sum_time_blocks(rep_hour_weight[p], block_size, start_index)
-            time_blocks = [collect(start_index + (i - 1) * block_size + 1:start_index + i * block_size) for i in 1:TB]
-            
-            for (idx,i) in enumerate(last(time_blocks))
+            for (idx, i) in enumerate(last(time_blocks))
                 if i > T
                     time_blocks[length(time_blocks)][idx] = i - T
                 end
@@ -595,72 +745,151 @@ function aggregate_timeseries(
             time_blocks_dict[p] = time_blocks
 
             for g in generator_projects
-                availability_agg[g][p, :] = mean_time_blocks(availability[g][p, :], block_size, start_index)
+                availability_agg[g][p, :] =
+                    mean_time_blocks(availability[g][p, :], block_size, start_index)
             end
 
             for z in zones
-                demand_e_agg[z, p, :] = mean_time_blocks(demand_e[z, p, :], block_size, start_index)
+                demand_e_agg[z, p, :] =
+                    mean_time_blocks(demand_e[z, p, :], block_size, start_index)
             end
 
             for product in reserve_up_products
-                demand_ru_agg[product][p, :] = mean_time_blocks(demand_ru[product][p, :], block_size, start_index)
+                demand_ru_agg[product][p, :] =
+                    mean_time_blocks(demand_ru[product][p, :], block_size, start_index)
             end
 
             for product in reserve_down_products
-                demand_rd_agg[product][p, :] = mean_time_blocks(demand_rd[product][p, :], block_size, start_index)
+                demand_rd_agg[product][p, :] =
+                    mean_time_blocks(demand_rd[product][p, :], block_size, start_index)
             end
 
             for product in ordc_products
-                ordc_numsegments_agg[product][p, :] = representative_time_blocks(ordc_numsegments[product][p, :],block_size, start_index)
-                ordc_segmentsize_agg[product][p, :] = representative_time_blocks(ordc_segmentsize[product][p, :],block_size, start_index)
-                ordc_segmentgrad_agg[product][p, :] = representative_time_blocks(ordc_segmentgrad[product][p, :],block_size, start_index)
-                ordc_pricepoints_agg[product][p, :] = representative_time_blocks(ordc_price_points[product][p, :],block_size, start_index)
+                ordc_numsegments_agg[product][p, :] = representative_time_blocks(
+                    ordc_numsegments[product][p, :],
+                    block_size,
+                    start_index,
+                )
+                ordc_segmentsize_agg[product][p, :] = representative_time_blocks(
+                    ordc_segmentsize[product][p, :],
+                    block_size,
+                    start_index,
+                )
+                ordc_segmentgrad_agg[product][p, :] = representative_time_blocks(
+                    ordc_segmentgrad[product][p, :],
+                    block_size,
+                    start_index,
+                )
+                ordc_pricepoints_agg[product][p, :] = representative_time_blocks(
+                    ordc_price_points[product][p, :],
+                    block_size,
+                    start_index,
+                )
             end
         end
 
-        return TB, opperiods, availability_agg, demand_e_agg, demand_ru_agg, demand_rd_agg, ordc_numsegments_agg, ordc_segmentsize_agg, ordc_segmentgrad_agg, ordc_pricepoints_agg, rep_block_weight, time_blocks_dict
+        return TB,
+        opperiods,
+        availability_agg,
+        demand_e_agg,
+        demand_ru_agg,
+        demand_rd_agg,
+        ordc_numsegments_agg,
+        ordc_segmentsize_agg,
+        ordc_segmentgrad_agg,
+        ordc_pricepoints_agg,
+        rep_block_weight,
+        time_blocks_dict
     else
-
         time_blocks = [[[i] for i in 1:T] for p in invperiods]
-        return TB, opperiods, availability, demand_e, demand_ru, demand_rd, ordc_numsegments, ordc_segmentsize, ordc_segmentgrad, ordc_price_points, rep_hour_weight, time_blocks
+        return TB,
+        opperiods,
+        availability,
+        demand_e,
+        demand_ru,
+        demand_rd,
+        ordc_numsegments,
+        ordc_segmentsize,
+        ordc_segmentgrad,
+        ordc_price_points,
+        rep_hour_weight,
+        time_blocks
     end
 end
-
 
 function aggregate_timeseries(
     time_blocks::Dict{Int64, Vector{Vector{Int64}}},
     invperiods,
     generator_projects, availability,
-    zones, demand_e, 
+    zones, demand_e,
     reserve_up_products, demand_ru,
     reserve_down_products, demand_rd,
     ordc_products, ordc_numsegments, ordc_segmentsize, ordc_segmentgrad, ordc_price_points,
-    rep_hour_weight
-    )
-        
+    rep_hour_weight,
+)
     TB = length(first(values(time_blocks)))
     opperiods = 1:TB
 
-     # Aggregated timeseries
-     availability_agg = Dict(g => AxisArrays.AxisArray(zeros(length(invperiods), TB), invperiods, opperiods) for g in generator_projects)
+    # Aggregated timeseries
+    availability_agg = Dict(
+        g => AxisArrays.AxisArray(zeros(length(invperiods), TB), invperiods, opperiods)
+        for g in generator_projects
+    )
 
-     demand_e_agg = AxisArrays.AxisArray(zeros(length(zones), length(invperiods), TB), zones, invperiods, opperiods)
-     demand_ru_agg = Dict(product => AxisArrays.AxisArray(zeros(length(invperiods), TB), invperiods, opperiods) for product in reserve_up_products)
-     demand_rd_agg = Dict(product => AxisArrays.AxisArray(zeros(length(invperiods), TB), invperiods, opperiods) for product in reserve_down_products)
-     
-     ordc_numsegments_agg = Dict(product => AxisArrays.AxisArray(Array{Int64, 2}(undef, length(invperiods), TB), invperiods, opperiods) for product in ordc_products)
-     ordc_segmentsize_agg = Dict(product => AxisArrays.AxisArray(Array{Vector{Float64}, 2}(undef, length(invperiods), TB), invperiods, opperiods) for product in ordc_products)
-     ordc_segmentgrad_agg = Dict(product => AxisArrays.AxisArray(Array{Vector{Float64}, 2}(undef, length(invperiods), TB), invperiods, opperiods) for product in ordc_products)
-     ordc_pricepoints_agg = Dict(product => AxisArrays.AxisArray(Array{Vector{Float64}, 2}(undef, length(invperiods), TB), invperiods, opperiods) for product in ordc_products)
+    demand_e_agg = AxisArrays.AxisArray(
+        zeros(length(zones), length(invperiods), TB),
+        zones,
+        invperiods,
+        opperiods,
+    )
+    demand_ru_agg = Dict(
+        product =>
+            AxisArrays.AxisArray(zeros(length(invperiods), TB), invperiods, opperiods)
+        for product in reserve_up_products
+    )
+    demand_rd_agg = Dict(
+        product =>
+            AxisArrays.AxisArray(zeros(length(invperiods), TB), invperiods, opperiods)
+        for product in reserve_down_products
+    )
 
-     rep_block_weight = Dict(p => Vector{Int64}() for p in invperiods)   
+    ordc_numsegments_agg = Dict(
+        product => AxisArrays.AxisArray(
+            Array{Int64, 2}(undef, length(invperiods), TB),
+            invperiods,
+            opperiods,
+        ) for product in ordc_products
+    )
+    ordc_segmentsize_agg = Dict(
+        product => AxisArrays.AxisArray(
+            Array{Vector{Float64}, 2}(undef, length(invperiods), TB),
+            invperiods,
+            opperiods,
+        ) for product in ordc_products
+    )
+    ordc_segmentgrad_agg = Dict(
+        product => AxisArrays.AxisArray(
+            Array{Vector{Float64}, 2}(undef, length(invperiods), TB),
+            invperiods,
+            opperiods,
+        ) for product in ordc_products
+    )
+    ordc_pricepoints_agg = Dict(
+        product => AxisArrays.AxisArray(
+            Array{Vector{Float64}, 2}(undef, length(invperiods), TB),
+            invperiods,
+            opperiods,
+        ) for product in ordc_products
+    )
+
+    rep_block_weight = Dict(p => Vector{Int64}() for p in invperiods)
 
     for p in invperiods
-
         rep_block_weight[p] = sum_time_blocks(rep_hour_weight[p], time_blocks[p])
 
         for g in generator_projects
-            availability_agg[g][p, :] = mean_time_blocks(availability[g][p, :], time_blocks[p])
+            availability_agg[g][p, :] =
+                mean_time_blocks(availability[g][p, :], time_blocks[p])
         end
 
         for z in zones
@@ -668,36 +897,50 @@ function aggregate_timeseries(
         end
 
         for product in reserve_up_products
-            demand_ru_agg[product][p, :] = mean_time_blocks(demand_ru[product][p, :], time_blocks[p])
+            demand_ru_agg[product][p, :] =
+                mean_time_blocks(demand_ru[product][p, :], time_blocks[p])
         end
 
         for product in reserve_down_products
-            demand_rd_agg[product][p, :] = mean_time_blocks(demand_rd[product][p, :], time_blocks[p])
+            demand_rd_agg[product][p, :] =
+                mean_time_blocks(demand_rd[product][p, :], time_blocks[p])
         end
 
         for product in ordc_products
-            ordc_numsegments_agg[product][p, :] = representative_time_blocks(ordc_numsegments[product][p, :], time_blocks[p])
-            ordc_segmentsize_agg[product][p, :] = representative_time_blocks(ordc_segmentsize[product][p, :], time_blocks[p])
-            ordc_segmentgrad_agg[product][p, :] = representative_time_blocks(ordc_segmentgrad[product][p, :], time_blocks[p])
-            ordc_pricepoints_agg[product][p, :] = representative_time_blocks(ordc_price_points[product][p, :], time_blocks[p])
+            ordc_numsegments_agg[product][p, :] =
+                representative_time_blocks(ordc_numsegments[product][p, :], time_blocks[p])
+            ordc_segmentsize_agg[product][p, :] =
+                representative_time_blocks(ordc_segmentsize[product][p, :], time_blocks[p])
+            ordc_segmentgrad_agg[product][p, :] =
+                representative_time_blocks(ordc_segmentgrad[product][p, :], time_blocks[p])
+            ordc_pricepoints_agg[product][p, :] =
+                representative_time_blocks(ordc_price_points[product][p, :], time_blocks[p])
         end
     end
 
-    return TB, opperiods, availability_agg, demand_e_agg, demand_ru_agg, demand_rd_agg, ordc_numsegments_agg, ordc_segmentsize_agg, ordc_segmentgrad_agg, ordc_pricepoints_agg, rep_block_weight
+    return TB,
+    opperiods,
+    availability_agg,
+    demand_e_agg,
+    demand_ru_agg,
+    demand_rd_agg,
+    ordc_numsegments_agg,
+    ordc_segmentsize_agg,
+    ordc_segmentgrad_agg,
+    ordc_pricepoints_agg,
+    rep_block_weight
 end
 
 function generate_variable_blocks(
     K,
-    T, ophours, 
+    T, ophours,
     invperiods,
     rep_period_interval,
     zones, demand_e,
     generator_projects, tech_type, availability, max_gen)
-
     time_blocks_dict = Dict(p => Vector{Vector{Int64}}() for p in invperiods)
 
     for p in invperiods
-
         time_blocks = Vector{Vector{Int64}}()
 
         K_interval = Int(K * rep_period_interval / T)
@@ -705,11 +948,11 @@ function generate_variable_blocks(
         intervals = collect(1:Int(T / rep_period_interval))
 
         for interval in intervals
-            
             system_load = zeros(rep_period_interval)
             system_wind = zeros(rep_period_interval)
             system_solar = zeros(rep_period_interval)
-            interval_range = ((interval - 1) * rep_period_interval + 1):(interval * rep_period_interval)
+            interval_range =
+                ((interval - 1) * rep_period_interval + 1):(interval * rep_period_interval)
             h = 0
             for t in ophours[interval_range]
                 h += 1
@@ -737,14 +980,15 @@ function generate_variable_blocks(
             sorted_time_blocks = sort(time_block_hours)
 
             for k in keys(sorted_time_blocks)
-                sorted_time_blocks[k] = sorted_time_blocks[k] .+ (interval - 1) * rep_period_interval
+                sorted_time_blocks[k] =
+                    sorted_time_blocks[k] .+ (interval - 1) * rep_period_interval
             end
 
             time_blocks = vcat(time_blocks, collect(values(sorted_time_blocks)))
         end
         time_blocks_dict[p] = time_blocks
     end
-    
+
     return time_blocks_dict
 end
 
@@ -755,7 +999,6 @@ function find_index(value, vector_of_vectors)
 end
 
 function get_all_scenario_names(data_dir)
-
     investor_dir_name = joinpath(data_dir, "investors")
     investor_names = readdir(investor_dir_name)
 
@@ -763,7 +1006,8 @@ function get_all_scenario_names(data_dir)
 
     for investor in investor_names
         ### NY_change: only keep scenario_1
-        scenario_filename = joinpath(investor_dir_name, investor, "markets_data", "scenario_data.csv")
+        scenario_filename =
+            joinpath(investor_dir_name, investor, "markets_data", "scenario_data.csv")
         scenario_names = String.(read_data(scenario_filename).scenario)
         for scenario in scenario_names
             if !(scenario in scenarios)
@@ -773,5 +1017,4 @@ function get_all_scenario_names(data_dir)
     end
 
     return scenarios
-
 end

@@ -11,7 +11,7 @@ function read_data(file_name::String)
         CSV.File(file_name;
             truestrings = ["T", "TRUE", "true"],
             falsestrings = ["F", "FALSE", "false"]),
-    );
+    )
 
     return projectdata
 end
@@ -35,4 +35,3 @@ function dir_exists(dir::String)
     end
     return
 end
-

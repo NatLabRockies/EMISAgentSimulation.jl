@@ -17,6 +17,10 @@ get_probability(scenario::Scenario) = scenario.probability
 get_parameter_multipliers(scenario::Scenario) = scenario.parameter_multipliers
 get_parameter_values(scenario::Scenario) = scenario.parameter_values
 
-function set_parameter_values!(scenario::Scenario, iteration_year::Int64, parameter_values::AxisArrays.AxisArray{Float64, 2})
+function set_parameter_values!(
+    scenario::Scenario,
+    iteration_year::Int64,
+    parameter_values::AxisArrays.AxisArray{Float64, 2},
+)
     scenario.parameter_values[iteration_year] = parameter_values
 end
