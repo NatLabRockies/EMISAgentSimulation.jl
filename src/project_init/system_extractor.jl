@@ -293,15 +293,6 @@ const RESERVE_COLUMNS = [
     "Direction",
 ]
 
-# Known raw PSY reserve service names that don't match their time-series file names by
-# case alone (e.g. "REG_DN" vs "Reg_Down"). Mirrors the renaming applied to constructed
-# systems in src/struct_creators/simulation_structs/rts_psy_creator.jl, so reserves.csv
-# stays consistent with that downstream convention without renaming the PSY system.
-const RESERVE_PRODUCT_ALIASES = Dict(
-    "REG_DN" => "Reg_Down",
-    "REG_UP" => "Reg_Up",
-)
-
 function _reserve_services(sys::PSY.System)
     services = PSY.Service[]
     for device_type in (PSY.Generator, PSY.Storage, PSY.HydroGen)

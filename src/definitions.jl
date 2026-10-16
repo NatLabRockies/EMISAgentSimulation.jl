@@ -1,6 +1,13 @@
 const PSY_LOADS = Union{PSY.StandardLoad, PSY.PowerLoad}
 const PSY_THERMAL_GENERATORS = Union{PSY.ThermalStandard, PSY.ThermalMultiStart}
 
+# Raw PSY reserve service names whose canonical time-series names differ beyond case.
+# Shared by project initialization and constructed-system creation.
+const RESERVE_PRODUCT_ALIASES = Dict(
+    "REG_DN" => "Reg_Down",
+    "REG_UP" => "Reg_Up",
+)
+
 const DEFAULT_TIME_RESOLUTION = 60
 const DEFAULT_HOURS_PER_YEAR = 8760
 

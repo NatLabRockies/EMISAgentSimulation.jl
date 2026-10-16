@@ -1,12 +1,3 @@
-# Known raw PSY reserve service names that don't match on-disk time-series file names by
-# case alone. Mirrors system_extractor.jl's RESERVE_PRODUCT_ALIASES; duplicated here
-# rather than shared, since src/project_init/ may depend on the rest of the package but
-# not the other way around.
-const _RESERVE_NAME_ALIASES = Dict(
-    "REG_DN" => "Reg_Down",
-    "REG_UP" => "Reg_Up",
-)
-
 function prune_system_devices!(
     sys::PSY.System,
     prune_dict::Dict{Type{<:PSY.Component}, Array{AbstractString}},
@@ -60,7 +51,7 @@ function normalize_legacy_reserve_services!(sys::PSY.System)
         service = PSY.get_component(service_type, sys, name)
         isnothing(service) || PSY.remove_component!(sys, service)
     end
-    for (old_name, new_name) in (("REG_DN", "Reg_Down"), ("REG_UP", "Reg_Up"))
+    for (old_name, new_name) in RESERVE_PRODUCT_ALIASES
         service = PSY.get_component(PSY.VariableReserve, sys, old_name)
         isnothing(service) || PSY.set_name!(sys, service, new_name)
     end
@@ -373,11 +364,11 @@ end
 
 
 """Find a canonical reserve time-series file for `product` under `reserves_dir`,
-matching case-insensitively and falling back to `_RESERVE_NAME_ALIASES`."""
+matching case-insensitively and falling back to `RESERVE_PRODUCT_ALIASES`."""
 function _canonical_reserve_file(reserves_dir::AbstractString, product::AbstractString, stage_prefix::AbstractString)
     isdir(reserves_dir) || return nothing
     candidates = [product]
-    haskey(_RESERVE_NAME_ALIASES, product) && push!(candidates, _RESERVE_NAME_ALIASES[product])
+    haskey(RESERVE_PRODUCT_ALIASES, product) && push!(candidates, RESERVE_PRODUCT_ALIASES[product])
     targets = Set(lowercase.(candidates))
     pattern = Regex("^$(stage_prefix)_regional_(.+)\\.csv\$", "i")
     for file in readdir(reserves_dir)
