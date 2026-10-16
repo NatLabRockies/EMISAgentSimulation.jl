@@ -23,10 +23,10 @@ function read_rts(data_dir::String,
         [Statistics.mean(annual_growth_past[y, :] for y in 1:size(annual_growth_past)[1])]
 
     test_sys_num_hours = DataFrames.nrow(test_system_load_da)
-    if test_sys_num_hours >= 8760
+    if test_sys_num_hours >= DEFAULT_HOURS_PER_YEAR
         test_sys_hour_weight = ones(test_sys_num_hours)
     else
-        test_sys_hour_weight = ones(test_sys_num_hours) * 8760 / test_sys_num_hours
+        test_sys_hour_weight = ones(test_sys_num_hours) * DEFAULT_HOURS_PER_YEAR / test_sys_num_hours
     end
 
     zone_numbers = names(test_system_load_da)[5:end]
