@@ -18,6 +18,16 @@ function _must_have_column(df::DataFrames.DataFrame, column::Symbol, path::Abstr
     return nothing
 end
 
+"""
+    _base_project_paths(project_root)
+
+Return the configuration, investor, and time-series directories. If
+`project_metadata.csv` is present, configuration and investor files are found under
+`<base_dir>/<heterogeneity>/`; `timeseries_data_dir` can set a different time-series
+location. Without that file, use the older layout: configuration files in the project root,
+with `investors/` and `timeseries/` folders alongside it. Keep both layouts consistent with
+`src/project_init/README.md`.
+"""
 function _base_project_paths(project_root::AbstractString)
     if isfile(joinpath(project_root, "project_metadata.csv"))
         metadata = _read_project_metadata(project_root)
@@ -31,6 +41,12 @@ function _base_project_paths(project_root::AbstractString)
     return project_root, joinpath(project_root, "investors"), joinpath(project_root, "timeseries")
 end
 
+"""
+    _project_zone_names(config_root)
+
+Read the zone names from `zones.csv`. These names are checked against market files and load
+columns. Return a set so the order of rows does not matter.
+"""
 function _project_zone_names(config_root::AbstractString)
     zones_path = joinpath(config_root, "zones.csv")
     isfile(zones_path) || error("Missing zones.csv in $(config_root)")
@@ -39,6 +55,12 @@ function _project_zone_names(config_root::AbstractString)
     return Set(_as_string.(zones.zone_name))
 end
 
+"""
+    _project_scenario_names(config_root)
+
+Read the scenario names from `scenarios.csv`. They are used to check scenario folders under
+the time-series and derating directories. Return a set so the order of rows does not matter.
+"""
 function _project_scenario_names(config_root::AbstractString)
     scenarios_path = joinpath(config_root, "scenarios.csv")
     isfile(scenarios_path) || error("Missing scenarios.csv in $(config_root)")
@@ -47,6 +69,12 @@ function _project_scenario_names(config_root::AbstractString)
     return Set(_as_string.(scenarios.scenario_name))
 end
 
+"""
+    _project_technology_names(config_root)
+
+Read the `unit_type` values from `technologies.csv`. Investor `projectoptions.csv` entries
+must use these values. This checks the names only; required finance rows are checked separately.
+"""
 function _project_technology_names(config_root::AbstractString)
     tech_path = joinpath(config_root, "technologies.csv")
     isfile(tech_path) || error("Missing technologies.csv in $(config_root)")
@@ -55,6 +83,13 @@ function _project_technology_names(config_root::AbstractString)
     return Set(_as_string.(techs.unit_type))
 end
 
+"""
+    _validate_probability_sum(config_root)
+
+Accept `scenarios.csv` when the probabilities add up to 1, or when every row has probability
+1 (meaning the scenarios are treated equally). These are project scenario probabilities;
+probabilities in each investor's `scenario_data.csv` are separate and are not checked here.
+"""
 function _validate_probability_sum(config_root::AbstractString)
     scenarios_path = joinpath(config_root, "scenarios.csv")
     scenarios = _read_csv_df(scenarios_path)
@@ -74,10 +109,11 @@ function _validate_probability_sum(config_root::AbstractString)
 end
 
 """
-Errors if a regional Load csv has a zone column that `zones.csv` cannot resolve, or if a
-zone has no column. Columns are resolved through the same `SystemConfig` alias lookup
-(`zone_id`/`area_name`/`load_column`/position) the runtime uses in
-`_canonical_zone_load_frame`, so this checks the file exactly as the simulation reads it.
+Check zone columns in any day-ahead or real-time `Load` files that are present. Each column
+must match a zone using the same names and aliases as the simulation (`zone_id`,
+`area_name`, or `load_column`, including the configured column position), and every project
+zone must have a column. Keep this check in sync with `_canonical_zone_load_frame` if those
+rules change. A missing time-series directory or load file is not an error here.
 """
 function _validate_load_zone_columns(config_root::AbstractString, ts_root::AbstractString)
     isdir(ts_root) || return nothing
@@ -114,6 +150,13 @@ function _validate_load_zone_columns(config_root::AbstractString, ts_root::Abstr
     return nothing
 end
 
+"""
+    _validate_option_techs(config_root, investor_root)
+
+Check that each `Unit Type` in an investor's `projectoptions.csv` appears in
+`technologies.csv`. Files without the `Unit Type` column are skipped to support older or
+custom project files. Existing projects and finance categories are not checked here.
+"""
 function _validate_option_techs(config_root::AbstractString, investor_root::AbstractString)
     valid_techs = _project_technology_names(config_root)
     isdir(investor_root) || return nothing
@@ -138,6 +181,13 @@ function _validate_option_techs(config_root::AbstractString, investor_root::Abst
     return nothing
 end
 
+"""
+    _csv_category_set(path)
+
+Return the trimmed values in the `Category` column, or `nothing` if the file is absent. If
+the file exists, it must have a `Category` column. Finance checks compare these values
+between project, finance, and capex files.
+"""
 function _csv_category_set(path::AbstractString)
     isfile(path) || return nothing
     df = _read_csv_df(path)
@@ -145,6 +195,13 @@ function _csv_category_set(path::AbstractString)
     return Set(_as_string.(df.Category))
 end
 
+"""
+    _investor_used_categories(investor_dir)
+
+Collect categories from the investor's existing and proposed project files. Missing files or
+files without a `Category` column add no values. The mapping from technology names to
+categories is set elsewhere; this function only reads the project files.
+"""
 function _investor_used_categories(investor_dir::AbstractString)
     categories = Set{String}()
     for filename in ("projectexisting.csv", "projectoptions.csv")
@@ -156,6 +213,14 @@ function _investor_used_categories(investor_dir::AbstractString)
     return categories
 end
 
+"""
+    _validate_investor_finance_categories(investor_dir)
+
+If `finance_params.csv` or `project_capex.csv` exists, check that it has a row for each
+category used by the investor's projects. These files are optional, so this check does not
+require them to exist. The simulation also uses `Category` to find finance values; update
+this check if that lookup changes.
+"""
 function _validate_investor_finance_categories(investor_dir::AbstractString)
     investor = basename(investor_dir)
     categories = _investor_used_categories(investor_dir)
@@ -174,6 +239,13 @@ function _validate_investor_finance_categories(investor_dir::AbstractString)
     return nothing
 end
 
+"""
+    _validate_technology_finance_coverage(config_root, investor_root)
+
+Run the finance-category check for each investor folder. `config_root` is not currently
+used; this function reads categories from the project files and does not check how they were
+assigned.
+"""
 function _validate_technology_finance_coverage(config_root::AbstractString, investor_root::AbstractString)
     isdir(investor_root) || return nothing
     for investor in readdir(investor_root)
@@ -184,6 +256,14 @@ function _validate_technology_finance_coverage(config_root::AbstractString, inve
     return nothing
 end
 
+"""
+    _validate_investor_market_bundle(investor_dir)
+
+Require each investor's `markets_data/` folder to contain `investor_belief.csv` and
+`scenario_data.csv`. Some simulation settings use these files differently, but both are part
+of the project inputs. Keep these names in sync with `investor_creator.jl` and the project
+setup README.
+"""
 function _validate_investor_market_bundle(investor_dir::AbstractString)
     isdir(investor_dir) || error("Investor directory does not exist: $(investor_dir)")
     markets_dir = joinpath(investor_dir, "markets_data")
@@ -196,6 +276,13 @@ function _validate_investor_market_bundle(investor_dir::AbstractString)
     return nothing
 end
 
+"""
+    _validate_project_investor_bundles(investor_root)
+
+Check the required forecast files in every investor folder. Ignore files in the investor
+directory itself. If there is no investor directory, skip this check; other checks handle
+system-wide market files separately.
+"""
 function _validate_project_investor_bundles(investor_root::AbstractString)
     isdir(investor_root) || return nothing
     for investor in readdir(investor_root)
@@ -207,8 +294,10 @@ function _validate_project_investor_bundles(investor_root::AbstractString)
 end
 
 """
-Errors if a system-level `markets_data/` file read unconditionally at runtime is missing,
-or if `Energy.csv` lacks a `price_cap` for any project zone.
+Require the system-level `markets_data/` folder to contain `Energy.csv`,
+`reserve_products.csv`, and `annual_growth.csv`. Also check that `Energy.csv` has a
+`price_cap` for every project zone. This folder sits beside `investors/`; keep the file list
+in sync with the parts of the simulation that read these files.
 """
 function _validate_system_market_files(config_root::AbstractString, investor_root::AbstractString)
     markets_dir = joinpath(dirname(investor_root), "markets_data")
@@ -228,10 +317,12 @@ function _validate_system_market_files(config_root::AbstractString, investor_roo
 end
 
 """
-Errors if a wind (WT) or PV (PVe) generator in the project's PSY system has no column in
-its scenario's DA/RT `WIND`/`PV` csv. The runtime (`rts_psy_creator.jl`) only warns and
-leaves such a generator without a time series. Extra columns are allowed, since option
-units are not in the base system. Skipped when the project has no system file.
+For projects with a system file, check that each wind (WT) or solar (PVe) generator has a
+matching column in the day-ahead and real-time `WIND` or `PV` files. The simulation only
+warns if a column is missing, so this check catches the problem earlier. Extra columns are
+allowed for proposed units. Skip this check if the time-series directory, project metadata,
+or `system_file` setting is missing. Keep the generator types in sync with
+`rts_psy_creator.jl`.
 """
 function _validate_psy_generator_names(project_root::AbstractString, ts_root::AbstractString)
     isdir(ts_root) || return nothing
@@ -270,6 +361,15 @@ function _validate_psy_generator_names(project_root::AbstractString, ts_root::Ab
     return nothing
 end
 
+"""
+    _required_derating_columns(config_root, investor_root)
+
+Work out which derating columns are needed and record one example project for each, so
+errors can point to their source. Renewable column names include the matching zone; storage
+names use duration rounded to a whole hour. These names must match the derating calculator,
+so update both places if the naming rules change. Only renewable and storage projects are
+checked.
+"""
 function _required_derating_columns(config_root::AbstractString, investor_root::AbstractString)
     tech_path = joinpath(config_root, "technologies.csv")
     techs = _read_csv_df(tech_path)
@@ -304,9 +404,10 @@ function _required_derating_columns(config_root::AbstractString, investor_root::
 end
 
 """
-Errors if a scenario has no `derating_dict.csv`, or if it lacks an
-`existing_/new_<type>_<zone>` or `existing_/new_STOR_<d>` column that the derating
-calculator assigns for a renewable or storage project.
+Require a `derating_dict.csv` for every scenario. If the project has renewable or storage
+units, each file must have the matching `existing_` or `new_` column. Storage duration is
+rounded to a whole hour when building its column name. All scenario files are required, even
+when no project currently needs a specific column.
 """
 function _validate_derating_columns(config_root::AbstractString, investor_root::AbstractString)
     required = _required_derating_columns(config_root, investor_root)
@@ -325,6 +426,15 @@ function _validate_derating_columns(config_root::AbstractString, investor_root::
     return nothing
 end
 
+"""
+    validate_emis_project(project_root::AbstractString)
+
+Check the project's configuration, market, investor, time-series, and derating inputs.
+Report the first missing or invalid input as an error, and return `project_root` if all
+checks pass. The checks are grouped into small functions above. When adding or changing an
+input, update the matching check and the simulation code that reads it. This validation does
+not replace checks performed when the simulation runs.
+"""
 function validate_emis_project(project_root::AbstractString)
     isdir(project_root) || error("Project root does not exist: $(project_root)")
 

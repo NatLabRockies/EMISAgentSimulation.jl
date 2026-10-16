@@ -5,6 +5,11 @@ Pkg.activate(joinpath(@__DIR__, "..", ".."))
 
 using EMISAgentSimulation
 
+"""
+    usage()
+
+Print the command-line usage and the available `init` and `case` commands.
+"""
 function usage()
     println("""
     Usage:
@@ -17,6 +22,13 @@ function usage()
     """)
 end
 
+"""
+    parse_override_pairs(raw_args)
+
+Read `--override key=value` arguments into a `Dict{String, String}`. Each one
+changes a case setting from its template value. Errors if the key is empty or
+the value is missing.
+"""
 function parse_override_pairs(raw_args)
     overrides = Dict{String, String}()
     i = 1
@@ -44,6 +56,13 @@ function parse_override_pairs(raw_args)
     return overrides
 end
 
+"""
+    parse_init_args(raw_args)
+
+Parse arguments for the `init` command. Returns `(spec_dir, output_dir,
+reference_case)`, where `reference_case` is `nothing` when not specified.
+Requires a spec directory and `--output-dir`.
+"""
 function parse_init_args(raw_args)
     spec_dir = ""
     output_dir = ""
@@ -74,6 +93,12 @@ function parse_init_args(raw_args)
     return (spec_dir, output_dir, reference_case)
 end
 
+"""
+    parse_case_args(raw_args)
+
+Parse arguments for the `case` command. Returns `(project_dir, case_name,
+overrides)`, with overrides parsed by [`parse_override_pairs`](@ref).
+"""
 function parse_case_args(raw_args)
     project_dir = ""
     case_name = ""

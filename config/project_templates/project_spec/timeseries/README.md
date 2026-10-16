@@ -1,8 +1,7 @@
 # Timeseries Input Template
 
 This directory is the canonical timeseries root. Copy it or generate an equivalent
-layout with your own preprocessing workflow. There is no intermediate `example`
-directory: each scenario is directly below this directory.
+layout with your own preprocessing workflow.
 
 The CSV files are one-row sample templates. Replace the sample value columns and rows
 with the exact zone, generator, and reserve-service names from your system. Provide
@@ -27,14 +26,24 @@ hourly, preprocessed data for every scenario and simulation year listed in
 
 Required format:
 
-- Header fields: `Year,Month,Day,Period` followed by value columns.
+- Load, wind, and PV files have `Year,Month,Day,Period` headers followed by value columns.
+- Reserve files have `Year,Month,Day,1,...,24` headers; each row contains one day's 24
+    hourly reserve values.
 - Load value column headers are `zones.csv` `zone_id` values: column `N` holds the load of
     zone `N`, i.e. of the PSY area in that row's `area_name`.
-- Wind and PV value columns match PSY renewable component names. If a caller uses
-    different names, it supplies the component-to-column mapping directly to the builder.
-- Reserve value columns match PSY service names. If a caller uses different names, it
-    supplies the service-to-column mapping directly to the builder.
-- Values are numeric, finite, hourly, and already in the units expected by the PSY scaling-factor configuration.
+- In the standard workflow, you run `initialize_emis_project` and then create a case with
+    `new_emis_case`; you do not need to run `create_sys_with_timeseries`. Wind and PV value
+    column headers must exactly match the corresponding PSY generator names. The standard
+    workflow does not provide a column-mapping option, so rename columns during
+    preprocessing if needed.
+- A reserve file is associated with a PSY service by the product name in its filename
+    (case-insensitively). You do not provide a service-to-column mapping in the standard
+    workflow; reserve values use the 24 hour-of-day columns described above.
+- Use finite numeric values at hourly resolution. In the standard project workflow, load,
+    wind, PV, and reserve values are all supplied in MW. During system construction, EMIS
+    converts wind/PV output to fractions of generator rating and reserve values to
+    fractions of the service requirement, as required by PSY's scaling factors. Load is
+    scaled to the configured system peak.
 - The builder wraps profiles cyclically when a forecast window crosses the end of the supplied profile.
 
 The actual data values, number of rows, scenario directories, and reserve-product files are system-specific and must be supplied by the user.

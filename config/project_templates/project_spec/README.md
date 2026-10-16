@@ -5,10 +5,11 @@ tests. It contains user-owned project metadata, system configuration, outage
 input, and minimal canonical time series. Runtime defaults supply investor
 characteristics and market inputs wherever the project does not provide them.
 
-The `system_filepath` entry is intentionally a placeholder for a user-supplied
-PSY system bundle. The fixture therefore exercises project initialization and
-validation without requiring a repository-specific binary system file. A real
-project must provide the referenced system JSON and its time-series sidecar.
+The `system_filepath` row in `project_spec.csv` gives the path to the PSY system JSON;
+relative paths are resolved from this folder. The `system.json` value here is a
+placeholder used by the automated project-initialization tests, not a usable system.
+For your project, replace it with the path to a real PSY system JSON and provide the
+matching `<system_stem>_time_series_storage.h5` sidecar.
 
 The optional `markets_data/` directory contains guidance for adding
 project-specific overrides. The package defaults under

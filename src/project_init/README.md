@@ -63,8 +63,6 @@ system and ownership choices rather than runtime defaults:
 ## Optional User Inputs
 
 Add these only when needed:
-- `<system_stem>_metadata.json` and `<system_stem>_validation_descriptors.json`:
-  optional PSY sidecars copied with the system JSON when present.
 - `simulation_settings.csv`, `markets_included.csv`, and `options.csv`: case-template
   overrides. If omitted, templates from `scripts/template/` are used.
 - `queue_cost_data.csv`, investor finance defaults, and `markets_data/`: study-specific
