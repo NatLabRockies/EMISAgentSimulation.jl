@@ -65,6 +65,13 @@ the `AgentSimulation` is depicted below.
 
 <img src="simulation_creation.png" />
 
+## Initializing a User-Provided Project
+
+Users can bring their own power system and datasets to initialize an EMIS project. See
+the [Project Initialization Guide](src/project_init/README.md) for the required inputs
+and setup steps. A starter template is available in
+`config/project_templates/project_spec/`.
+
 ## Running the Integration Test
 
 The unit tests (`julia --project=. -e 'using Pkg; Pkg.test()'`) are quick. The integration
