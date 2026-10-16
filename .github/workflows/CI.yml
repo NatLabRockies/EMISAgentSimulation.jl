@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+    tags: ["*"]
+  pull_request:
+  workflow_dispatch:
+
+# Cancel superseded runs on PR branches; never cancel runs on master.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+jobs:
+  test:
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    # First run precompiles the full Sienna/PRAS stack; later runs use the cache.
+    timeout-minutes: 90
+    permissions:
+      actions: write # lets julia-actions/cache prune old caches
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # test/Project.toml uses [sources], which needs Julia >= 1.11.
+        version: ["1.12"]
+        os: [ubuntu-latest]
+    env:
+      # Xpress.jl is installed as a dependency, but CI runners have no Xpress install or license.
+      XPRESS_JL_SKIP_LIB_CHECK: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      # config/example_systems/** is stored in Git LFS (~63 MB) and read by
+      # test_project_init.jl and test_zone_consistency.jl. Cache the LFS objects so
+      # they are only downloaded again when the LFS file list changes.
+      - name: List LFS objects
+        run: git lfs ls-files -l | cut -d' ' -f1 | sort > .lfs-assets-id
+      - name: Restore LFS cache
+        uses: actions/cache@v4
+        with:
+          path: .git/lfs
+          key: lfs-${{ hashFiles('.lfs-assets-id') }}
+      - name: Pull LFS files
+        run: git lfs pull
+
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: ${{ matrix.version }}
+      - uses: julia-actions/cache@v2
+      - uses: julia-actions/julia-buildpkg@v1
+      # Runs test/runtests.jl with test/Project.toml. Tests that need an HPC case
+      # (test_base_checks.jl, test_system_inputs.jl) skip themselves when no case is defined.
+      - uses: julia-actions/julia-runtest@v1

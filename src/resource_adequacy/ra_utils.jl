@@ -205,7 +205,6 @@ function add_capacity_market_project!(capacity_market_system::PSY.System,
     timeseries_data_dir::String,
     availability_df_rt::DataFrame)
 
-
     # Must check against ALL stored components (including unavailable ones), since PSY
     # enforces name uniqueness on the full component store, not just available techs.
     current_names = get_all_tech_names(capacity_market_system)
@@ -311,15 +310,6 @@ function create_capacity_mkt_system(initial_system::PSY.System,
         end
     end
 
-    #=
-    nodal_loads = PSY.get_components(PSY.StandardLoad, capacity_market_system)
-    for load in nodal_loads
-        zone = "zone_$(PSY.get_name(PSY.get_area(PSY.get_bus(load))))"
-        scaled_active_power = deepcopy(PSY.get_max_active_power(load)) * (1 + load_growth["load_$(zone)"]) ^ (capacity_forward_years)
-        PSY.set_max_active_power!(load, scaled_active_power)
-
-    end
-    =#
     return capacity_market_system
 end
 
@@ -589,6 +579,7 @@ function create_base_system(initial_system::PSY.System,
                     @info "CT template bus=$(ct_bus_id) → area=$(PSY.get_name(PSY.get_area(first(ct_bus_match))))"
                 end
 
+                system_config = load_system_config(simulation_dir)
                 while !(adequacy_conditions_met)
                     area_lole = Dict{String, Float64}()
                     for area in PSY.get_components(PSY.Area, capacity_market_system)
@@ -602,7 +593,7 @@ function create_base_system(initial_system::PSY.System,
                     target_bus =
                         first(get_buses_in_area(capacity_market_system, target_area_name))
                     target_bus_id = string(PSY.get_number(target_bus))
-                    target_zone = get_zone_for_area(target_area_name)
+                    target_zone = get_zone_name(system_config, target_area_name)
                     @info "Targeting area $(target_area_name) (bus $(PSY.get_name(target_bus))) for incremental CTs"
                     scalar = 2
                     ratio = 0

@@ -1,4 +1,25 @@
 """
+Zone of one end (`side` = "From" or "To") of row `b` of a branch table. Uses the
+`<side> Area` column (written by `extract_branches`) through `zones.csv`'s `area_name`.
+Legacy tables without area columns fall back to the first digit of the bus number,
+which matches `zones.csv` only for ERCOT/RTS-style bus numbering.
+"""
+function _branch_end_zone(
+    system_cfg::SystemConfig,
+    branches::DataFrames.DataFrame,
+    b::Int,
+    side::String,
+)
+    area_column = "$(side) Area"
+    if area_column in names(branches)
+        return get_zone_name(system_cfg, string(branches[b, area_column]))
+    end
+    @warn "$(area_column) column missing from branch data; using the first digit of the bus number as the zone" maxlog =
+        1
+    return get_zone_name(system_cfg, first("$(branches[b, "$(side) Bus"])", 1))
+end
+
+"""
 This function reads the RTS-GMLC timeseries data and parses it into the format
 compatible with AgentSimulation
 """
@@ -29,8 +50,9 @@ function read_rts(data_dir::String,
         test_sys_hour_weight = ones(test_sys_num_hours) * DEFAULT_HOURS_PER_YEAR / test_sys_num_hours
     end
 
-    zone_numbers = names(test_system_load_da)[5:end]
-    zones = ["zone_$(i)" for i in zone_numbers]
+    system_cfg = load_system_config(data_dir)
+    zone_numbers = names(test_system_load_da)[system_cfg.zone_column_start:end]
+    zones = [get_zone_name(system_cfg, i) for i in zone_numbers]
     # zone_numbers = names(test_system_load_da)[5:end]
     # zones = names(test_system_load_da)[5:end]
 
@@ -101,13 +123,12 @@ function read_rts(data_dir::String,
     net_load_df_rt = scaled_test_sys_load_rt[:, 1:4]
 
     for zone in zone_numbers
-        net_load_df[:, "load_zone_$(zone)"] = scaled_test_sys_load[:, zone]
-        net_load_df_rt[:, "load_zone_$(zone)"] = scaled_test_sys_load_rt[:, zone]
+        zone_name = get_zone_name(system_cfg, String(zone))
+        net_load_df[:, "load_$(zone_name)"] = scaled_test_sys_load[:, zone]
+        net_load_df_rt[:, "load_$(zone_name)"] = scaled_test_sys_load_rt[:, zone]
     end
 
-    existing_generator_data = DataFrames.DataFrame(
-        CSV.File(joinpath(test_system_dir, "RTS_Data", "SourceData", "gen.csv")),
-    )
+    existing_generator_data = read_generator_table(test_system_dir, data_dir)
 
     wind_timeseries_file = joinpath(
         test_system_dir,
@@ -217,7 +238,11 @@ function read_rts(data_dir::String,
     gen_availability_df_rt = scaled_test_sys_load_rt[:, 1:4]
 
     for i in 1:DataFrames.nrow(existing_generator_data)
-        if existing_generator_data[i, "Unit Type"] == "WIND"
+        technology_category = get_technology_category(
+            system_cfg,
+            String(existing_generator_data[i, "Unit Type"]),
+        )
+        if vre_kind(technology_category) == :wind
             gen_availability_df[:, existing_generator_data[i, "GEN UID"]] =
                 wind_timeseries_data[:, existing_generator_data[i, "GEN UID"]] /
                 existing_generator_data[i, "PMax MW"]
@@ -229,7 +254,7 @@ function read_rts(data_dir::String,
                 wind_timeseries_data[:, existing_generator_data[i, "GEN UID"]]
             net_load_df_rt[:, existing_generator_data[i, "GEN UID"]] =
                 wind_timeseries_data_rt[:, existing_generator_data[i, "GEN UID"]]
-        elseif existing_generator_data[i, "Unit Type"] == "PV"
+        elseif vre_kind(technology_category) == :pv
             gen_availability_df[:, existing_generator_data[i, "GEN UID"]] =
                 pv_timeseries_data[:, existing_generator_data[i, "GEN UID"]] /
                 existing_generator_data[i, "PMax MW"]
@@ -248,8 +273,7 @@ function read_rts(data_dir::String,
             gen_availability_df_rt[:, existing_generator_data[i, "GEN UID"]] =
                 rtpv_timeseries_data_rt[:, existing_generator_data[i, "GEN UID"]] /
                 existing_generator_data[i, "PMax MW"]
-        elseif existing_generator_data[i, "Unit Type"] == "HYDRO" ||
-               existing_generator_data[i, "Unit Type"] == "ROR"
+        elseif occursin("hydro", lowercase(technology_category))
             gen_availability_df[:, existing_generator_data[i, "GEN UID"]] =
                 hydro_timeseries_data[:, existing_generator_data[i, "GEN UID"]] /
                 existing_generator_data[i, "PMax MW"]
@@ -424,11 +448,8 @@ function read_rts(data_dir::String,
         read_data(joinpath(test_system_dir, "RTS_Data", "SourceData", "dc_branch.csv"))
 
     for b in 1:DataFrames.nrow(branches)
-        from_bus = "$(branches[b, "From Bus"])"
-        from_zone = "zone_$(first(from_bus, 1))"
-
-        to_bus = "$(branches[b, "To Bus"])"
-        to_zone = "zone_$(first(to_bus, 1))"
+        from_zone = _branch_end_zone(system_cfg, branches, b, "From")
+        to_zone = _branch_end_zone(system_cfg, branches, b, "To")
 
         similar_line = filter(
             l -> (
@@ -457,11 +478,8 @@ function read_rts(data_dir::String,
     end
 
     for b in 1:DataFrames.nrow(dc_branches)
-        from_bus = "$(dc_branches[b, "From Bus"])"
-        from_zone = "zone_$(first(from_bus, 1))"
-
-        to_bus = "$(dc_branches[b, "To Bus"])"
-        to_zone = "zone_$(first(to_bus, 1))"
+        from_zone = _branch_end_zone(system_cfg, dc_branches, b, "From")
+        to_zone = _branch_end_zone(system_cfg, dc_branches, b, "To")
 
         similar_line = filter(
             l -> (

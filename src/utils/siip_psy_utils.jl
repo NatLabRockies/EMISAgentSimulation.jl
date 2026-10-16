@@ -572,39 +572,26 @@ function update_PSY_outage_timeseries!(sys_UC::PSY.System,
 end
 
 """
-This function finds the buses located in each zone.
+    find_zonal_area(zone, sys, system_config = nothing)
+
+Return the PSY `Area` corresponding to `zone`. `zone` may be the PSY area name or, when
+`system_config` is provided, the `zone_name` that `zones.csv` maps from the area's
+`area_name`. Errors if no area matches.
 """
-function find_zonal_bus(zone::String, sys::PSY.System)
-    # buses = PSY.get_components(PSY.Bus, sys)
-
-    # zonal_bus = nothing
-
-    # for b in buses
-    #     if "zone_$(PSY.get_name(PSY.get_area(b)))" == zone
-    #         zonal_bus = b
-    #     end
-    # end
-
-    zonal_bus = PSY.get_component(PSY.ACBus, sys, zone)
-
-    return zonal_bus
-end
-
-function find_zonal_area(zone::String, sys::PSY.System)
+function find_zonal_area(
+    zone::String,
+    sys::PSY.System,
+    system_config::Union{Nothing, SystemConfig} = nothing,
+)
     for area in PSY.get_components(PSY.Area, sys)
-        name = PSY.get_name(area)
-        if zone == "zone_$(ZONE_NUMBER_MAP[name])"
+        area_name = PSY.get_name(area)
+        config_zone =
+            isnothing(system_config) ? area_name : get_zone_name(system_config, area_name)
+        if zone == area_name || zone == config_zone
             return area
         end
     end
-    return nothing
-end
-
-"""
-Returns the "zone_<n>" identifier for a given PSY.Area name, using `ZONE_NUMBER_MAP`.
-"""
-function get_zone_for_area(area_name::String)
-    return "zone_$(ZONE_NUMBER_MAP[area_name])"
+    error("No PSY Area matches zone \"$(zone)\"; check area_name in zones.csv")
 end
 
 """
@@ -879,7 +866,6 @@ function calculate_total_load(
                 "max_active_power"),
         )
 
-
         total_load +=
             sum(TS.values(ts_data[period_of_interest]) * PSY.get_max_active_power(load)) *
             time_resolution / DEFAULT_TIME_RESOLUTION
@@ -939,41 +925,4 @@ function convert_thermal_fast_start!(system::PSY.System)
             convert_to_thermal_fast_start!(gen, system)
         end
     end
-end
-
-function apply_PSY_past_load_growth!(sys::PSY.System,
-    load_growth::AxisArrays.AxisArray{Float64, 1},
-    simulation_dir::String)
-
-    # update load timeseries.
-    nodal_loads = PSY.get_components(PSY_LOADS, sys)
-
-    for load in nodal_loads
-        zone = "load_zone_$(PSY.get_name(PSY.get_area(PSY.get_bus(load))))"
-        scaled_active_power =
-            deepcopy(PSY.get_max_active_power(load)) * (1 + load_growth[zone])
-        PSY.set_max_active_power!(load, scaled_active_power)
-    end
-
-    average_load_growth = Statistics.mean(load_growth)
-
-    # update service requirement timeseries.
-    services = get_system_services(sys)
-    ordc_products = split(
-        read_data(joinpath(simulation_dir, "markets_data", "reserve_products.csv"))[
-            1,
-            "ordc_products",
-        ],
-        "; ",
-    )
-    for service in services
-        service_name = PSY.get_name(service)
-        if !(service_name in ordc_products || service_name == "Clean_Energy")
-            scaled_requirement =
-                deepcopy(PSY.get_requirement(service)) * (1 + average_load_growth)
-            PSY.set_requirement!(service, scaled_requirement)
-        end
-    end
-
-    return
 end

@@ -1,0 +1,230 @@
+using Test
+using EMISAgentSimulation
+using CSV
+using DataFrames
+
+const PROJECT_ROOT = normpath(joinpath(@__DIR__, ".."))
+const RTS_SPEC_DIR = joinpath(PROJECT_ROOT, "config", "example_systems", "rts_gmlc", "project_spec")
+
+@testset "Project init validation" begin
+    spec_dir = joinpath(PROJECT_ROOT, "config", "project_templates", "project_spec")
+    init_dir = joinpath(mktempdir(), "project_init_validation")
+    initialize_emis_project(spec_dir; output_dir=init_dir, reference_case_dir=nothing)
+
+    @test validate_emis_project(init_dir) == init_dir
+    for investor in ("investor_1", "investor_2")
+        markets_dir = joinpath(
+            init_dir,
+            "EMIS_RTS_Analysis",
+            "Heterogeneous",
+            "investors",
+            investor,
+            "markets_data",
+        )
+        @test isfile(joinpath(markets_dir, "investor_belief.csv"))
+        @test isfile(joinpath(markets_dir, "scenario_data.csv"))
+    end
+end
+
+@testset "Project init uses default investor forecast bundles" begin
+    source_spec_dir = joinpath(PROJECT_ROOT, "config", "project_templates", "project_spec")
+    spec_dir = joinpath(mktempdir(), "project_spec")
+    cp(source_spec_dir, spec_dir; force=true)
+    rm(joinpath(spec_dir, "investors"); recursive=true, force=true)
+
+    init_dir = joinpath(mktempdir(), "project_init_defaults")
+    initialize_emis_project(spec_dir; output_dir=init_dir, reference_case_dir=nothing)
+
+    for investor in ("investor_1", "investor_2")
+        markets_dir = joinpath(
+            init_dir,
+            "EMIS_RTS_Analysis",
+            "Heterogeneous",
+            "investors",
+            investor,
+            "markets_data",
+        )
+        @test isfile(joinpath(markets_dir, "investor_belief.csv"))
+        @test isfile(joinpath(markets_dir, "scenario_data.csv"))
+        @test isfile(joinpath(
+            init_dir,
+            "EMIS_RTS_Analysis",
+            "Heterogeneous",
+            "investors",
+            investor,
+            "characteristics.csv",
+        ))
+    end
+    characteristics = CSV.read(
+        joinpath(
+            init_dir,
+            "EMIS_RTS_Analysis",
+            "Heterogeneous",
+            "investors",
+            "investor_1",
+            "characteristics.csv",
+        ),
+        DataFrame,
+    )
+    @test characteristics.capital_cost_multiplier[1] == 0.143
+    @test characteristics.max_annual_projects[1] == 30
+    investor_energy = CSV.read(
+        joinpath(
+            init_dir,
+            "EMIS_RTS_Analysis",
+            "Heterogeneous",
+            "investors",
+            "investor_1",
+            "markets_data",
+            "Energy.csv",
+        ),
+        DataFrame,
+    )
+    @test investor_energy[1, :price_cap] == 10000.0
+    @test isfile(joinpath(
+        init_dir,
+        "EMIS_RTS_Analysis",
+        "Heterogeneous",
+        "markets_data",
+        "scenario_data.csv",
+    ))
+end
+
+@testset "Generated reserves only include products with matching time series" begin
+    tmp = mktempdir()
+    ts_root = joinpath(tmp, "timeseries")
+    scenario_dir = joinpath(ts_root, "scenario_1", "sim_year_1", "Reserves")
+    mkpath(scenario_dir)
+    CSV.write(joinpath(scenario_dir, "DAY_AHEAD_regional_SPIN.csv"), DataFrame(Year=[2020], Month=[1], Day=[1], Period=[1], SPIN=[1.0]))
+    CSV.write(joinpath(scenario_dir, "REAL_TIME_regional_SPIN.csv"), DataFrame(Year=[2020], Month=[1], Day=[1], Period=[1], SPIN=[1.0]))
+
+    reserves_path = joinpath(tmp, "reserves.csv")
+    CSV.write(reserves_path, DataFrame(
+        "Reserve Product" => ["SPIN", "NONSPIN"],
+        "Timeframe (sec)" => [Int(300), Int(300)],
+        "Requirement (MW)" => [10.0, 5.0],
+        "Eligible Regions" => ["", ""],
+        "Eligible Device Categories" => ["", ""],
+        "Eligible Device SubCategories" => ["", ""],
+        "Direction" => ["Up", "Up"],
+    ))
+
+    filtered = EMISAgentSimulation._filter_reserve_products_by_timeseries(reserves_path, ts_root)
+    @test String.(filtered[:, "Reserve Product"]) == ["SPIN"]
+
+    empty_ts_root = joinpath(tmp, "empty_timeseries")
+    empty_reserves_path = joinpath(tmp, "empty_reserves.csv")
+    CSV.write(empty_reserves_path, DataFrame(
+        "Reserve Product" => ["SPIN", "NONSPIN"],
+        "Timeframe (sec)" => [Int(300), Int(300)],
+        "Requirement (MW)" => [10.0, 5.0],
+        "Eligible Regions" => ["", ""],
+        "Eligible Device Categories" => ["", ""],
+        "Eligible Device SubCategories" => ["", ""],
+        "Direction" => ["Up", "Up"],
+    ))
+
+    empty_filtered = EMISAgentSimulation._filter_reserve_products_by_timeseries(empty_reserves_path, empty_ts_root)
+    @test nrow(empty_filtered) == 0
+    @test names(empty_filtered) == names(DataFrame(CSV.File(empty_reserves_path; stringtype=String)))
+end
+
+@testset "Reserve filtering matches case-insensitively and canonicalizes casing" begin
+    tmp = mktempdir()
+    ts_root = joinpath(tmp, "timeseries")
+    scenario_dir = joinpath(ts_root, "scenario_1", "sim_year_1", "Reserves")
+    mkpath(scenario_dir)
+    # Real-world data uses Title-cased file names (e.g. "Spin", "Reg_Up") while the
+    # PSY reserve service names are upper-cased (e.g. "SPIN", "REG_UP").
+    CSV.write(joinpath(scenario_dir, "DAY_AHEAD_regional_Spin.csv"), DataFrame(Year=[2020], Month=[1], Day=[1], Period=[1], Spin=[1.0]))
+    CSV.write(joinpath(scenario_dir, "DAY_AHEAD_regional_Reg_Up.csv"), DataFrame(Year=[2020], Month=[1], Day=[1], Period=[1], Reg_Up=[1.0]))
+
+    reserves_path = joinpath(tmp, "case_reserves.csv")
+    CSV.write(reserves_path, DataFrame(
+        "Reserve Product" => ["SPIN", "REG_UP", "REG_DN", "NONSPIN"],
+        "Timeframe (sec)" => [Int(300), Int(300), Int(300), Int(300)],
+        "Requirement (MW)" => [10.0, 5.0, 5.0, 5.0],
+        "Eligible Regions" => ["", "", "", ""],
+        "Eligible Device Categories" => ["", "", "", ""],
+        "Eligible Device SubCategories" => ["", "", "", ""],
+        "Direction" => ["Up", "Up", "Down", "Up"],
+    ))
+
+    filtered = EMISAgentSimulation._filter_reserve_products_by_timeseries(reserves_path, ts_root)
+    # SPIN/REG_UP match case-insensitively and are canonicalized to the on-disk casing;
+    # REG_DN has no matching file (only "Reg_Down" would, which is a different name) and
+    # NONSPIN has no file at all, so both are dropped.
+    @test String.(filtered[:, "Reserve Product"]) == ["Spin", "Reg_Up"]
+end
+
+@testset "Project init system-level Energy.csv" begin
+    spec_dir = joinpath(PROJECT_ROOT, "config", "project_templates", "project_spec")
+    init_dir = joinpath(mktempdir(), "project_init_energy")
+    initialize_emis_project(spec_dir; output_dir=init_dir, reference_case_dir=nothing)
+    energy_path = joinpath(init_dir, "EMIS_RTS_Analysis", "Heterogeneous", "markets_data", "Energy.csv")
+
+    @test isfile(energy_path)
+
+    CSV.write(energy_path, DataFrame(zones=["other_zone"], price_cap=[1.0e4]))
+    @test_throws r"missing price_cap for zone\(s\): zone_1" validate_emis_project(init_dir)
+
+    rm(energy_path)
+    @test_throws r"Missing system-level market input.*Energy.csv" validate_emis_project(init_dir)
+end
+
+@testset "Project init seeds derating templates" begin
+    spec_dir = joinpath(PROJECT_ROOT, "config", "project_templates", "project_spec")
+    init_dir = joinpath(mktempdir(), "project_init_derating")
+    initialize_emis_project(spec_dir; output_dir=init_dir, reference_case_dir=nothing)
+    derating_dir = joinpath(init_dir, "EMIS_RTS_Analysis", "Heterogeneous", "markets_data", "derating_data")
+
+    scenarios = filter(isdir, joinpath.(derating_dir, readdir(derating_dir)))
+    @test !isempty(scenarios)
+    for scenario_dir in scenarios
+        derating = DataFrame(CSV.File(joinpath(scenario_dir, "derating_dict.csv")))
+        @test nrow(derating) == 1
+        @test all(in(names(derating)), ["ST", "CC", "HY", "STOR_4"])
+    end
+
+    rm(joinpath(first(scenarios), "derating_dict.csv"))
+    @test_throws r"Missing derating template" validate_emis_project(init_dir)
+end
+
+function _replace_header!(path, from, to)
+    lines = readlines(path)
+    lines[1] = replace(lines[1], from => to)
+    write(path, join(lines, "\n") * "\n")
+end
+
+@testset "Validator reads the project's timeseries dir" begin
+    spec_dir = joinpath(PROJECT_ROOT, "config", "project_templates", "project_spec")
+    init_dir = joinpath(mktempdir(), "project_init_ts_root")
+    initialize_emis_project(spec_dir; output_dir=init_dir, reference_case_dir=nothing)
+    metadata = EMISAgentSimulation._read_project_metadata(init_dir)
+    ts_root = EMISAgentSimulation._base_project_paths(init_dir)[3]
+    @test ts_root == metadata["timeseries_data_dir"]
+    @test isdir(ts_root)
+end
+
+@testset "RTS-GMLC example validates against its timeseries" begin
+    init_dir = joinpath(mktempdir(), "rts_gmlc")
+    initialize_emis_project(RTS_SPEC_DIR; output_dir=init_dir, reference_case_dir=nothing)
+    @test validate_emis_project(init_dir) == init_dir
+
+    year_dir = joinpath(EMISAgentSimulation._base_project_paths(init_dir)[3], "scenario_1", "sim_year_1")
+
+    load_file = joinpath(year_dir, "Load", "REAL_TIME_regional_Load.csv")
+    original_load = read(load_file, String)
+    _replace_header!(load_file, ",3", ",99")
+    @test_throws r"load column 99 that matches no zone" validate_emis_project(init_dir)
+    CSV.write(load_file, select(DataFrame(CSV.File(load_file)), Not("99")))
+    @test_throws r"no load column for zone\(s\): zone_3" validate_emis_project(init_dir)
+    write(load_file, original_load)
+
+    wind_file = joinpath(year_dir, "WIND", "DAY_AHEAD_wind.csv")
+    original_wind = read(wind_file, String)
+    _replace_header!(wind_file, "309_WIND_1", "BOGUS_WIND")
+    @test_throws r"no column for WIND generator\(s\): 309_WIND_1" validate_emis_project(init_dir)
+    write(wind_file, original_wind)
+    @test validate_emis_project(init_dir) == init_dir
+end

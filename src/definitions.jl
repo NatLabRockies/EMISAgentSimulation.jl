@@ -1,6 +1,13 @@
 const PSY_LOADS = Union{PSY.StandardLoad, PSY.PowerLoad}
 const PSY_THERMAL_GENERATORS = Union{PSY.ThermalStandard, PSY.ThermalMultiStart}
 
+# Raw PSY reserve service names whose canonical time-series names differ beyond case.
+# Shared by project initialization and constructed-system creation.
+const RESERVE_PRODUCT_ALIASES = Dict(
+    "REG_DN" => "Reg_Down",
+    "REG_UP" => "Reg_Up",
+)
+
 const DEFAULT_TIME_RESOLUTION = 60
 const DEFAULT_HOURS_PER_YEAR = 8760
 
@@ -28,18 +35,6 @@ const DEFAULT_THERMAL_MTTR_HOURS = 24
 
 const SIM_START_DATE = Dates.DateTime("2018-01-01T00:00:00")
 const SIM_END_DATE = Dates.DateTime("2019-01-01T00:00:00")
-
-# Maps PSY.Area name to the zone number used in "zone_<n>" identifiers
-const ZONE_NUMBER_MAP = Dict(
-    "FarWest" => 1,
-    "North" => 2,
-    "West" => 3,
-    "Southern" => 4,
-    "NorthCentral" => 5,
-    "SouthCentral" => 6,
-    "Coast" => 7,
-    "East" => 8,
-)
 
 # File pointers
 const TIMESERIES_DATA_DIR = "/projects/gmlcmarkets/Phase2_EMIS_Analysis/NTP_TimeSeries_Data"

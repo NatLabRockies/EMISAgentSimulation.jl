@@ -1,6 +1,33 @@
 # This file contains functions for calling, running and post-processing
 # SIIP PSI Simulation for actual Energy and A/S Market Clearing
 
+# PSI's ServiceModel dispatch for add_constraint_dual! calls get_available_components which
+# returns ALL services of the type (not just the named one), then passes the collection to
+# assign_dual_variable! which only accepts a single D<:PSY.Service. Both are bugs: this
+# override mirrors what construct_service! does — fetch only the named service and register
+# its dual individually.
+#
+# PSI's method takes T <: PSY.Service; this one is limited to the service types EMIS builds
+# ServiceModels for, so it adds a more specific method instead of replacing PSI's (which is
+# not allowed during precompilation). test/test_PSI.jl checks that every service type EMIS
+# uses dispatches here.
+const EMIS_DUAL_SERVICE_TYPES = Union{PSY.VariableReserve, PSY.ReserveDemandCurve}
+
+function PSI.add_constraint_dual!(
+    container::PSI.OptimizationContainer,
+    sys::PSY.System,
+    model::PSI.ServiceModel{T, D},
+) where {T <: EMIS_DUAL_SERVICE_TYPES, D <: PSI.AbstractServiceFormulation}
+    if !isempty(PSI.get_duals(model))
+        name = PSI.get_service_name(model)
+        service = PSY.get_component(T, sys, name)
+        (service === nothing || !PSY.get_available(service)) && return
+        for constraint_type in PSI.get_duals(model)
+            PSI.assign_dual_variable!(container, constraint_type, service, D)
+        end
+    end
+    return
+end
 
 # PSI's generic AbstractPowerModel dispatch for add_constraint_dual! fetches ACBus components
 # and registers duals keyed on ACBus. For AreaBalancePowerModel the actual constraint is
@@ -25,7 +52,135 @@ end
 
 PSI.should_write_resulting_value(::Type{SSI.StorageEnergyShortageVariable}) = false
 
+# PSI's InitialEnergyLevel IC update propagates the raw solver value with no clamping, unlike
+# DevicePower which has isapprox bounds checks. When Xpress returns EnergyVariable = soc_max + ε
+# (within default FEASTOL ~1e-6), the IC for the next step has soc_max - ic = -ε < 0, making
+# ReserveCoverageConstraint at t=1 a single-constraint IIS. This override clamps to [soc_min, soc_max].
+#
+# PSI's method takes a Union of the two IC vector types below; one method per vector type is
+# more specific, so EMIS adds methods instead of replacing PSI's (which is not allowed during
+# precompilation).
+function PSI.update_initial_conditions!(
+    ics::Vector{
+        Union{
+            PSI.InitialCondition{PSI.InitialEnergyLevel, Nothing},
+            PSI.InitialCondition{PSI.InitialEnergyLevel, Float64},
+        },
+    },
+    state::PSI.SimulationState,
+    ::Dates.Millisecond,
+)
+    return _clamp_energy_level_ics!(ics, state)
+end
+
+function PSI.update_initial_conditions!(
+    ics::Vector{
+        Union{
+            PSI.InitialCondition{PSI.InitialEnergyLevel, Nothing},
+            PSI.InitialCondition{PSI.InitialEnergyLevel, JuMP.VariableRef},
+        },
+    },
+    state::PSI.SimulationState,
+    ::Dates.Millisecond,
+)
+    return _clamp_energy_level_ics!(ics, state)
+end
+
+function _clamp_energy_level_ics!(ics, state::PSI.SimulationState)
+    for ic in ics
+        storage = PSI.get_component(ic)
+        var_val = PSI.get_system_state_value(
+            state,
+            PSI.EnergyVariable(),
+            PSI.get_component_type(ic),
+        )
+        raw = var_val[PSI.get_component_name(ic)]
+        capacity = PSY.get_storage_capacity(storage)
+        cf = PSY.get_conversion_factor(storage)
+        limits = PSY.get_storage_level_limits(storage)
+        soc_min_mwh = limits.min * capacity * cf
+        soc_max_mwh = limits.max * capacity * cf
+        clamped = clamp(raw, soc_min_mwh, soc_max_mwh)
+        if clamped != raw
+            @warn "InitialEnergyLevel for $(PSI.get_component_name(ic)) clamped $(raw) → $(clamped) MWh (solver bound violation)"
+        end
+        PSI.set_ic_quantity!(ic, clamped)
+    end
+    return
+end
+
+# DeviceStatus IC override for ThermalBasicUnitCommitment units in the ED.
+# ThermalMultiStart currently uses ThermalBasicDispatch (no DeviceStatus ICs), so this
+# override is a no-op for those units. It remains as a safety net in case the formulation
+# changes, and applies to any other type dispatched here (e.g. ThermalFastStartSIIP if it
+# ever exhibits the same startup-boundary IC issue).
+#
+# Problem: CommitmentConstraint On = IC + Start - Stop can become infeasible if the UC and
+# ED IC chains diverge. Example: ED lookahead sets IC=1, but UC also fixes Start=1, giving
+# On = 1+1-0 = 2 > 1. Fix: if On[τ-1]=0 in decision state (unit was actually off), clamp
+# IC→0 so On = 0+1-0 = 1 ✓. The try/catch handles the UC context where τ-sim_resolution
+# falls outside the decision dataset range.
+#
+# As above, one method per IC vector type, so EMIS adds methods instead of replacing PSI's.
 const DS = PSI.DeviceStatus
+
+function PSI.update_initial_conditions!(
+    ics::Vector{
+        Union{PSI.InitialCondition{DS, Nothing}, PSI.InitialCondition{DS, Float64}},
+    },
+    state::PSI.SimulationState,
+    sim_resolution::Dates.Millisecond,
+)
+    return _update_device_status_ics!(ics, state, sim_resolution)
+end
+
+function PSI.update_initial_conditions!(
+    ics::Vector{
+        Union{
+            PSI.InitialCondition{DS, Nothing},
+            PSI.InitialCondition{DS, JuMP.VariableRef},
+        },
+    },
+    state::PSI.SimulationState,
+    sim_resolution::Dates.Millisecond,
+)
+    return _update_device_status_ics!(ics, state, sim_resolution)
+end
+
+function _update_device_status_ics!(
+    ics,
+    state::PSI.SimulationState,
+    sim_resolution::Dates.Millisecond,
+)
+    for ic in ics
+        isnothing(PSI.get_value(ic)) && continue
+        comp_type = PSI.get_component_type(ic)
+        comp_name = PSI.get_component_name(ic)
+        var_val = PSI.get_system_state_value(state, PSI.OnVariable(), comp_type)
+        raw = var_val[comp_name]
+
+        if PSI.get_component(ic) isa PSY.ThermalMultiStart && raw ≈ 1.0
+            try
+                key = PSI.VariableKey(PSI.OnVariable, comp_type)
+                sys_data = PSI.get_system_state_data(state, key)
+                current_ts = PSI.get_update_timestamp(sys_data)
+                prev_ts = current_ts - sim_resolution
+                decision_data = PSI.get_decision_state_data(state, key)
+                prev_val = PSI.get_dataset_value(decision_data, prev_ts)
+                if prev_val[comp_name] ≈ 0.0
+                    @warn "DeviceStatus IC for ThermalMultiStart $comp_name clamped 1.0 → 0.0 (startup at $current_ts: On[$prev_ts]=0)"
+                    PSI.set_ic_quantity!(ic, 0.0)
+                    continue
+                end
+            catch
+                # prev_ts outside decision dataset range (UC context) — use raw IC
+            end
+        end
+
+        PSI.set_ic_quantity!(ic, raw)
+    end
+    return
+end
 
 function adjust_reserve_voll!(sys::PSY.System,
     problem::PSI.OperationModel,
@@ -41,9 +196,10 @@ function adjust_reserve_voll!(sys::PSY.System,
 
     optimization_container = PSI.get_optimization_container(problem)
     variables = PSI.get_variables(optimization_container)
+    system_config = load_system_config(simulation_dir)
 
     for zone in zones
-        area = find_zonal_area(sys, zone)
+        area = find_zonal_area(zone, sys, system_config)
         slack_coefficients = [PSI.SystemBalanceSlackUp, PSI.SystemBalanceSlackDown]
         for c in slack_coefficients
             slack_key = PSI.VariableKey{c, PSY.ACBus}("")
@@ -1699,76 +1855,40 @@ function create_simulation(sys_MD::PSY.System,
         end
     end
 
+    system_config = load_system_config(simulation_dir)
     for zone in zones
-        # bus = find_zonal_bus(String(zone), sys_UC)
-        area = find_zonal_area(String(zone), sys_UC)
-        # zone_num = parse(Int64, last(zone, 1))
-        if isnothing(zone)
-            energy_price_ed[zone, 1, :] = zeros(data_length_ed)
-            energy_price_uc[zone, 1, :] = zeros(data_length_uc)
-            energy_price_md[zone, 1, :] = zeros(data_length_md)
-            energy_voll[zone, 1, :] = zeros(data_length_ed)
-            energy_voll_uc[zone, 1, :] = zeros(data_length_uc)
-            energy_voll_md[zone, 1, :] = zeros(data_length_md)
-        else
-            if single_stage_bool == false
-                energy_price_ed[zone, 1, :] =
-                    abs.(
-                        round.(
-                            dual_values_ed["CopperPlateBalanceConstraint__Area"][
-                                dual_values_ed["CopperPlateBalanceConstraint__Area"].name .== PSY.get_name(
-                                    area,
-                                ),
-                                :value,
-                            ];
-                            digits = 5,
-                        ),
-                    ) / base_power
-                energy_price_uc[zone, 1, :] =
-                    abs.(
-                        round.(
-                            dual_values_uc["CopperPlateBalanceConstraint__Area"][
-                                dual_values_uc["CopperPlateBalanceConstraint__Area"].name .== PSY.get_name(
-                                    area,
-                                ),
-                                :value,
-                            ];
-                            digits = 5,
-                        ),
-                    ) / base_power
-                if md_market_bool == true
-                    energy_price_md[zone, 1, :] =
-                        abs.(
-                            round.(
-                                dual_values_md["CopperPlateBalanceConstraint__Area"][
-                                    dual_values_md["CopperPlateBalanceConstraint__Area"].name .== PSY.get_name(
-                                        area,
-                                    ),
-                                    :value,
-                                ];
-                                digits = 5,
+        area = find_zonal_area(String(zone), sys_UC, system_config)
+        if single_stage_bool == false
+            energy_price_ed[zone, 1, :] =
+                abs.(
+                    round.(
+                        dual_values_ed["CopperPlateBalanceConstraint__Area"][
+                            dual_values_ed["CopperPlateBalanceConstraint__Area"].name .== PSY.get_name(
+                                area,
                             ),
-                        ) / base_power
-                    energy_voll_md[zone, 1, :] =
-                        abs.(
-                            round.(
-                                result_variables_md["SystemBalanceSlackUp__Area"][
-                                    result_variables_md["SystemBalanceSlackUp__Area"].name .== PSY.get_name(
-                                        area,
-                                    ),
-                                    :value,
-                                ];
-                                digits = 5,
+                            :value,
+                        ];
+                        digits = 5,
+                    ),
+                ) / base_power
+            energy_price_uc[zone, 1, :] =
+                abs.(
+                    round.(
+                        dual_values_uc["CopperPlateBalanceConstraint__Area"][
+                            dual_values_uc["CopperPlateBalanceConstraint__Area"].name .== PSY.get_name(
+                                area,
                             ),
-                        ) / base_power
-                else
-                    energy_price_md[zone, 1, :] = zeros(data_length_md)
-                end
-                energy_voll[zone, 1, :] =
+                            :value,
+                        ];
+                        digits = 5,
+                    ),
+                ) / base_power
+            if md_market_bool == true
+                energy_price_md[zone, 1, :] =
                     abs.(
                         round.(
-                            result_variables_ed["SystemBalanceSlackUp__Area"][
-                                result_variables_ed["SystemBalanceSlackUp__Area"].name .== PSY.get_name(
+                            dual_values_md["CopperPlateBalanceConstraint__Area"][
+                                dual_values_md["CopperPlateBalanceConstraint__Area"].name .== PSY.get_name(
                                     area,
                                 ),
                                 :value,
@@ -1776,11 +1896,11 @@ function create_simulation(sys_MD::PSY.System,
                             digits = 5,
                         ),
                     ) / base_power
-                energy_voll_uc[zone, 1, :] =
+                energy_voll_md[zone, 1, :] =
                     abs.(
                         round.(
-                            result_variables_uc["SystemBalanceSlackUp__Area"][
-                                result_variables_uc["SystemBalanceSlackUp__Area"].name .== PSY.get_name(
+                            result_variables_md["SystemBalanceSlackUp__Area"][
+                                result_variables_md["SystemBalanceSlackUp__Area"].name .== PSY.get_name(
                                     area,
                                 ),
                                 :value,
@@ -1788,33 +1908,59 @@ function create_simulation(sys_MD::PSY.System,
                             digits = 5,
                         ),
                     ) / base_power
-                # energy_voll[zone, 1, :] += abs.(round.(result_variables_ed["SystemBalanceSlackDown__ACBus"][:, string(PSY.get_number(bus))], digits = 5)) / base_power
             else
-                energy_price_uc[zone, 1, :] =
-                    abs.(
-                        round.(
-                            dual_values_uc["CopperPlateBalanceConstraint__Area"][
-                                dual_values_uc["CopperPlateBalanceConstraint__Area"].name .== PSY.get_name(
-                                    area,
-                                ),
-                                :value,
-                            ];
-                            digits = 5,
-                        ),
-                    ) / base_power
-                energy_voll_uc[zone, 1, :] =
-                    abs.(
-                        round.(
-                            result_variables_uc["SystemBalanceSlackUp__Area"][
-                                result_variables_uc["SystemBalanceSlackUp__Area"].name .== PSY.get_name(
-                                    area,
-                                ),
-                                :value,
-                            ];
-                            digits = 5,
-                        ),
-                    ) / base_power
+                energy_price_md[zone, 1, :] = zeros(data_length_md)
             end
+            energy_voll[zone, 1, :] =
+                abs.(
+                    round.(
+                        result_variables_ed["SystemBalanceSlackUp__Area"][
+                            result_variables_ed["SystemBalanceSlackUp__Area"].name .== PSY.get_name(
+                                area,
+                            ),
+                            :value,
+                        ];
+                        digits = 5,
+                    ),
+                ) / base_power
+            energy_voll_uc[zone, 1, :] =
+                abs.(
+                    round.(
+                        result_variables_uc["SystemBalanceSlackUp__Area"][
+                            result_variables_uc["SystemBalanceSlackUp__Area"].name .== PSY.get_name(
+                                area,
+                            ),
+                            :value,
+                        ];
+                        digits = 5,
+                    ),
+                ) / base_power
+            # energy_voll[zone, 1, :] += abs.(round.(result_variables_ed["SystemBalanceSlackDown__ACBus"][:, string(PSY.get_number(bus))], digits = 5)) / base_power
+        else
+            energy_price_uc[zone, 1, :] =
+                abs.(
+                    round.(
+                        dual_values_uc["CopperPlateBalanceConstraint__Area"][
+                            dual_values_uc["CopperPlateBalanceConstraint__Area"].name .== PSY.get_name(
+                                area,
+                            ),
+                            :value,
+                        ];
+                        digits = 5,
+                    ),
+                ) / base_power
+            energy_voll_uc[zone, 1, :] =
+                abs.(
+                    round.(
+                        result_variables_uc["SystemBalanceSlackUp__Area"][
+                            result_variables_uc["SystemBalanceSlackUp__Area"].name .== PSY.get_name(
+                                area,
+                            ),
+                            :value,
+                        ];
+                        digits = 5,
+                    ),
+                ) / base_power
         end
     end
 
@@ -1825,7 +1971,6 @@ function create_simulation(sys_MD::PSY.System,
     replace!(energy_price_uc, NaN => 0.0)
     replace!(energy_price_md, NaN => 0.0)
     scale_voll(energy_price_ed, rt_resolution)
-
 
     if !single_stage_bool
         for service in get_system_services(sys_ED)

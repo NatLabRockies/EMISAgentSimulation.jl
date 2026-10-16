@@ -1,4 +1,31 @@
 """
+    read_generator_table(test_system_dir, data_dir)
+
+Read `<test_system_dir>/RTS_Data/SourceData/gen.csv` with every `Unit Type` expressed as a
+`technologies.csv` unit type. Types already in `technologies.csv` are kept; others (e.g. the
+raw names in a legacy `gen.csv`) are converted through `unit_type_aliases.csv`; any type
+left unknown is an error.
+"""
+function read_generator_table(test_system_dir::AbstractString, data_dir::AbstractString)
+    path = joinpath(test_system_dir, "RTS_Data", "SourceData", "gen.csv")
+    generators = DataFrames.DataFrame(CSV.File(path))
+    system_config = load_system_config(data_dir)
+    aliases = load_unit_type_aliases(data_dir)
+    known(unit_type) = haskey(system_config.technology_lookup, unit_type)
+    unit_types = map(generators[!, "Unit Type"]) do value
+        unit_type = _coerce_string(value)
+        known(unit_type) ? unit_type : get(aliases, unit_type, unit_type)
+    end
+    unknown = sort(unique(filter(!known, unit_types)))
+    isempty(unknown) || error(
+        "$(path) has unit type(s) $(join(unknown, ", ")) that are not in technologies.csv " *
+        "and have no row in unit_type_aliases.csv",
+    )
+    generators[!, "Unit Type"] = unit_types
+    return generators
+end
+
+"""
 This function reads the test system time series and returns representative hour weight.
 """
 function read_test_system(data_dir::String,
@@ -24,7 +51,7 @@ function read_test_system(data_dir::String,
     test_sys_hour_weight = nothing
     zonal_lines = nothing
 
-    if occursin("RTS", test_system_dir)
+    if isdir(joinpath(test_system_dir, "RTS_Data"))
         zones,
         representative_periods,
         rep_hour_weight,
@@ -45,6 +72,8 @@ function read_test_system(data_dir::String,
             n_rep_periods,
             rep_checkpoint,
             timeseries_data_dir)
+    else
+        error("Test system directory does not contain RTS_Data: $(test_system_dir)")
     end
 
     return zones,

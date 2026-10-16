@@ -1,0 +1,11 @@
+source_unit_type,unit_type
+HYDRO,HY
+NG-GT,GT
+NG-CC,CC
+NG-CT,CT
+NG-ST,ST
+COAL,ST
+NUCLEAR,NU_ST
+Battery,BA
+WIND,WT
+PV,PVe

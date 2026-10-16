@@ -1704,18 +1704,10 @@ function load_sienna_systems!(
     ED_interval = get_ed_interval(case)
     outage_dir = get_outage_dir(case)
 
-    initial_Sienna_system_name = "DA_sys_zonal_with_storage_capacities.json"
+    initial_Sienna_system_path = resolve_generated_system_path(rts_dir)
     pcm_scenario = simulation_settings["pcm_scenario"]
-
-    if pcm_scenario == "scenario_1"
-        supercc_scenario = "baseline"
-    elseif pcm_scenario == "scenario_2"
-        supercc_scenario = "central"
-    elseif pcm_scenario == "scenario_3"
-        supercc_scenario = "ira"
-    else
-        "Not a pre-defined scenario."
-    end
+    system_config = load_system_config(data_dir)
+    supercc_scenario = get_scenario_pcm_label(system_config, pcm_scenario)
 
     for sim_year in (restore_year + 1):simulation_years
         md_json = joinpath(result_path, "sys_MD_year$(sim_year).json")
@@ -1782,24 +1774,7 @@ function load_sienna_systems!(
                 for d in PSY.get_components(PSY.Generator, sys)
                     d.name in removegen_name && PSY.remove_component!(sys, d)
                 end
-                PSY.remove_component!(
-                    sys,
-                    PSY.get_component(PSY.VariableReserve, sys, "SPIN"),
-                )
-                PSY.remove_component!(
-                    sys,
-                    PSY.get_component(PSY.VariableReserveNonSpinning, sys, "NONSPIN"),
-                )
-                PSY.set_name!(
-                    sys,
-                    PSY.get_component(PSY.VariableReserve, sys, "REG_DN"),
-                    "Reg_Down",
-                )
-                PSY.set_name!(
-                    sys,
-                    PSY.get_component(PSY.VariableReserve, sys, "REG_UP"),
-                    "Reg_Up",
-                )
+                normalize_legacy_reserve_services!(sys)
                 PSY.set_units_base_system!(sys, PSY.IS.UnitSystem.DEVICE_BASE)
             end
         end
