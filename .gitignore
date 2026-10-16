@@ -25,3 +25,5 @@ _*.jl
 TODO_thermalms_ed_dispatch.md
 unused_audit.md
 
+# Testing
+test/test_systems/
