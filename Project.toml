@@ -2,11 +2,11 @@ name = "EMISAgentSimulation"
 uuid = "31190161-dc2b-4b0d-b10a-53550de1824a"
 version = "0.2.0"
 authors = [
-    "Muhammad Bashar Anwar",
-    "Nongchao Guo",
     "Bethany Frew <bethany.frew@nlr.gov>",
     "Purboday Ghosh <purboday.ghosh@nlr.gov>",
     "Abdelrahman Ayad <abdelrahman.ayad@nlr.gov>",
+    "Muhammad Bashar Anwar",
+    "Nongchao Guo",
     ]
 
 [deps]
