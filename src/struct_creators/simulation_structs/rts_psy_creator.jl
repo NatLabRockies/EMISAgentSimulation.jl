@@ -146,11 +146,11 @@ function create_rts_sys(rts_dir::String,
                 system_cfg = system_config,
                 canonical_load_dir = if use_canonical_load
                     joinpath(
-                    timeseries_data_dir,
-                    pcm_scenario,
-                    "sim_year_$(sim_year)",
-                    "Load",
-                )
+                        timeseries_data_dir,
+                        pcm_scenario,
+                        "sim_year_$(sim_year)",
+                        "Load",
+                    )
                 else
                     nothing
                 end,
@@ -161,31 +161,31 @@ function create_rts_sys(rts_dir::String,
                 end,
                 canonical_wind_dir = if use_canonical_load
                     joinpath(
-                    timeseries_data_dir,
-                    pcm_scenario,
-                    "sim_year_$(sim_year)",
-                    "WIND",
-                )
+                        timeseries_data_dir,
+                        pcm_scenario,
+                        "sim_year_$(sim_year)",
+                        "WIND",
+                    )
                 else
                     nothing
                 end,
                 canonical_pv_dir = if use_canonical_load
                     joinpath(
-                    timeseries_data_dir,
-                    pcm_scenario,
-                    "sim_year_$(sim_year)",
-                    "PV",
-                )
+                        timeseries_data_dir,
+                        pcm_scenario,
+                        "sim_year_$(sim_year)",
+                        "PV",
+                    )
                 else
                     nothing
                 end,
                 canonical_reserves_dir = if use_canonical_load
                     joinpath(
-                    timeseries_data_dir,
-                    pcm_scenario,
-                    "sim_year_$(sim_year)",
-                    "Reserves",
-                )
+                        timeseries_data_dir,
+                        pcm_scenario,
+                        "sim_year_$(sim_year)",
+                        "Reserves",
+                    )
                 else
                     nothing
                 end,
@@ -233,11 +233,11 @@ function create_rts_sys(rts_dir::String,
                 system_cfg = system_config,
                 canonical_load_dir = if use_canonical_load
                     joinpath(
-                    timeseries_data_dir,
-                    pcm_scenario,
-                    "sim_year_$(sim_year)",
-                    "Load",
-                )
+                        timeseries_data_dir,
+                        pcm_scenario,
+                        "sim_year_$(sim_year)",
+                        "Load",
+                    )
                 else
                     nothing
                 end,
@@ -248,31 +248,31 @@ function create_rts_sys(rts_dir::String,
                 end,
                 canonical_wind_dir = if use_canonical_load
                     joinpath(
-                    timeseries_data_dir,
-                    pcm_scenario,
-                    "sim_year_$(sim_year)",
-                    "WIND",
-                )
+                        timeseries_data_dir,
+                        pcm_scenario,
+                        "sim_year_$(sim_year)",
+                        "WIND",
+                    )
                 else
                     nothing
                 end,
                 canonical_pv_dir = if use_canonical_load
                     joinpath(
-                    timeseries_data_dir,
-                    pcm_scenario,
-                    "sim_year_$(sim_year)",
-                    "PV",
-                )
+                        timeseries_data_dir,
+                        pcm_scenario,
+                        "sim_year_$(sim_year)",
+                        "PV",
+                    )
                 else
                     nothing
                 end,
                 canonical_reserves_dir = if use_canonical_load
                     joinpath(
-                    timeseries_data_dir,
-                    pcm_scenario,
-                    "sim_year_$(sim_year)",
-                    "Reserves",
-                )
+                        timeseries_data_dir,
+                        pcm_scenario,
+                        "sim_year_$(sim_year)",
+                        "Reserves",
+                    )
                 else
                     nothing
                 end,
@@ -324,11 +324,11 @@ function create_rts_sys(rts_dir::String,
                     system_cfg = system_config,
                     canonical_load_dir = if use_canonical_load
                         joinpath(
-                        timeseries_data_dir,
-                        scenario,
-                        "sim_year_$(sim_year)",
-                        "Load",
-                    )
+                            timeseries_data_dir,
+                            scenario,
+                            "sim_year_$(sim_year)",
+                            "Load",
+                        )
                     else
                         nothing
                     end,
@@ -339,31 +339,31 @@ function create_rts_sys(rts_dir::String,
                     end,
                     canonical_wind_dir = if use_canonical_load
                         joinpath(
-                        timeseries_data_dir,
-                        scenario,
-                        "sim_year_$(sim_year)",
-                        "WIND",
-                    )
+                            timeseries_data_dir,
+                            scenario,
+                            "sim_year_$(sim_year)",
+                            "WIND",
+                        )
                     else
                         nothing
                     end,
                     canonical_pv_dir = if use_canonical_load
                         joinpath(
-                        timeseries_data_dir,
-                        scenario,
-                        "sim_year_$(sim_year)",
-                        "PV",
-                    )
+                            timeseries_data_dir,
+                            scenario,
+                            "sim_year_$(sim_year)",
+                            "PV",
+                        )
                     else
                         nothing
                     end,
                     canonical_reserves_dir = if use_canonical_load
                         joinpath(
-                        timeseries_data_dir,
-                        scenario,
-                        "sim_year_$(sim_year)",
-                        "Reserves",
-                    )
+                            timeseries_data_dir,
+                            scenario,
+                            "sim_year_$(sim_year)",
+                            "Reserves",
+                        )
                     else
                         nothing
                     end,
@@ -713,7 +713,7 @@ function create_sys_w_updated_ts(
         Generator,
         sys_MD,
     )
-        
+
         #create dictionary
         # revisedts = Dict{DateTime, Array{Float64}}()
         revisedts = DataStructures.SortedDict{DateTime, Vector{Float64}}()

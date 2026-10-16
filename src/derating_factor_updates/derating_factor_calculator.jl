@@ -891,7 +891,6 @@ function update_derating_factor!(project::BatteryEMIS{Existing},
     duration = Int(round(get_storage_capacity(tech)[:max] / get_maxcap(project)))
     project_type = "existing_STOR_$(duration)"
 
-
     derating_data = read_data(
         joinpath(
             simulation_dir,
@@ -923,7 +922,6 @@ function update_derating_factor!(project::BatteryEMIS{<:BuildPhase},
 )
     tech = get_tech(project)
     duration = Int(round(get_storage_capacity(tech)[:max] / get_maxcap(project)))
-
 
     if marginal_cc
         project_type = "new_STOR_$(duration)"

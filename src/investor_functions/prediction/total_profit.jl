@@ -137,7 +137,6 @@ function update_expected_profit!(project::P,
         for y in 1:profit_array_length
     ]
 
-
     #Calculate capacity market going forward cost.
     expected_capacity_going_forward_cost =
         total_annual_cost - expected_annual_operating_profit - expected_rec_revenues

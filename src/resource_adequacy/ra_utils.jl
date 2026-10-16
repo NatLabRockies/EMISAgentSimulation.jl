@@ -205,7 +205,6 @@ function add_capacity_market_project!(capacity_market_system::PSY.System,
     timeseries_data_dir::String,
     availability_df_rt::DataFrame)
 
-
     # Must check against ALL stored components (including unavailable ones), since PSY
     # enforces name uniqueness on the full component store, not just available techs.
     current_names = get_all_tech_names(capacity_market_system)

@@ -866,7 +866,6 @@ function calculate_total_load(
                 "max_active_power"),
         )
 
-
         total_load +=
             sum(TS.values(ts_data[period_of_interest]) * PSY.get_max_active_power(load)) *
             time_resolution / DEFAULT_TIME_RESOLUTION

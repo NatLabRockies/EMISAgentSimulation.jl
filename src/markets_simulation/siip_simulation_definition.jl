@@ -1972,7 +1972,6 @@ function create_simulation(sys_MD::PSY.System,
     replace!(energy_price_md, NaN => 0.0)
     scale_voll(energy_price_ed, rt_resolution)
 
-
     if !single_stage_bool
         for service in get_system_services(sys_ED)
             name = PSY.get_name(service)

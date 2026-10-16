@@ -295,37 +295,37 @@ function _attach_user_timeseries!(sys::PSY.System, ts_root::AbstractString,
 )
     load_file = if load_file === nothing
         canonical_timeseries_path(
-        ts_root,
-        scenario,
-        sim_year,
-        market_stage,
-        "load";
-        defaults_file = timeseries_defaults_file,
-    )
+            ts_root,
+            scenario,
+            sim_year,
+            market_stage,
+            "load";
+            defaults_file = timeseries_defaults_file,
+        )
     else
         load_file
     end
     wind_file = if wind_file === nothing
         canonical_timeseries_path(
-        ts_root,
-        scenario,
-        sim_year,
-        market_stage,
-        "wind";
-        defaults_file = timeseries_defaults_file,
-    )
+            ts_root,
+            scenario,
+            sim_year,
+            market_stage,
+            "wind";
+            defaults_file = timeseries_defaults_file,
+        )
     else
         wind_file
     end
     pv_file = if pv_file === nothing
         canonical_timeseries_path(
-        ts_root,
-        scenario,
-        sim_year,
-        market_stage,
-        "pv";
-        defaults_file = timeseries_defaults_file,
-    )
+            ts_root,
+            scenario,
+            sim_year,
+            market_stage,
+            "pv";
+            defaults_file = timeseries_defaults_file,
+        )
     else
         pv_file
     end

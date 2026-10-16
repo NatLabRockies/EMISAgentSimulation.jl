@@ -879,7 +879,6 @@ function create_tech_type(name::String,
     FOR = projectdata["FOR"]
     MTTR = projectdata["MTTR Hr"]
 
-
     tech = BatteryTech(type,
         (
             min = input_active_power_limits[:min] * device_base_power,

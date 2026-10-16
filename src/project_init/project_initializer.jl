@@ -499,13 +499,13 @@ function _complete_projectoptions_for_investor(
                 "SOLAR"
             else
                 _coalesce_project_option_value(
-                input_row,
-                reference_row,
-                defaults_by_unit,
-                unit_type,
-                "Fuel",
-                "N/A",
-            )
+                    input_row,
+                    reference_row,
+                    defaults_by_unit,
+                    unit_type,
+                    "Fuel",
+                    "N/A",
+                )
             end,
             "Category" => string(technology.category),
             "Size" => _coalesce_project_option_value(
@@ -558,61 +558,61 @@ function _complete_projectoptions_for_investor(
             ),
             "Input Power Rating pu" => if technology_class == "storage"
                 _coalesce_project_option_value(
-                input_row,
-                reference_row,
-                defaults_by_unit,
-                unit_type,
-                "Input Power Rating pu",
-                "1",
-            )
+                    input_row,
+                    reference_row,
+                    defaults_by_unit,
+                    unit_type,
+                    "Input Power Rating pu",
+                    "1",
+                )
             else
                 "n/a"
             end,
             "Output Power Rating pu" => if technology_class == "storage"
                 _coalesce_project_option_value(
-                input_row,
-                reference_row,
-                defaults_by_unit,
-                unit_type,
-                "Output Power Rating pu",
-                "1",
-            )
+                    input_row,
+                    reference_row,
+                    defaults_by_unit,
+                    unit_type,
+                    "Output Power Rating pu",
+                    "1",
+                )
             else
                 "n/a"
             end,
             "Min Storgae pu" => if technology_class == "storage"
                 _coalesce_project_option_value(
-                input_row,
-                reference_row,
-                defaults_by_unit,
-                unit_type,
-                "Min Storgae pu",
-                "0",
-            )
+                    input_row,
+                    reference_row,
+                    defaults_by_unit,
+                    unit_type,
+                    "Min Storgae pu",
+                    "0",
+                )
             else
                 "n/a"
             end,
             "Duration Hr" => if technology_class == "storage"
                 _coalesce_project_option_value(
-                input_row,
-                reference_row,
-                defaults_by_unit,
-                unit_type,
-                "Duration Hr",
-                "n/a",
-            )
+                    input_row,
+                    reference_row,
+                    defaults_by_unit,
+                    unit_type,
+                    "Duration Hr",
+                    "n/a",
+                )
             else
                 "n/a"
             end,
             "Round Trip Efficiency pu" => if technology_class == "storage"
                 _coalesce_project_option_value(
-                input_row,
-                reference_row,
-                defaults_by_unit,
-                unit_type,
-                "Round Trip Efficiency pu",
-                "0.85",
-            )
+                    input_row,
+                    reference_row,
+                    defaults_by_unit,
+                    unit_type,
+                    "Round Trip Efficiency pu",
+                    "0.85",
+                )
             else
                 "n/a"
             end,
