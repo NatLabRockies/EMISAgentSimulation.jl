@@ -332,8 +332,6 @@ import MathOptInterface: AbstractOptimizer
 
 const MOI = MathOptInterface
 
-using Revise
-
 import PowerSystems:
     get_value,
     set_value
@@ -423,7 +421,6 @@ include("markets_simulation/ordc_construction/ordc_market_creator.jl")
 include("resource_adequacy/conv.jl")
 include("resource_adequacy/PSY2PRAS.jl")
 include("resource_adequacy/spi_utils.jl")
-include("resource_adequacy/parsers/power_system_table_data.jl")
 include("resource_adequacy/ra_utils.jl")
 include("resource_adequacy/generator_unavailability.jl")
 
@@ -436,6 +433,7 @@ include("markets_simulation/cem.jl")
 include("markets_simulation/expected_market_simulation.jl")
 include("markets_simulation/economicdispatch.jl")
 include("markets_simulation/siip_simulation_definition.jl")
+include("markets_simulation/psi_patches.jl")
 include("markets_simulation/actual_energy_mkt_clearing.jl")
 include("markets_simulation/actual_capacity_mkt_clearing.jl")
 include("markets_simulation/actual_rec_mkt_clearing.jl")

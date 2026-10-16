@@ -14,5 +14,9 @@ include("test_update_derating_factor.jl")
 # Context-dependent tests — require the caller to have defined:
 #   case, simulation_years, test_system_dir  (for test_base_checks.jl)
 #   projectdata, investor_dir                (for test_system_inputs.jl)
-include("test_base_checks.jl")
-include("test_system_inputs.jl")
+if @isdefined(case) && @isdefined(test_system_dir)
+    include("test_base_checks.jl")
+end
+if @isdefined(projectdata) && @isdefined(investor_dir)
+    include("test_system_inputs.jl")
+end
