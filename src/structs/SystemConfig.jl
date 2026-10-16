@@ -130,8 +130,10 @@ function _get_config_setting(df::DataFrames.DataFrame, key::String, default)
     if nrow(df) == 0
         return default
     end
-    key_column = hasproperty(df, :key) ? :key : (hasproperty(df, :SETTING) ? :SETTING : nothing)
-    value_column = hasproperty(df, :value) ? :value : (hasproperty(df, :VALUE) ? :VALUE : nothing)
+    key_column =
+        hasproperty(df, :key) ? :key : (hasproperty(df, :SETTING) ? :SETTING : nothing)
+    value_column =
+        hasproperty(df, :value) ? :value : (hasproperty(df, :VALUE) ? :VALUE : nothing)
     if isnothing(key_column) || isnothing(value_column)
         return default
     end
@@ -177,7 +179,9 @@ function load_system_config(data_dir::AbstractString)
     config_dir = _resolve_system_config_dir(data_dir)
     required_files = ["system_config.csv", "zones.csv", "scenarios.csv", "technologies.csv"]
     missing_files = filter(file -> !isfile(joinpath(config_dir, file)), required_files)
-    isempty(missing_files) || error("Missing system configuration in $(config_dir): $(join(missing_files, ", ")). Copy config/ercot_est/system_config for legacy ERCOT cases.")
+    isempty(missing_files) || error(
+        "Missing system configuration in $(config_dir): $(join(missing_files, ", ")). Copy config/ercot_est/system_config for legacy ERCOT cases.",
+    )
     settings_df = _safe_read_config_csv(joinpath(config_dir, "system_config.csv"))
     zones_df = _safe_read_config_csv(joinpath(config_dir, "zones.csv"))
     scenarios_df = _safe_read_config_csv(joinpath(config_dir, "scenarios.csv"))
@@ -189,7 +193,8 @@ function load_system_config(data_dir::AbstractString)
     isempty(zone_names) && error("zones.csv must define at least one zone")
 
     scenario_lookup = _build_scenario_lookup(scenarios_df)
-    hasproperty(scenarios_df, :scenario_name) || error("scenarios.csv must include a scenario_name column")
+    hasproperty(scenarios_df, :scenario_name) ||
+        error("scenarios.csv must include a scenario_name column")
     scenario_names = String.(scenarios_df[:, :scenario_name])
     isempty(scenario_names) && error("scenarios.csv must define at least one scenario")
 
@@ -197,13 +202,19 @@ function load_system_config(data_dir::AbstractString)
     technology_lookup = _build_technology_lookup(technologies_df)
     devices_to_remove = _build_devices_to_remove(devices_df)
     default_rts_load = something(
-        tryparse(Float64, string(_get_config_setting(settings_df, "default_rts_load", DEFAULT_RTS_LOAD))),
+        tryparse(
+            Float64,
+            string(_get_config_setting(settings_df, "default_rts_load", DEFAULT_RTS_LOAD)),
+        ),
         DEFAULT_RTS_LOAD,
     )
-    base_load_year_value = _get_config_setting(settings_df, "base_load_year", DEFAULT_LOAD_YEAR)
-    base_load_year = base_load_year_value isa Number ?
-        Int(base_load_year_value) :
+    base_load_year_value =
+        _get_config_setting(settings_df, "base_load_year", DEFAULT_LOAD_YEAR)
+    base_load_year = if base_load_year_value isa Number
+        Int(base_load_year_value)
+    else
         something(tryparse(Int, string(base_load_year_value)), DEFAULT_LOAD_YEAR)
+    end
     zone_column_start_value = _get_config_setting(settings_df, "zone_column_start", 5)
     zone_column_start = if zone_column_start_value isa Number
         Int(zone_column_start_value)
@@ -216,7 +227,11 @@ function load_system_config(data_dir::AbstractString)
         system_name = "EMISProject"
     end
 
-    has_custom_config = isdir(config_dir) && (nrow(settings_df) > 0 || nrow(zones_df) > 0 || nrow(scenarios_df) > 0 || nrow(technologies_df) > 0 || nrow(devices_df) > 0)
+    has_custom_config =
+        isdir(config_dir) && (
+            nrow(settings_df) > 0 || nrow(zones_df) > 0 || nrow(scenarios_df) > 0 ||
+            nrow(technologies_df) > 0 || nrow(devices_df) > 0
+        )
 
     return SystemConfig(
         data_dir,
@@ -302,7 +317,8 @@ function load_unit_type_aliases(data_dir::AbstractString)
     (hasproperty(aliases, :source_unit_type) && hasproperty(aliases, :unit_type)) ||
         error("$(path) must have source_unit_type and unit_type columns")
     return Dict(
-        _coerce_string(row.source_unit_type) => _coerce_string(row.unit_type) for row in eachrow(aliases)
+        _coerce_string(row.source_unit_type) => _coerce_string(row.unit_type) for
+        row in eachrow(aliases)
     )
 end
 

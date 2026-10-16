@@ -11,7 +11,7 @@ function read_data(file_name::String)
         CSV.File(file_name;
             truestrings = ["T", "TRUE", "true"],
             falsestrings = ["F", "FALSE", "false"]),
-    );
+    )
 
     return projectdata
 end
@@ -63,7 +63,6 @@ function resolve_generated_system_path(base_dir::AbstractString)
 
     error(
         "No PSY system JSON was found in $(base_dir). Expected a generated project " *
-        "copy or the legacy RTS file."
+        "copy or the legacy RTS file.",
     )
 end
-

@@ -6,7 +6,7 @@ end
 
 function _read_csv_df(path::AbstractString)
     isfile(path) || error("CSV missing: $(path)")
-    return DataFrames.DataFrame(CSV.File(path; stringtype=String))
+    return DataFrames.DataFrame(CSV.File(path; stringtype = String))
 end
 
 function _as_string(value)
@@ -38,7 +38,9 @@ function _base_project_paths(project_root::AbstractString)
         ts_root = get(metadata, "timeseries_data_dir", joinpath(project_root, "timeseries"))
         return config_root, investor_root, ts_root
     end
-    return project_root, joinpath(project_root, "investors"), joinpath(project_root, "timeseries")
+    return project_root,
+    joinpath(project_root, "investors"),
+    joinpath(project_root, "timeseries")
 end
 
 """
@@ -101,10 +103,13 @@ function _validate_probability_sum(config_root::AbstractString)
         push!(probabilities, parse(Float64, val))
     end
     prob_total = sum(probabilities)
-    if abs(prob_total - 1.0) < 1e-8 || all(probability -> abs(probability - 1.0) < 1e-8, probabilities)
+    if abs(prob_total - 1.0) < 1e-8 ||
+       all(probability -> abs(probability - 1.0) < 1e-8, probabilities)
         return nothing
     end
-    error("Scenario probabilities sum to $(prob_total), expected 1.0 or one scenario alternative per row")
+    error(
+        "Scenario probabilities sum to $(prob_total), expected 1.0 or one scenario alternative per row",
+    )
     return nothing
 end
 
@@ -134,16 +139,21 @@ function _validate_load_zone_columns(config_root::AbstractString, ts_root::Abstr
             for filename in ("DAY_AHEAD_regional_Load.csv", "REAL_TIME_regional_Load.csv")
                 load_file = joinpath(load_dir, filename)
                 isfile(load_file) || continue
-                columns = _as_string.(names(_read_csv_df(load_file))[cfg.zone_column_start:end])
+                columns =
+                    _as_string.(names(_read_csv_df(load_file))[cfg.zone_column_start:end])
                 resolved = Set{String}()
                 for column in columns
                     haskey(cfg.zone_lookup, column) ||
-                        error("$(load_file) has load column $(column) that matches no zone in zones.csv")
+                        error(
+                            "$(load_file) has load column $(column) that matches no zone in zones.csv",
+                        )
                     push!(resolved, cfg.zone_lookup[column])
                 end
                 missing_zones = sort(setdiff(cfg.zone_names, resolved))
                 isempty(missing_zones) ||
-                    error("$(load_file) has no load column for zone(s): $(join(missing_zones, ", "))")
+                    error(
+                        "$(load_file) has no load column for zone(s): $(join(missing_zones, ", "))",
+                    )
             end
         end
     end
@@ -173,7 +183,9 @@ function _validate_option_techs(config_root::AbstractString, investor_root::Abst
                 tech = _as_string(row[Symbol("Unit Type")])
                 isempty(tech) && continue
                 if !(tech in valid_techs)
-                    error("Investor $(investor) projectoptions.csv references unknown technology $(tech)")
+                    error(
+                        "Investor $(investor) projectoptions.csv references unknown technology $(tech)",
+                    )
                 end
             end
         end
@@ -233,7 +245,7 @@ function _validate_investor_finance_categories(investor_dir::AbstractString)
         missing_categories = setdiff(categories, covered)
         isempty(missing_categories) || error(
             "Investor $(investor)'s $(filename) is missing Category row(s) $(join(sort(collect(missing_categories)), ", ")) " *
-            "used by its own projectexisting.csv/projectoptions.csv; add matching rows or fix the technologies.csv unit_type→category mapping"
+            "used by its own projectexisting.csv/projectoptions.csv; add matching rows or fix the technologies.csv unit_type→category mapping",
         )
     end
     return nothing
@@ -246,7 +258,10 @@ Run the finance-category check for each investor folder. `config_root` is not cu
 used; this function reads categories from the project files and does not check how they were
 assigned.
 """
-function _validate_technology_finance_coverage(config_root::AbstractString, investor_root::AbstractString)
+function _validate_technology_finance_coverage(
+    config_root::AbstractString,
+    investor_root::AbstractString,
+)
     isdir(investor_root) || return nothing
     for investor in readdir(investor_root)
         investor_path = joinpath(investor_root, investor)
@@ -267,11 +282,12 @@ setup README.
 function _validate_investor_market_bundle(investor_dir::AbstractString)
     isdir(investor_dir) || error("Investor directory does not exist: $(investor_dir)")
     markets_dir = joinpath(investor_dir, "markets_data")
-    isdir(markets_dir) || error("Investor $(basename(investor_dir)) is missing its markets_data directory")
+    isdir(markets_dir) ||
+        error("Investor $(basename(investor_dir)) is missing its markets_data directory")
     required_files = ["investor_belief.csv", "scenario_data.csv"]
     missing = [file for file in required_files if !isfile(joinpath(markets_dir, file))]
     isempty(missing) || error(
-        "Investor $(basename(investor_dir)) is missing required forecast bundle files: $(join(missing, ", "))"
+        "Investor $(basename(investor_dir)) is missing required forecast bundle files: $(join(missing, ", "))",
     )
     return nothing
 end
@@ -299,7 +315,10 @@ Require the system-level `markets_data/` folder to contain `Energy.csv`,
 `price_cap` for every project zone. This folder sits beside `investors/`; keep the file list
 in sync with the parts of the simulation that read these files.
 """
-function _validate_system_market_files(config_root::AbstractString, investor_root::AbstractString)
+function _validate_system_market_files(
+    config_root::AbstractString,
+    investor_root::AbstractString,
+)
     markets_dir = joinpath(dirname(investor_root), "markets_data")
     for filename in ("Energy.csv", "reserve_products.csv", "annual_growth.csv")
         isfile(joinpath(markets_dir, filename)) ||
@@ -309,9 +328,11 @@ function _validate_system_market_files(config_root::AbstractString, investor_roo
     energy = _read_csv_df(path)
     _must_have_column(energy, :zones, path)
     _must_have_column(energy, :price_cap, path)
-    missing_zones = sort(collect(setdiff(_project_zone_names(config_root), Set(_as_string.(energy.zones)))))
+    missing_zones = sort(
+        collect(setdiff(_project_zone_names(config_root), Set(_as_string.(energy.zones)))),
+    )
     isempty(missing_zones) || error(
-        "$(path) is missing price_cap for zone(s): $(join(missing_zones, ", "))"
+        "$(path) is missing price_cap for zone(s): $(join(missing_zones, ", "))",
     )
     return nothing
 end
@@ -324,7 +345,10 @@ allowed for proposed units. Skip this check if the time-series directory, projec
 or `system_file` setting is missing. Keep the generator types in sync with
 `rts_psy_creator.jl`.
 """
-function _validate_psy_generator_names(project_root::AbstractString, ts_root::AbstractString)
+function _validate_psy_generator_names(
+    project_root::AbstractString,
+    ts_root::AbstractString,
+)
     isdir(ts_root) || return nothing
     isfile(joinpath(project_root, "project_metadata.csv")) || return nothing
     metadata = _read_project_metadata(project_root)
@@ -332,10 +356,14 @@ function _validate_psy_generator_names(project_root::AbstractString, ts_root::Ab
     isempty(system_file) && return nothing
     system_path = joinpath(metadata["test_system_dir"], system_file)
     isfile(system_path) || error("Project system file not found: $(system_path)")
-    sys = PSY.System(system_path; runchecks=false)
+    sys = PSY.System(system_path; runchecks = false)
     generator_names(prime_mover) = [
         PSY.get_name(gen) for gen in
-        PSY.get_components(gen -> PSY.get_prime_mover_type(gen) == prime_mover, PSY.Generator, sys)
+        PSY.get_components(
+            gen -> PSY.get_prime_mover_type(gen) == prime_mover,
+            PSY.Generator,
+            sys,
+        )
     ]
     vre_files = (
         ("WIND", "wind", generator_names(PSY.PrimeMovers.WT)),
@@ -353,7 +381,7 @@ function _validate_psy_generator_names(project_root::AbstractString, ts_root::Ab
                 isfile(path) || error("Missing $(kind) time series file: $(path)")
                 missing_generators = sort(setdiff(generators, names(_read_csv_df(path))))
                 isempty(missing_generators) || error(
-                    "$(path) has no column for $(kind) generator(s): $(join(missing_generators, ", "))"
+                    "$(path) has no column for $(kind) generator(s): $(join(missing_generators, ", "))",
                 )
             end
         end
@@ -370,16 +398,22 @@ names use duration rounded to a whole hour. These names must match the derating 
 so update both places if the naming rules change. Only renewable and storage projects are
 checked.
 """
-function _required_derating_columns(config_root::AbstractString, investor_root::AbstractString)
+function _required_derating_columns(
+    config_root::AbstractString,
+    investor_root::AbstractString,
+)
     tech_path = joinpath(config_root, "technologies.csv")
     techs = _read_csv_df(tech_path)
     required = Dict{String, String}()
     ("class" in names(techs) && isdir(investor_root)) || return required
-    tech_class = Dict(_as_string(row.unit_type) => _as_string(row.class) for row in eachrow(techs))
+    tech_class =
+        Dict(_as_string(row.unit_type) => _as_string(row.class) for row in eachrow(techs))
     zones = _read_csv_df(joinpath(config_root, "zones.csv"))
     zone_lookup = _build_zone_lookup(String.(zones.zone_name), zones)
-    for investor in readdir(investor_root), (filename, prefix) in
+    for investor in readdir(investor_root),
+        (filename, prefix) in
         (("projectexisting.csv", "existing"), ("projectoptions.csv", "new"))
+
         path = joinpath(investor_root, investor, filename)
         isfile(path) || continue
         projects = _read_csv_df(path)
@@ -392,7 +426,9 @@ function _required_derating_columns(config_root::AbstractString, investor_root::
                 column = "$(prefix)_$(unit_type)_$(get(zone_lookup, zone, zone))"
             elseif class == "storage" && "Duration Hr" in names(projects)
                 duration = tryparse(Float64, _as_string(row["Duration Hr"]))
-                duration === nothing && error("$(path): storage project $(row.GEN_UID) has non-numeric Duration Hr")
+                duration === nothing && error(
+                    "$(path): storage project $(row.GEN_UID) has non-numeric Duration Hr",
+                )
                 column = "$(prefix)_STOR_$(Int(round(duration)))"
             else
                 continue
@@ -409,7 +445,10 @@ units, each file must have the matching `existing_` or `new_` column. Storage du
 rounded to a whole hour when building its column name. All scenario files are required, even
 when no project currently needs a specific column.
 """
-function _validate_derating_columns(config_root::AbstractString, investor_root::AbstractString)
+function _validate_derating_columns(
+    config_root::AbstractString,
+    investor_root::AbstractString,
+)
     required = _required_derating_columns(config_root, investor_root)
     derating_root = joinpath(dirname(investor_root), "markets_data", "derating_data")
     for scenario in sort(collect(_project_scenario_names(config_root)))
@@ -417,10 +456,11 @@ function _validate_derating_columns(config_root::AbstractString, investor_root::
         isfile(path) || error("Missing derating template: $(path)")
         isempty(required) && continue
         available = Set(names(_read_csv_df(path)))
-        missing_columns = sort([column for column in keys(required) if !(column in available)])
+        missing_columns =
+            sort([column for column in keys(required) if !(column in available)])
         isempty(missing_columns) || error(
             "$(path) is missing derating column(s) required by project(s): " *
-            join(["$(column) ($(required[column]))" for column in missing_columns], ", ")
+            join(["$(column) ($(required[column]))" for column in missing_columns], ", "),
         )
     end
     return nothing

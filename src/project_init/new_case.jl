@@ -2,13 +2,17 @@ function _read_project_metadata(project_dir::AbstractString)
     path = joinpath(project_dir, "project_metadata.csv")
     isfile(path) || error("Project metadata does not exist: $(path)")
     metadata = Dict{String, String}()
-    for row in CSV.File(path; stringtype=String)
+    for row in CSV.File(path; stringtype = String)
         metadata[strip(string(row.key))] = strip(string(row.value))
     end
     return metadata
 end
 
-function _render_case_tree(src_dir::AbstractString, dst_dir::AbstractString, replacements::Dict{String, String})
+function _render_case_tree(
+    src_dir::AbstractString,
+    dst_dir::AbstractString,
+    replacements::Dict{String, String},
+)
     mkpath(dst_dir)
     for entry in readdir(src_dir)
         src = joinpath(src_dir, entry)
@@ -25,7 +29,7 @@ end
 
 function _apply_case_overrides(settings_path::AbstractString, overrides)
     isempty(overrides) && return
-    rows = collect(CSV.File(settings_path; stringtype=String))
+    rows = collect(CSV.File(settings_path; stringtype = String))
     values = Dict(string(row[:SETTING]) => string(row[:VALUE]) for row in rows)
     for (key, value) in overrides
         key = String(key)
@@ -42,13 +46,18 @@ function _apply_case_overrides(settings_path::AbstractString, overrides)
     end
 end
 
-function new_emis_case(project_dir::AbstractString, case_name::AbstractString; overrides=Dict())
+function new_emis_case(
+    project_dir::AbstractString,
+    case_name::AbstractString;
+    overrides = Dict(),
+)
     case_name = String(strip(String(case_name)))
     isempty(case_name) && error("case_name must be non-empty")
     isdir(project_dir) || error("Project directory does not exist: $(project_dir)")
 
     project_template_dir = joinpath(project_dir, "case_templates")
-    isdir(project_template_dir) || error("Project templates do not exist: $(project_template_dir)")
+    isdir(project_template_dir) ||
+        error("Project templates do not exist: $(project_template_dir)")
     metadata = _read_project_metadata(project_dir)
     runs_dir = get(metadata, "runs_dir", "")
     isempty(runs_dir) && error("Project metadata does not define runs_dir")

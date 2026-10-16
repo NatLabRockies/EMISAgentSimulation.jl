@@ -509,4 +509,3 @@ function retire_old!(projects::Vector{<: Project{<: BuildPhase}},
         )
     end
 end
-

@@ -17,7 +17,7 @@ get_from_zone(line::ZonalLine) = line.from_zone
 get_to_zone(line::ZonalLine) = line.to_zone
 get_active_power_limit(line::ZonalLine) = line.active_power_limit
 
-function  set_active_power_limit!(line::ZonalLine, active_power_limit::Float64)
+function set_active_power_limit!(line::ZonalLine, active_power_limit::Float64)
     line.active_power_limit = active_power_limit
     return
 end

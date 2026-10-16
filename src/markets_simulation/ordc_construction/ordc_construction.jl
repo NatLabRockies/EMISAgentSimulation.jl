@@ -465,7 +465,7 @@ function add_psy_ordc!(simulation_dir::String,
         ))
     # start_datetime = Dates.DateTime("2019-01-01T00:00:00")
     # finish_datetime = start_datetime + Dates.Hour(8759)
-    time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
+    time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime)
 
     additional_timestep = length(time_stamps) - DEFAULT_HOURS_PER_YEAR
 

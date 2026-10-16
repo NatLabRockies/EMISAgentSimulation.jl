@@ -996,4 +996,3 @@ function update_simulation_derating_data!(
 
     return
 end
-

@@ -6,7 +6,6 @@ which is parameterized within this struct.
 """
 
 struct RECMarket
-
     rec_req::Float64    # $/MW/investment period
     price_cap::Float64        # MW
     binding::Bool
@@ -16,5 +15,4 @@ struct RECMarket
         @assert price_cap >= 0
         new(req, price_cap, binding)
     end
-
 end

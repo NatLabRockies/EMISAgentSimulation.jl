@@ -384,7 +384,10 @@ function calculate_reserve_scaling_factor(simulation::AgentSimulation)
 
     existing_generator_data = read_generator_table(test_system_dir, data_dir)
     initial_pv_wind_capacity = sum(
-        existing_generator_data[is_pv_or_wind.(existing_generator_data[:, "Unit Type"]), "PMax MW"];
+        existing_generator_data[
+            is_pv_or_wind.(existing_generator_data[:, "Unit Type"]),
+            "PMax MW",
+        ];
         init = 0.0,
     )
 

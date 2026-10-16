@@ -1,8 +1,8 @@
 const DEFAULT_PSY_CLASSIFICATION_MAPPING = joinpath(
-    @__DIR__, "..", "..", "config", "psy5", "psy_classification_mapping.csv"
+    @__DIR__, "..", "..", "config", "psy5", "psy_classification_mapping.csv",
 )
 const DEFAULT_PROJECT_DEFAULTS = joinpath(
-    @__DIR__, "..", "..", "config", "project_defaults.csv"
+    @__DIR__, "..", "..", "config", "project_defaults.csv",
 )
 
 const PSY_CLASSIFICATION_COLUMNS = [
@@ -33,15 +33,22 @@ const PROJECT_INTEGER_DEFAULT_FIELDS = Set([
 function _require_columns(df::DataFrames.DataFrame, columns, path::AbstractString)
     missing_columns = setdiff(columns, Symbol.(names(df)))
     isempty(missing_columns) || error(
-        "$(path) is missing required columns: $(join(string.(missing_columns), ", "))"
+        "$(path) is missing required columns: $(join(string.(missing_columns), ", "))",
     )
     return nothing
 end
 
-function _require_nonempty_column(df::DataFrames.DataFrame, column::Symbol, path::AbstractString)
-    invalid_rows = findall(row -> ismissing(row[column]) || isempty(strip(string(row[column]))), eachrow(df))
+function _require_nonempty_column(
+    df::DataFrames.DataFrame,
+    column::Symbol,
+    path::AbstractString,
+)
+    invalid_rows = findall(
+        row -> ismissing(row[column]) || isempty(strip(string(row[column]))),
+        eachrow(df),
+    )
     isempty(invalid_rows) || error(
-        "$(path) has empty $(column) values at rows $(join(invalid_rows, ", "))"
+        "$(path) has empty $(column) values at rows $(join(invalid_rows, ", "))",
     )
     return nothing
 end
@@ -54,7 +61,7 @@ deliberately not version-tagged; users update it when their installed PSY types
 or enum values change.
 """
 function load_psy_classification_mapping(
-    path::AbstractString=DEFAULT_PSY_CLASSIFICATION_MAPPING,
+    path::AbstractString = DEFAULT_PSY_CLASSIFICATION_MAPPING,
 )
     isfile(path) || error("PSY classification mapping does not exist: $(path)")
     mapping = DataFrames.DataFrame(CSV.File(path))
@@ -66,7 +73,7 @@ function load_psy_classification_mapping(
 
     keys = Tuple.(eachrow(mapping[:, PSY_CLASSIFICATION_COLUMNS[1:3]]))
     length(unique(keys)) == length(keys) || error(
-        "$(path) contains duplicate component_type/prime_mover/fuel mappings"
+        "$(path) contains duplicate component_type/prime_mover/fuel mappings",
     )
     return mapping
 end
@@ -83,12 +90,14 @@ function validate_psy_classification_mapping(
     _require_columns(mapping, PSY_CLASSIFICATION_COLUMNS, "PSY classification mapping")
     _require_columns(technologies, [:unit_type], "technologies.csv")
     valid_unit_types = Set(string.(technologies.unit_type))
-    invalid = sort!(unique([
-        unit_type for unit_type in string.(mapping.unit_type) if
-        !in(unit_type, valid_unit_types)
-    ]))
+    invalid = sort!(
+        unique([
+            unit_type for unit_type in string.(mapping.unit_type) if
+            !in(unit_type, valid_unit_types)
+        ]),
+    )
     isempty(invalid) || error(
-        "PSY classification mapping references unknown unit_type values: $(join(invalid, ", "))"
+        "PSY classification mapping references unknown unit_type values: $(join(invalid, ", "))",
     )
     return true
 end
@@ -110,18 +119,20 @@ function validate_thermal_fuel_defaults(
         for row in eachrow(defaults) if string(row.field) == "Fuel"
     )
     valid_fuels = Set(Symbol.(instances(PSY.ThermalFuels)))
-    invalid = sort!(unique([
-        string(row.unit_type) for row in eachrow(technologies) if
-        string(row.class) == "thermal" &&
-        !(Symbol(get(fuel_by_unit, string(row.unit_type), "")) in valid_fuels)
-    ]))
+    invalid = sort!(
+        unique([
+            string(row.unit_type) for row in eachrow(technologies) if
+            string(row.class) == "thermal" &&
+                !(Symbol(get(fuel_by_unit, string(row.unit_type), "")) in valid_fuels)
+        ]),
+    )
     isempty(invalid) || error(
-        "project_defaults.csv is missing a valid Fuel default (PowerSystems.ThermalFuels member) for thermal unit_type(s): $(join(invalid, ", "))"
+        "project_defaults.csv is missing a valid Fuel default (PowerSystems.ThermalFuels member) for thermal unit_type(s): $(join(invalid, ", "))",
     )
     return true
 end
 
-function load_project_defaults(path::AbstractString=DEFAULT_PROJECT_DEFAULTS)
+function load_project_defaults(path::AbstractString = DEFAULT_PROJECT_DEFAULTS)
     isfile(path) || error("Project defaults do not exist: $(path)")
     defaults = DataFrames.DataFrame(CSV.File(path))
     _require_columns(defaults, [:unit_type, :field, :value], path)
@@ -130,7 +141,7 @@ function load_project_defaults(path::AbstractString=DEFAULT_PROJECT_DEFAULTS)
     end
     keys = Tuple.(eachrow(defaults[:, [:unit_type, :field]]))
     length(unique(keys)) == length(keys) || error(
-        "$(path) contains duplicate unit_type/field defaults"
+        "$(path) contains duplicate unit_type/field defaults",
     )
     defaults.value = [
         _normalize_default_value(row.field, row.value) for row in eachrow(defaults)
@@ -160,14 +171,16 @@ function validate_project_option_cost_curve(
         string(row.class) == "thermal"
     )
     for row in eachrow(df)
-        unit_type = uppercase(strip(string(row[Symbol("Unit Type")])) )
+        unit_type = uppercase(strip(string(row[Symbol("Unit Type")])))
         unit_type in thermal_types || continue
         values = Float64[]
         for idx in 0:4
             field = "Output_pct_$(idx)"
             heat_rate_field = idx == 0 ? "HR_avg_0" : "HR_incr_$(idx)"
             field in names(df) || continue
-            heat_rate_field in names(df) || error("$(path) is missing $(heat_rate_field) for unit $(row[Symbol("Unit Type")])")
+            heat_rate_field in names(df) || error(
+                "$(path) is missing $(heat_rate_field) for unit $(row[Symbol("Unit Type")])",
+            )
             value = row[Symbol(field)]
             heat_rate_value = row[Symbol(heat_rate_field)]
             text = strip(string(value))
@@ -175,21 +188,28 @@ function validate_project_option_cost_curve(
             output_is_na = uppercase(text) == "NA"
             heat_rate_is_na = uppercase(heat_rate_text) == "NA"
             output_is_na == heat_rate_is_na || error(
-                "$(path) has an incomplete curve point $(field)/$(heat_rate_field) for unit $(row[Symbol("Unit Type")])"
+                "$(path) has an incomplete curve point $(field)/$(heat_rate_field) for unit $(row[Symbol("Unit Type")])",
             )
             output_is_na && continue
-            isempty(text) && error("$(path) has an empty $(field) for unit $(row[Symbol("Unit Type")])")
+            isempty(text) &&
+                error("$(path) has an empty $(field) for unit $(row[Symbol("Unit Type")])")
             parsed = tryparse(Float64, text)
-            parsed === nothing && error("$(path) has a non-numeric $(field) for unit $(row[Symbol("Unit Type")])")
-            tryparse(Float64, heat_rate_text) === nothing && error(
-                "$(path) has a non-numeric $(heat_rate_field) for unit $(row[Symbol("Unit Type")])"
+            parsed === nothing && error(
+                "$(path) has a non-numeric $(field) for unit $(row[Symbol("Unit Type")])",
             )
-            0.0 <= parsed <= 1.0 || error("$(path) has an invalid $(field)=$(parsed) for unit $(row[Symbol("Unit Type")]); values must be in [0,1]")
+            tryparse(Float64, heat_rate_text) === nothing && error(
+                "$(path) has a non-numeric $(heat_rate_field) for unit $(row[Symbol("Unit Type")])",
+            )
+            0.0 <= parsed <= 1.0 || error(
+                "$(path) has an invalid $(field)=$(parsed) for unit $(row[Symbol("Unit Type")]); values must be in [0,1]",
+            )
             push!(values, parsed)
         end
-        length(values) >= 2 || error("$(path) has fewer than two valid thermal cost-curve points for unit $(row[Symbol("Unit Type")])")
+        length(values) >= 2 || error(
+            "$(path) has fewer than two valid thermal cost-curve points for unit $(row[Symbol("Unit Type")])",
+        )
         all(diff(values) .> 0.0) || error(
-            "$(path) has a non-ascending thermal cost curve for unit $(row[Symbol("Unit Type")]): $(values)"
+            "$(path) has a non-ascending thermal cost curve for unit $(row[Symbol("Unit Type")]): $(values)",
         )
     end
     return nothing
@@ -207,7 +227,8 @@ function validate_existing_project_lifetimes(
     path::AbstractString,
 )
     _require_columns(projects, [:GEN_UID, Symbol("Online Year"), :Lifetime], path)
-    as_float(value) = value isa Number ? Float64(value) : tryparse(Float64, strip(string(value)))
+    as_float(value) =
+        value isa Number ? Float64(value) : tryparse(Float64, strip(string(value)))
     expired = String[]
     for row in eachrow(projects)
         online_year = as_float(row[Symbol("Online Year")])
@@ -215,11 +236,12 @@ function validate_existing_project_lifetimes(
         (online_year === nothing || lifetime === nothing) && continue
         remaining = lifetime - (start_year - online_year)
         remaining < 0 && push!(expired,
-            "$(row.GEN_UID) (Online Year $(Int(online_year)), Lifetime $(Int(lifetime)), remaining $(Int(remaining)))")
+            "$(row.GEN_UID) (Online Year $(Int(online_year)), Lifetime $(Int(lifetime)), remaining $(Int(remaining)))",
+        )
     end
     isempty(expired) || error(
         "$(path) has existing projects already past their lifetime at start_year $(start_year): " *
-        "$(join(expired, "; ")). Set a later Online Year (ownership input or project_defaults.csv) or a longer Lifetime."
+        "$(join(expired, "; ")). Set a later Online Year (ownership input or project_defaults.csv) or a longer Lifetime.",
     )
     return true
 end
@@ -228,13 +250,17 @@ end
 function validate_project_input_template(
     path::AbstractString;
     kind::Symbol,
-    investors::Union{Nothing, AbstractVector}=nothing,
+    investors::Union{Nothing, AbstractVector} = nothing,
 )
     isfile(path) || error("Project input template does not exist: $(path)")
-    input = DataFrames.DataFrame(CSV.File(path; stringtype=String))
-    required = kind === :options ? PROJECT_OPTION_INPUT_COLUMNS :
-               kind === :existing ? PROJECT_EXISTING_INPUT_COLUMNS :
-               error("kind must be :options or :existing")
+    input = DataFrames.DataFrame(CSV.File(path; stringtype = String))
+    required = if kind === :options
+        PROJECT_OPTION_INPUT_COLUMNS
+    elseif kind === :existing
+        PROJECT_EXISTING_INPUT_COLUMNS
+    else
+        error("kind must be :options or :existing")
+    end
     _require_columns(input, required, path)
 
     for column in required[1:2]
@@ -245,21 +271,27 @@ function validate_project_input_template(
         _require_nonempty_column(input, :Size, path)
         for row in eachrow(input)
             has_zone = !(ismissing(row.Zone) || isempty(strip(string(row.Zone))))
-            has_bus = !(ismissing(row[Symbol("Bus ID")]) || isempty(strip(string(row[Symbol("Bus ID")]))))
-            has_zone || has_bus || error(
-                "$(path) requires Zone or Bus ID for GEN_UID $(row.GEN_UID)"
+            has_bus = !(
+                ismissing(row[Symbol("Bus ID")]) ||
+                isempty(strip(string(row[Symbol("Bus ID")])))
             )
+            has_zone || has_bus ||
+                error(
+                    "$(path) requires Zone or Bus ID for GEN_UID $(row.GEN_UID)",
+                )
         end
     end
 
     if investors !== nothing
         valid_investors = Set(string.(investors))
-        invalid = sort!(unique([
-            investor for investor in string.(input.Investor) if
-            !in(investor, valid_investors)
-        ]))
+        invalid = sort!(
+            unique([
+                investor for investor in string.(input.Investor) if
+                !in(investor, valid_investors)
+            ]),
+        )
         isempty(invalid) || error(
-            "$(path) references investors not listed in project_spec.csv: $(join(invalid, ", "))"
+            "$(path) references investors not listed in project_spec.csv: $(join(invalid, ", "))",
         )
     end
     return input

@@ -22,7 +22,7 @@ get_rec_bid(prod::Product) = nothing
 get_rec_bid(prod::REC) = prod.rec_bid
 
 # REC bids and certificates only set when product is of type REC
-function set_expected_rec_certificates!(prod::T, certificates) where T <: Product
+function set_expected_rec_certificates!(prod::T, certificates) where {T <: Product}
     return
 end
 
@@ -31,7 +31,7 @@ function set_expected_rec_certificates!(prod::REC, certificates)
     return
 end
 
-function set_rec_bid!(prod::T, rec_bid) where T <: Product
+function set_rec_bid!(prod::T, rec_bid) where {T <: Product}
     return
 end
 
@@ -41,7 +41,11 @@ function set_rec_bid!(prod::REC, rec_bid)
 end
 
 # REC Production Correction Factor only set when product is of type REC
-function set_rec_correction_factor!(prod::T, year::Int64, value::Float64) where T <: Product
+function set_rec_correction_factor!(
+    prod::T,
+    year::Int64,
+    value::Float64,
+) where {T <: Product}
     return
 end
 
@@ -49,4 +53,3 @@ function set_rec_correction_factor!(prod::REC, year::Int64, value::Float64)
     prod.correction_factor[year] = value
     return
 end
-

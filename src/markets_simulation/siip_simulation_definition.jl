@@ -125,7 +125,9 @@ end
 const DS = PSI.DeviceStatus
 
 function PSI.update_initial_conditions!(
-    ics::Vector{Union{PSI.InitialCondition{DS, Nothing}, PSI.InitialCondition{DS, Float64}}},
+    ics::Vector{
+        Union{PSI.InitialCondition{DS, Nothing}, PSI.InitialCondition{DS, Float64}},
+    },
     state::PSI.SimulationState,
     sim_resolution::Dates.Millisecond,
 )
@@ -133,14 +135,23 @@ function PSI.update_initial_conditions!(
 end
 
 function PSI.update_initial_conditions!(
-    ics::Vector{Union{PSI.InitialCondition{DS, Nothing}, PSI.InitialCondition{DS, JuMP.VariableRef}}},
+    ics::Vector{
+        Union{
+            PSI.InitialCondition{DS, Nothing},
+            PSI.InitialCondition{DS, JuMP.VariableRef},
+        },
+    },
     state::PSI.SimulationState,
     sim_resolution::Dates.Millisecond,
 )
     return _update_device_status_ics!(ics, state, sim_resolution)
 end
 
-function _update_device_status_ics!(ics, state::PSI.SimulationState, sim_resolution::Dates.Millisecond)
+function _update_device_status_ics!(
+    ics,
+    state::PSI.SimulationState,
+    sim_resolution::Dates.Millisecond,
+)
     for ic in ics
         isnothing(PSI.get_value(ic)) && continue
         comp_type = PSI.get_component_type(ic)
@@ -1698,7 +1709,7 @@ function create_simulation(sys_MD::PSY.System,
                 uc_problem,
                 ed_problem,
             ],
-        );
+        )
 
     elseif md_market_bool == false && single_stage_bool == false
         if isempty(inertia_product)
@@ -1776,7 +1787,7 @@ function create_simulation(sys_MD::PSY.System,
                 uc_problem,
                 ed_problem,
             ],
-        );
+        )
 
     elseif md_market_bool == false && single_stage_bool == true
         feedforward_dict = []
@@ -1785,7 +1796,7 @@ function create_simulation(sys_MD::PSY.System,
             decision_models = [
                 uc_problem,
             ],
-        );
+        )
 
     else
         @error "invalid stage combination"
@@ -1817,7 +1828,7 @@ function create_simulation(sys_MD::PSY.System,
 
     energy_voll_cost = AxisArrays.AxisArray(energy_mkt_data.price_cap * 1.0, zones)
 
-    sequence = create_sequence(models, feedforward_dict, single_stage_bool);
+    sequence = create_sequence(models, feedforward_dict, single_stage_bool)
 
     if md_market_bool == true
         sim = PSI.Simulation(;
@@ -1827,7 +1838,7 @@ function create_simulation(sys_MD::PSY.System,
             sequence = sequence,
             simulation_folder = ".",
             # initial_time = Dates.DateTime("2018-02-28T00:00:00")
-        );
+        )
     else
         sim = PSI.Simulation(;
             name = "emis_$(case_name)",
@@ -1836,7 +1847,7 @@ function create_simulation(sys_MD::PSY.System,
             sequence = sequence,
             simulation_folder = ".",
             # initial_time = Dates.DateTime("2018-02-28T00:00:00")
-        );
+        )
     end
 
     current_siip_sim[1] = sim
@@ -2521,5 +2532,5 @@ function create_simulation(sys_MD::PSY.System,
     reserve_voll,
     reserve_voll_uc,
     reserve_voll_md,
-    inertia_voll;
+    inertia_voll
 end

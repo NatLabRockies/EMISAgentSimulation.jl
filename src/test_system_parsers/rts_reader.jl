@@ -4,12 +4,18 @@ Zone of one end (`side` = "From" or "To") of row `b` of a branch table. Uses the
 Legacy tables without area columns fall back to the first digit of the bus number,
 which matches `zones.csv` only for ERCOT/RTS-style bus numbering.
 """
-function _branch_end_zone(system_cfg::SystemConfig, branches::DataFrames.DataFrame, b::Int, side::String)
+function _branch_end_zone(
+    system_cfg::SystemConfig,
+    branches::DataFrames.DataFrame,
+    b::Int,
+    side::String,
+)
     area_column = "$(side) Area"
     if area_column in names(branches)
         return get_zone_name(system_cfg, string(branches[b, area_column]))
     end
-    @warn "$(area_column) column missing from branch data; using the first digit of the bus number as the zone" maxlog = 1
+    @warn "$(area_column) column missing from branch data; using the first digit of the bus number as the zone" maxlog =
+        1
     return get_zone_name(system_cfg, first("$(branches[b, "$(side) Bus"])", 1))
 end
 
@@ -232,7 +238,10 @@ function read_rts(data_dir::String,
     gen_availability_df_rt = scaled_test_sys_load_rt[:, 1:4]
 
     for i in 1:DataFrames.nrow(existing_generator_data)
-        technology_category = get_technology_category(system_cfg, String(existing_generator_data[i, "Unit Type"]))
+        technology_category = get_technology_category(
+            system_cfg,
+            String(existing_generator_data[i, "Unit Type"]),
+        )
         if vre_kind(technology_category) == :wind
             gen_availability_df[:, existing_generator_data[i, "GEN UID"]] =
                 wind_timeseries_data[:, existing_generator_data[i, "GEN UID"]] /

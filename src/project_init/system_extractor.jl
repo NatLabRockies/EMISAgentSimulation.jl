@@ -53,7 +53,7 @@ function classify_psy_component(component, mapping::DataFrames.DataFrame)
     lookup = _build_psy_mapping(mapping)
     haskey(lookup, key) || error(
         "No PSY classification mapping for $(PSY.get_name(component)): " *
-        "component_type=$(key[1]), prime_mover=$(key[2]), fuel=$(key[3])"
+        "component_type=$(key[1]), prime_mover=$(key[2]), fuel=$(key[3])",
     )
     return lookup[key]
 end
@@ -63,7 +63,7 @@ function _sorted_components(component_type, sys)
         component for component in PSY.get_components(component_type, sys) if
         PSY.get_available(component)
     ]
-    sort!(components; by=PSY.get_name)
+    sort!(components; by = PSY.get_name)
     return components
 end
 
@@ -73,26 +73,29 @@ format of `config/ercot_est/system_config/zones.csv` (zone N = `N`, `zone_N`, it
 `load_zone_N`). A project's own `zones.csv` takes precedence where one is supplied.
 """
 function extract_zones(sys::PSY.System)
-    areas = sort!(collect(PSY.get_components(PSY.Area, sys)); by=PSY.get_name)
+    areas = sort!(collect(PSY.get_components(PSY.Area, sys)); by = PSY.get_name)
     isempty(areas) && error("PSY system does not contain any Area components")
     names = PSY.get_name.(areas)
-    return DataFrames.DataFrame(
-        zone_id=collect(eachindex(names)),
-        zone_name=["zone_$(index)" for index in eachindex(names)],
-        area_name=names,
-        load_column=["load_zone_$(index)" for index in eachindex(names)],
+    return DataFrames.DataFrame(;
+        zone_id = collect(eachindex(names)),
+        zone_name = ["zone_$(index)" for index in eachindex(names)],
+        area_name = names,
+        load_column = ["load_zone_$(index)" for index in eachindex(names)],
     )
 end
 
 """Map each PSY area name in `zones` (a `zones.csv` table) to its `zone_name`."""
 function _zone_by_area(zones::DataFrames.DataFrame)
     _require_columns(zones, [:zone_name, :area_name], "zones.csv")
-    return Dict(String(strip(string(row.area_name))) => String(strip(string(row.zone_name))) for row in eachrow(zones))
+    return Dict(
+        String(strip(string(row.area_name))) => String(strip(string(row.zone_name))) for
+        row in eachrow(zones)
+    )
 end
 
 function _zone_of_area(zone_by_area::Dict, area_name::AbstractString)
     haskey(zone_by_area, area_name) || error(
-        "PSY Area \"$(area_name)\" has no row in zones.csv (area_name column)"
+        "PSY Area \"$(area_name)\" has no row in zones.csv (area_name column)",
     )
     return zone_by_area[area_name]
 end
@@ -115,9 +118,11 @@ end
 
 function _component_min_capacity_mw(component, sys::PSY.System)
     try
-        limits = component isa PSY.Storage ?
-                 PSY.get_output_active_power_limits(component) :
-                 PSY.get_active_power_limits(component)
+        limits = if component isa PSY.Storage
+            PSY.get_output_active_power_limits(component)
+        else
+            PSY.get_active_power_limits(component)
+        end
         return limits.min * PSY.get_base_power(sys)
     catch exception
         if exception isa MethodError || exception isa ArgumentError
@@ -142,7 +147,7 @@ end
 function extract_gen_table(
     sys::PSY.System,
     mapping::DataFrames.DataFrame;
-    technologies::Union{Nothing, DataFrames.DataFrame}=nothing,
+    technologies::Union{Nothing, DataFrames.DataFrame} = nothing,
 )
     technologies !== nothing && validate_psy_classification_mapping(mapping, technologies)
     components = vcat(
@@ -163,22 +168,25 @@ function extract_gen_table(
         try
             bus = PSY.get_bus(component)
             area = PSY.get_area(bus)
-            push!(rows, (
-                PSY.get_name(component),
-                classify_psy_component(component, mapping),
-                _component_capacity_mw(component, sys),
-                _component_min_capacity_mw(component, sys),
-                PSY.get_number(bus),
-                PSY.get_name(area),
-                _component_status(component),
-            ))
+            push!(
+                rows,
+                (
+                    PSY.get_name(component),
+                    classify_psy_component(component, mapping),
+                    _component_capacity_mw(component, sys),
+                    _component_min_capacity_mw(component, sys),
+                    PSY.get_number(bus),
+                    PSY.get_name(area),
+                    _component_status(component),
+                ),
+            )
         catch exception
             push!(failures, "$(PSY.get_name(component)): $(sprint(showerror, exception))")
         end
     end
     isempty(failures) || error(
         "PSY generator extraction failed for $(length(failures)) component(s):\n" *
-        join(failures, "\n")
+        join(failures, "\n"),
     )
     return rows
 end
@@ -188,14 +196,14 @@ function _branch_endpoints(branch)
     return PSY.get_from(arc), PSY.get_to(arc)
 end
 
-function _numeric_or_default(value, default::Float64=0.0)
+function _numeric_or_default(value, default::Float64 = 0.0)
     if value === nothing || value === missing
         return default
     end
     return Float64(value)
 end
 
-function _branch_value(getter, branch, default::Float64=0.0)
+function _branch_value(getter, branch, default::Float64 = 0.0)
     try
         return _numeric_or_default(getter(branch), default)
     catch exception
@@ -263,9 +271,12 @@ function extract_branches(sys::PSY.System)
     )
         for branch in _sorted_components(component_type, sys)
             try
-                row = _branch_row(branch, sys; dc=is_dc)
+                row = _branch_row(branch, sys; dc = is_dc)
                 from_bus, to_bus = _branch_endpoints(branch)
-                areas = (PSY.get_name(PSY.get_area(from_bus)), PSY.get_name(PSY.get_area(to_bus)))
+                areas = (
+                    PSY.get_name(PSY.get_area(from_bus)),
+                    PSY.get_name(PSY.get_area(to_bus)),
+                )
                 if is_dc
                     push!(destination, (row[1:4]..., areas...))
                 else
@@ -278,9 +289,9 @@ function extract_branches(sys::PSY.System)
     end
     isempty(failures) || error(
         "PSY branch extraction failed for $(length(failures)) component(s):\n" *
-        join(failures, "\n")
+        join(failures, "\n"),
     )
-    return (ac=ac_rows, dc=dc_rows)
+    return (ac = ac_rows, dc = dc_rows)
 end
 
 const RESERVE_COLUMNS = [
@@ -302,13 +313,16 @@ function _reserve_services(sys::PSY.System)
             end
         end
     end
-    sort!(services; by=PSY.get_name)
+    sort!(services; by = PSY.get_name)
     return services
 end
 
 function _reserve_default(defaults, product, field, fallback)
     defaults === nothing && return fallback
-    default_row = findfirst(row -> string(row[Symbol("Reserve Product")]) == product, eachrow(defaults))
+    default_row = findfirst(
+        row -> string(row[Symbol("Reserve Product")]) == product,
+        eachrow(defaults),
+    )
     default_row === nothing && return fallback
     value = defaults[default_row, Symbol(field)]
     ismissing(value) || isempty(strip(string(value))) ? fallback : value
@@ -318,13 +332,14 @@ function _reserve_requirement(service, defaults, product)
     _reserve_requirement(service, defaults, product, Val(:default))
 end
 
-function _reserve_requirement(service::Union{
-    PSY.VariableReserve,
-    PSY.ConstantReserve,
-    PSY.VariableReserveNonSpinning,
-    PSY.ConstantReserveNonSpinning,
-    PSY.ConstantReserveGroup,
-}, defaults, product, ::Val{:default})
+function _reserve_requirement(
+    service::Union{
+        PSY.VariableReserve,
+        PSY.ConstantReserve,
+        PSY.VariableReserveNonSpinning,
+        PSY.ConstantReserveNonSpinning,
+        PSY.ConstantReserveGroup,
+    }, defaults, product, ::Val{:default})
     return Float64(PSY.get_requirement(service))
 end
 
@@ -365,7 +380,8 @@ function _reserve_products_with_timeseries(ts_root::AbstractString)
             isdir(reserves_dir) || continue
             for file in readdir(reserves_dir)
                 if endswith(lowercase(file), ".csv")
-                    reserve_match = match(r"^(?:DAY_AHEAD|REAL_TIME)_regional_(.+)\.csv$"i, file)
+                    reserve_match =
+                        match(r"^(?:DAY_AHEAD|REAL_TIME)_regional_(.+)\.csv$"i, file)
                     if reserve_match !== nothing
                         product = String(reserve_match.captures[1])
                         available[lowercase(product)] = product
@@ -400,10 +416,11 @@ to its on-disk casing), only products with a matching time-series file are inclu
 and the written product name is canonicalized to match that file's casing."""
 function extract_reserves(
     sys::PSY.System;
-    defaults::Union{Nothing, DataFrames.DataFrame}=nothing,
-    available_products::Union{Nothing, AbstractDict{<:AbstractString, <:AbstractString}}=nothing,
+    defaults::Union{Nothing, DataFrames.DataFrame} = nothing,
+    available_products::Union{Nothing, AbstractDict{<:AbstractString, <:AbstractString}} = nothing,
 )
-    defaults !== nothing && _require_columns(defaults, Symbol.(RESERVE_COLUMNS), "reserve defaults")
+    defaults !== nothing &&
+        _require_columns(defaults, Symbol.(RESERVE_COLUMNS), "reserve defaults")
     rows = DataFrames.DataFrame(
         Symbol.(RESERVE_COLUMNS[1]) => String[],
         Symbol.(RESERVE_COLUMNS[2]) => Int[],
@@ -424,15 +441,32 @@ function extract_reserves(
         requirement = _reserve_requirement(service, defaults, product)
         service_type = string(typeof(service))
         direction = occursin("Down", service_type) ? "Down" : "Up"
-        push!(rows, (
-            output_product,
-            _reserve_timeframe(service, defaults, product),
-            requirement,
-            string(_reserve_default(defaults, product, "Eligible Regions", "")),
-            string(_reserve_default(defaults, product, "Eligible Device Categories", "(Generator)")),
-            string(_reserve_default(defaults, product, "Eligible Device SubCategories", "")),
-            string(_reserve_default(defaults, product, "Direction", direction)),
-        ))
+        push!(
+            rows,
+            (
+                output_product,
+                _reserve_timeframe(service, defaults, product),
+                requirement,
+                string(_reserve_default(defaults, product, "Eligible Regions", "")),
+                string(
+                    _reserve_default(
+                        defaults,
+                        product,
+                        "Eligible Device Categories",
+                        "(Generator)",
+                    ),
+                ),
+                string(
+                    _reserve_default(
+                        defaults,
+                        product,
+                        "Eligible Device SubCategories",
+                        "",
+                    ),
+                ),
+                string(_reserve_default(defaults, product, "Direction", direction)),
+            ),
+        )
     end
     return rows
 end
@@ -441,7 +475,7 @@ const PROJECT_EXISTING_COLUMNS = [
     "GEN_UID", "Unit Type", "Size", "Fuel", "Category", "Min Gen pu",
     "Ramp Rate pu/Hr", "Input Power Rating pu", "Output Power Rating pu",
     "Min Storgae pu", "Duration Hr", "Round Trip Efficiency pu",
-        "Fuel Price \$/MMBTU", "Output_pct_0", "Output_pct_1", "Output_pct_2",
+    "Fuel Price \$/MMBTU", "Output_pct_0", "Output_pct_1", "Output_pct_2",
     "Output_pct_3", "Output_pct_4", "HR_avg_0", "HR_incr_1", "HR_incr_2",
     "HR_incr_3", "HR_incr_4", "CO2_Emissions ton/MMBTU", "Inertia MJ/MW",
     "FOR", "MTTR Hr", "Lagtime", "Online Year", "Capex Years", "Lifetime",
@@ -452,7 +486,8 @@ const PROJECT_EXISTING_COLUMNS = [
 function _defaults_by_unit(defaults::DataFrames.DataFrame)
     result = Dict{String, Dict{String, Any}}()
     for row in eachrow(defaults)
-        get!(result, string(row.unit_type), Dict{String, Any}())[string(row.field)] = row.value
+        get!(result, string(row.unit_type), Dict{String, Any}())[string(row.field)] =
+            row.value
     end
     return result
 end
@@ -461,9 +496,11 @@ end
 unit_type entry when `unit_type` doesn't define it, then to `fallback`."""
 function _default_value(defaults, unit_type, field, fallback)
     unit_defaults = get(defaults, unit_type, Dict{String, Any}())
-    haskey(unit_defaults, field) && return _default_value_or_fallback(unit_defaults[field], fallback)
+    haskey(unit_defaults, field) &&
+        return _default_value_or_fallback(unit_defaults[field], fallback)
     all_defaults = get(defaults, "ALL", Dict{String, Any}())
-    haskey(all_defaults, field) && return _default_value_or_fallback(all_defaults[field], fallback)
+    haskey(all_defaults, field) &&
+        return _default_value_or_fallback(all_defaults[field], fallback)
     return fallback
 end
 
@@ -493,13 +530,13 @@ function _outage_metadata(outage, device, unit_type, size_mw)
         mover_matches && fuel_matches
     end
     isempty(candidates) && return nothing
-    ordered = sort(collect(candidates); by=row -> Float64(row.NameplateLimit_MW))
+    ordered = sort(collect(candidates); by = row -> Float64(row.NameplateLimit_MW))
     selected = findfirst(row -> size_mw <= Float64(row.NameplateLimit_MW), ordered)
     selected === nothing && (selected = lastindex(ordered))
     row = ordered[selected]
     for_value = Float64(row.FOR)
     for_value > 1.0 && (for_value /= 100.0)
-    return (FOR=for_value, MTTR=Float64(row.MTTR))
+    return (FOR = for_value, MTTR = Float64(row.MTTR))
 end
 
 function _project_row_value(defaults, unit_type, field, fallback)
@@ -509,10 +546,19 @@ function _project_row_value(defaults, unit_type, field, fallback)
     if value isa AbstractString
         parsed = tryparse(Float64, value)
         if parsed !== nothing
-            return string(field) in PROJECT_INTEGER_DEFAULT_FIELDS && isinteger(parsed) ? Int(parsed) : parsed
+            return if string(field) in PROJECT_INTEGER_DEFAULT_FIELDS && isinteger(parsed)
+                Int(parsed)
+            else
+                parsed
+            end
         end
     end
-    return value isa AbstractFloat && string(field) in PROJECT_INTEGER_DEFAULT_FIELDS && isinteger(value) ? Int(value) : value
+    return if value isa AbstractFloat && string(field) in PROJECT_INTEGER_DEFAULT_FIELDS &&
+              isinteger(value)
+        Int(value)
+    else
+        value
+    end
 end
 
 """Value of an optional per-generator override column (e.g. `Online Year`) in an
@@ -542,31 +588,40 @@ function extract_fleet(
     mapping::DataFrames.DataFrame,
     technologies::DataFrames.DataFrame,
     ownership::DataFrames.DataFrame;
-    defaults::DataFrames.DataFrame=load_project_defaults(),
-    outage=nothing,
-    zones::Union{Nothing, DataFrames.DataFrame}=nothing,
+    defaults::DataFrames.DataFrame = load_project_defaults(),
+    outage = nothing,
+    zones::Union{Nothing, DataFrames.DataFrame} = nothing,
 )
     _require_columns(ownership, [:Investor, :GEN_UID], "existing project ownership")
-    zone_by_area = DataFrames.nrow(ownership) == 0 ? Dict{String, String}() :
+    zone_by_area = if DataFrames.nrow(ownership) == 0
+        Dict{String, String}()
+    else
         _zone_by_area(zones === nothing ? extract_zones(sys) : zones)
+    end
     _require_columns(technologies, [:unit_type, :category], "technologies.csv")
     validate_psy_classification_mapping(mapping, technologies)
     default_lookup = _defaults_by_unit(defaults)
-    technology_lookup = Dict(string(row.unit_type) => string(row.category) for row in eachrow(technologies))
-    devices = Dict(PSY.get_name(device) => device for device in vcat(
-        _sorted_components(PSY.Generator, sys), _sorted_components(PSY.Storage, sys)
-    ))
-    rows = DataFrames.DataFrame([Any[] for _ in PROJECT_EXISTING_COLUMNS], PROJECT_EXISTING_COLUMNS)
+    technology_lookup =
+        Dict(string(row.unit_type) => string(row.category) for row in eachrow(technologies))
+    devices = Dict(
+        PSY.get_name(device) => device for device in vcat(
+            _sorted_components(PSY.Generator, sys), _sorted_components(PSY.Storage, sys),
+        )
+    )
+    rows = DataFrames.DataFrame(
+        [Any[] for _ in PROJECT_EXISTING_COLUMNS],
+        PROJECT_EXISTING_COLUMNS,
+    )
     report = String[]
     for owner_row in eachrow(ownership)
         name = string(owner_row.GEN_UID)
         haskey(devices, name) || error(
-            "Existing project \"$(name)\" is not an available PSY Generator/Storage component"
+            "Existing project \"$(name)\" is not an available PSY Generator/Storage component",
         )
         device = devices[name]
         unit_type = classify_psy_component(device, mapping)
         haskey(technology_lookup, unit_type) || error(
-            "No technology configuration for $(unit_type)"
+            "No technology configuration for $(unit_type)",
         )
         category = technology_lookup[unit_type]
         bus = PSY.get_bus(device)
@@ -591,25 +646,32 @@ function extract_fleet(
         row["Zone"] = _zone_of_area(zone_by_area, PSY.get_name(area))
         row["Bus ID"] = PSY.get_number(bus)
         metadata = _outage_metadata(outage, device, unit_type, size)
-        row["FOR"] = metadata === nothing ?
-                  _outage_for(outage, name, _project_row_value(default_lookup, unit_type, "FOR", 0.0)) :
-                  metadata.FOR
-        row["MTTR Hr"] = metadata === nothing ?
-                  _project_row_value(default_lookup, unit_type, "MTTR Hr", 24.0) :
-                  metadata.MTTR
-        row["Capacity Eligible"] = _project_row_value(default_lookup, unit_type, "Capacity Eligible", true)
-        row["REC Eligible"] = _project_row_value(default_lookup, unit_type, "REC Eligible", false)
+        row["FOR"] = if metadata === nothing
+            _outage_for(outage, name, _project_row_value(default_lookup, unit_type, "FOR", 0.0))
+        else
+            metadata.FOR
+        end
+        row["MTTR Hr"] = if metadata === nothing
+            _project_row_value(default_lookup, unit_type, "MTTR Hr", 24.0)
+        else
+            metadata.MTTR
+        end
+        row["Capacity Eligible"] =
+            _project_row_value(default_lookup, unit_type, "Capacity Eligible", true)
+        row["REC Eligible"] =
+            _project_row_value(default_lookup, unit_type, "REC Eligible", false)
         row["Synchronous_Inertia"] = unit_type in ("ST", "CT", "CC", "GT", "NU_ST")
         if device isa PSY.Storage
             row["Input Power Rating pu"] = PSY.get_input_active_power_limits(device).max
             row["Output Power Rating pu"] = PSY.get_output_active_power_limits(device).max
-            row["Duration Hr"] = PSY.get_storage_capacity(device) * PSY.get_base_power(sys) / size
+            row["Duration Hr"] =
+                PSY.get_storage_capacity(device) * PSY.get_base_power(sys) / size
             efficiency = PSY.get_efficiency(device)
             row["Round Trip Efficiency pu"] = efficiency.in * efficiency.out
         elseif device isa PSY.ThermalGen
             operation_cost = PSY.get_operation_cost(device)
             row["Fuel"] = string(PSY.get_fuel(device))
-            row["Ramp Rate pu/Hr"] = something(PSY.get_ramp_limits(device), (up=1.0,)).up
+            row["Ramp Rate pu/Hr"] = something(PSY.get_ramp_limits(device), (up = 1.0,)).up
             row["Min Up Time Hr"] = PSY.get_time_limits(device)
             operation_cost === nothing && push!(report, "$(name): heat-rate fallback used")
         end
@@ -618,37 +680,45 @@ function extract_fleet(
         online_year = _ownership_override(owner_row, "Online Year")
         online_year !== nothing && (row["Online Year"] = online_year)
         for column in PROJECT_EXISTING_COLUMNS
-            row[column] == "NA" && (row[column] = _project_row_value(default_lookup, unit_type, column, "NA"))
+            row[column] == "NA" &&
+                (row[column] = _project_row_value(default_lookup, unit_type, column, "NA"))
         end
         row["Investor"] = string(owner_row.Investor)
         push!(rows, [row[column] for column in PROJECT_EXISTING_COLUMNS])
     end
-    return (projects=rows, report=report)
+    return (projects = rows, report = report)
 end
 
 """Write the extracted system inputs used by the current simulation readers."""
 function write_system_inputs(
     sys::PSY.System,
     source_data_dir::AbstractString;
-    mapping::DataFrames.DataFrame=load_psy_classification_mapping(),
+    mapping::DataFrames.DataFrame = load_psy_classification_mapping(),
     technologies::DataFrames.DataFrame,
-    reserve_defaults::Union{Nothing, DataFrames.DataFrame}=nothing,
-    reserve_timeseries_dir::Union{Nothing, AbstractString}=nothing,
-    ownership::Union{Nothing, DataFrames.DataFrame}=nothing,
-    investor_dir::Union{Nothing, AbstractString}=nothing,
-    defaults::DataFrames.DataFrame=load_project_defaults(),
-    outage=nothing,
-    start_year::Union{Nothing, Integer}=nothing,
-    zones::Union{Nothing, DataFrames.DataFrame}=nothing,
+    reserve_defaults::Union{Nothing, DataFrames.DataFrame} = nothing,
+    reserve_timeseries_dir::Union{Nothing, AbstractString} = nothing,
+    ownership::Union{Nothing, DataFrames.DataFrame} = nothing,
+    investor_dir::Union{Nothing, AbstractString} = nothing,
+    defaults::DataFrames.DataFrame = load_project_defaults(),
+    outage = nothing,
+    start_year::Union{Nothing, Integer} = nothing,
+    zones::Union{Nothing, DataFrames.DataFrame} = nothing,
 )
     mkpath(source_data_dir)
     zones === nothing && (zones = extract_zones(sys))
-    gen = extract_gen_table(sys, mapping; technologies=technologies)
+    gen = extract_gen_table(sys, mapping; technologies = technologies)
     gen = gen[:, ["GEN UID", "Unit Type", "PMax MW"]]
     branches = extract_branches(sys)
-    available_products = reserve_timeseries_dir === nothing ? nothing :
+    available_products = if reserve_timeseries_dir === nothing
+        nothing
+    else
         _reserve_products_with_timeseries(reserve_timeseries_dir)
-    reserves = extract_reserves(sys; defaults=reserve_defaults, available_products=available_products)
+    end
+    reserves = extract_reserves(
+        sys;
+        defaults = reserve_defaults,
+        available_products = available_products,
+    )
     CSV.write(joinpath(source_data_dir, "gen.csv"), gen)
     CSV.write(joinpath(source_data_dir, "branch.csv"), branches.ac)
     CSV.write(joinpath(source_data_dir, "dc_branch.csv"), branches.dc)
@@ -658,24 +728,26 @@ function write_system_inputs(
     project_files = String[]
     if ownership !== nothing
         investor_dir === nothing && error(
-            "investor_dir is required when ownership is provided"
+            "investor_dir is required when ownership is provided",
         )
         fleet = extract_fleet(
             sys,
             mapping,
             technologies,
             ownership;
-            defaults=defaults,
-            outage=outage,
-            zones=zones,
+            defaults = defaults,
+            outage = outage,
+            zones = zones,
         )
         append!(report, fleet.report)
         start_year === nothing || validate_existing_project_lifetimes(
-            fleet.projects, start_year, "projectexisting.csv"
+            fleet.projects, start_year, "projectexisting.csv",
         )
         for investor in sort!(unique(string.(ownership.Investor)))
-            owned_names = string.(ownership.GEN_UID[string.(ownership.Investor) .== investor])
-            investor_rows = filter(row -> string(row.GEN_UID) in owned_names, fleet.projects)
+            owned_names =
+                string.(ownership.GEN_UID[string.(ownership.Investor) .== investor])
+            investor_rows =
+                filter(row -> string(row.GEN_UID) in owned_names, fleet.projects)
             directory = joinpath(investor_dir, investor)
             mkpath(directory)
             path = joinpath(directory, "projectexisting.csv")
@@ -683,6 +755,6 @@ function write_system_inputs(
             push!(project_files, path)
         end
     end
-    return (zones=zones, gen=gen, branches=branches, reserves=reserves,
-            project_files=project_files, report=report)
+    return (zones = zones, gen = gen, branches = branches, reserves = reserves,
+        project_files = project_files, report = report)
 end

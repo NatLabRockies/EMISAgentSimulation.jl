@@ -58,7 +58,7 @@ function calculate_RA_metrics(sys::PSY.System,
     seed::Int64 = 42,
     simulation_years::Int64 = 15,
     overwrite_outage_with_ext::Bool = false)
-    system_period_of_interest = range(1; length = DEFAULT_HOURS_PER_YEAR * simulation_years);
+    system_period_of_interest = range(1; length = DEFAULT_HOURS_PER_YEAR * simulation_years)
     # correlated_outage_csv_location = joinpath(outage_dir, "ThermalFOR_scenario_1_new.csv")
 
     @info "Calculating RA metrics for iteration year: $(iteration_year) with system_period_of_interest: $(system_period_of_interest)"
@@ -162,7 +162,7 @@ function add_capacity_market_device_forecast!(sys_PRAS::PSY.System,
             forecast_count * sys_interval/sys_resolution +
             (sys_horizon - sys_interval/sys_resolution) - 1
         ))
-    time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
+    time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime)
     additional_timestep = length(time_stamps) - DEFAULT_HOURS_PER_YEAR
 
     append!(

@@ -1419,5 +1419,5 @@ function cem(system::MarketClearingProblem{Z, T},
     p_out_ru_detail,
     p_out_ordc_detail,
     p_out_inertia_detail,
-    p_out_rd_detail;
+    p_out_rd_detail
 end

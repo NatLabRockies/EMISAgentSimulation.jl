@@ -61,8 +61,8 @@ function create_project_queuecost(size::Float64,
             M2 = queue_cost_data[M2_row, "greater than 1000 MW"] * size
         end
     else
-        D1 = 0;
-        D2 = 0;
+        D1 = 0
+        D2 = 0
         M2 = 0
     end
     queue_cost = [D1 + D2, M2]
@@ -92,7 +92,8 @@ function add_investor_project_availability!(test_system_dir::String,
     # devices_to_remove.csv can drop a generator from sys_UC while its column
     # still exists in the availability CSV; exclude those names from zone matching.
     matchable_gennames = setdiff(gennames, gen_diff)
-    isempty(gen_diff) || @warn "Excluding $(length(gen_diff)) availability column(s) not present in sys_UC from zone matching: $(gen_diff)"
+    isempty(gen_diff) ||
+        @warn "Excluding $(length(gen_diff)) availability column(s) not present in sys_UC from zone matching: $(gen_diff)"
 
     for project in projects
         # println("this is $(get_name(project))")

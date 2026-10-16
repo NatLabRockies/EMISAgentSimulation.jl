@@ -133,7 +133,12 @@ function find_representative_periods(simulation_dir::String,
             # Net-load columns are generator IDs; use configured metadata to group VRE output.
             generator_rows = filter(row -> row."GEN UID" == i, existing_generator_data)
             if DataFrames.nrow(generator_rows) > 0
-                kind = vre_kind(get_technology_category(system_config, String(generator_rows[1, "Unit Type"])))
+                kind = vre_kind(
+                    get_technology_category(
+                        system_config,
+                        String(generator_rows[1, "Unit Type"]),
+                    ),
+                )
                 if kind == :wind
                     wind += net_load_data[:, i]
                 elseif kind == :pv

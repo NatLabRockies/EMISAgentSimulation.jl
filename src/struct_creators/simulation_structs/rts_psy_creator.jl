@@ -31,7 +31,8 @@ function specify_pruned_units(system_config::SystemConfig)
     pruned_units = Dict{Type{<:PSY.Component}, Array{AbstractString}}()
     for (component_name, device_names) in system_config.devices_to_remove
         component_type = get(component_types, component_name, nothing)
-        isnothing(component_type) && error("Unsupported device_type in devices_to_remove.csv: $(component_name)")
+        isnothing(component_type) &&
+            error("Unsupported device_type in devices_to_remove.csv: $(component_name)")
         pruned_units[component_type] = Vector{AbstractString}(device_names)
     end
     return pruned_units
@@ -123,7 +124,7 @@ function create_rts_sys(rts_dir::String,
             sys_MD_initial = PSY.System(
                 initial_Sienna_system_path;
                 time_series_directory = scratch_dir,
-            );
+            )
             prune_system_devices!(sys_MD_initial, configured_pruning)
             # create MD system
             create_sys_w_updated_ts(
@@ -143,11 +144,51 @@ function create_rts_sys(rts_dir::String,
                 MD_num_forecast_filename,
                 outage_dir;
                 system_cfg = system_config,
-                canonical_load_dir = use_canonical_load ? joinpath(timeseries_data_dir, pcm_scenario, "sim_year_$(sim_year)", "Load") : nothing,
-                canonical_reference_load_dir = use_canonical_load ? joinpath(timeseries_data_dir, pcm_scenario, "sim_year_1", "Load") : nothing,
-                canonical_wind_dir = use_canonical_load ? joinpath(timeseries_data_dir, pcm_scenario, "sim_year_$(sim_year)", "WIND") : nothing,
-                canonical_pv_dir = use_canonical_load ? joinpath(timeseries_data_dir, pcm_scenario, "sim_year_$(sim_year)", "PV") : nothing,
-                canonical_reserves_dir = use_canonical_load ? joinpath(timeseries_data_dir, pcm_scenario, "sim_year_$(sim_year)", "Reserves") : nothing,
+                canonical_load_dir = if use_canonical_load
+                    joinpath(
+                    timeseries_data_dir,
+                    pcm_scenario,
+                    "sim_year_$(sim_year)",
+                    "Load",
+                )
+                else
+                    nothing
+                end,
+                canonical_reference_load_dir = if use_canonical_load
+                    joinpath(timeseries_data_dir, pcm_scenario, "sim_year_1", "Load")
+                else
+                    nothing
+                end,
+                canonical_wind_dir = if use_canonical_load
+                    joinpath(
+                    timeseries_data_dir,
+                    pcm_scenario,
+                    "sim_year_$(sim_year)",
+                    "WIND",
+                )
+                else
+                    nothing
+                end,
+                canonical_pv_dir = if use_canonical_load
+                    joinpath(
+                    timeseries_data_dir,
+                    pcm_scenario,
+                    "sim_year_$(sim_year)",
+                    "PV",
+                )
+                else
+                    nothing
+                end,
+                canonical_reserves_dir = if use_canonical_load
+                    joinpath(
+                    timeseries_data_dir,
+                    pcm_scenario,
+                    "sim_year_$(sim_year)",
+                    "Reserves",
+                )
+                else
+                    nothing
+                end,
             )
         end
         sys_MD = PSY.System(
@@ -156,7 +197,7 @@ function create_rts_sys(rts_dir::String,
             runchecks = runchecks,
         )
         fix_multistart_cost_curves!(sys_MD)
-        push!(sys_MDs, sys_MD);
+        push!(sys_MDs, sys_MD)
 
         UC_filename = joinpath(
             rts_dir,
@@ -171,7 +212,7 @@ function create_rts_sys(rts_dir::String,
             sys_UC_initial = PSY.System(
                 initial_Sienna_system_path;
                 time_series_directory = scratch_dir,
-            );
+            )
             prune_system_devices!(sys_UC_initial, configured_pruning)
             create_sys_w_updated_ts(
                 ntp_ts_data_dir,
@@ -190,11 +231,51 @@ function create_rts_sys(rts_dir::String,
                 MD_num_forecast_filename,
                 outage_dir;
                 system_cfg = system_config,
-                canonical_load_dir = use_canonical_load ? joinpath(timeseries_data_dir, pcm_scenario, "sim_year_$(sim_year)", "Load") : nothing,
-                canonical_reference_load_dir = use_canonical_load ? joinpath(timeseries_data_dir, pcm_scenario, "sim_year_1", "Load") : nothing,
-                canonical_wind_dir = use_canonical_load ? joinpath(timeseries_data_dir, pcm_scenario, "sim_year_$(sim_year)", "WIND") : nothing,
-                canonical_pv_dir = use_canonical_load ? joinpath(timeseries_data_dir, pcm_scenario, "sim_year_$(sim_year)", "PV") : nothing,
-                canonical_reserves_dir = use_canonical_load ? joinpath(timeseries_data_dir, pcm_scenario, "sim_year_$(sim_year)", "Reserves") : nothing,
+                canonical_load_dir = if use_canonical_load
+                    joinpath(
+                    timeseries_data_dir,
+                    pcm_scenario,
+                    "sim_year_$(sim_year)",
+                    "Load",
+                )
+                else
+                    nothing
+                end,
+                canonical_reference_load_dir = if use_canonical_load
+                    joinpath(timeseries_data_dir, pcm_scenario, "sim_year_1", "Load")
+                else
+                    nothing
+                end,
+                canonical_wind_dir = if use_canonical_load
+                    joinpath(
+                    timeseries_data_dir,
+                    pcm_scenario,
+                    "sim_year_$(sim_year)",
+                    "WIND",
+                )
+                else
+                    nothing
+                end,
+                canonical_pv_dir = if use_canonical_load
+                    joinpath(
+                    timeseries_data_dir,
+                    pcm_scenario,
+                    "sim_year_$(sim_year)",
+                    "PV",
+                )
+                else
+                    nothing
+                end,
+                canonical_reserves_dir = if use_canonical_load
+                    joinpath(
+                    timeseries_data_dir,
+                    pcm_scenario,
+                    "sim_year_$(sim_year)",
+                    "Reserves",
+                )
+                else
+                    nothing
+                end,
             )
         end
 
@@ -204,7 +285,7 @@ function create_rts_sys(rts_dir::String,
             runchecks = runchecks,
         )
         fix_multistart_cost_curves!(sys_UC)
-        push!(sys_UCs, sys_UC);
+        push!(sys_UCs, sys_UC)
 
         for scenario in scenarios
             supercc_scenario_ed = get_scenario_pcm_label(system_config, scenario)
@@ -222,7 +303,7 @@ function create_rts_sys(rts_dir::String,
                 sys_ED_initial = PSY.System(
                     initial_Sienna_system_path;
                     time_series_directory = scratch_dir,
-                );
+                )
                 prune_system_devices!(sys_ED_initial, configured_pruning)
                 create_sys_w_updated_ts(
                     ntp_ts_data_dir,
@@ -241,11 +322,51 @@ function create_rts_sys(rts_dir::String,
                     MD_num_forecast_filename,
                     outage_dir;
                     system_cfg = system_config,
-                    canonical_load_dir = use_canonical_load ? joinpath(timeseries_data_dir, scenario, "sim_year_$(sim_year)", "Load") : nothing,
-                    canonical_reference_load_dir = use_canonical_load ? joinpath(timeseries_data_dir, scenario, "sim_year_1", "Load") : nothing,
-                    canonical_wind_dir = use_canonical_load ? joinpath(timeseries_data_dir, scenario, "sim_year_$(sim_year)", "WIND") : nothing,
-                    canonical_pv_dir = use_canonical_load ? joinpath(timeseries_data_dir, scenario, "sim_year_$(sim_year)", "PV") : nothing,
-                    canonical_reserves_dir = use_canonical_load ? joinpath(timeseries_data_dir, scenario, "sim_year_$(sim_year)", "Reserves") : nothing,
+                    canonical_load_dir = if use_canonical_load
+                        joinpath(
+                        timeseries_data_dir,
+                        scenario,
+                        "sim_year_$(sim_year)",
+                        "Load",
+                    )
+                    else
+                        nothing
+                    end,
+                    canonical_reference_load_dir = if use_canonical_load
+                        joinpath(timeseries_data_dir, scenario, "sim_year_1", "Load")
+                    else
+                        nothing
+                    end,
+                    canonical_wind_dir = if use_canonical_load
+                        joinpath(
+                        timeseries_data_dir,
+                        scenario,
+                        "sim_year_$(sim_year)",
+                        "WIND",
+                    )
+                    else
+                        nothing
+                    end,
+                    canonical_pv_dir = if use_canonical_load
+                        joinpath(
+                        timeseries_data_dir,
+                        scenario,
+                        "sim_year_$(sim_year)",
+                        "PV",
+                    )
+                    else
+                        nothing
+                    end,
+                    canonical_reserves_dir = if use_canonical_load
+                        joinpath(
+                        timeseries_data_dir,
+                        scenario,
+                        "sim_year_$(sim_year)",
+                        "Reserves",
+                    )
+                    else
+                        nothing
+                    end,
                 )
             end
 
@@ -255,7 +376,7 @@ function create_rts_sys(rts_dir::String,
                 runchecks = runchecks,
             )
             fix_multistart_cost_curves!(sys_ED)
-            push!(sys_EDs_dict[scenario], sys_ED);
+            push!(sys_EDs_dict[scenario], sys_ED)
         end
         sys_EDs = sys_EDs_dict[pcm_scenario]
 
@@ -361,20 +482,24 @@ function _canonical_load_peak(system_cfg::SystemConfig, load_df::DataFrames.Data
     return maximum(sum(eachcol(zone_frame)))
 end
 
-
-
 """Find a canonical reserve time-series file for `product` under `reserves_dir`,
 matching case-insensitively and falling back to `RESERVE_PRODUCT_ALIASES`."""
-function _canonical_reserve_file(reserves_dir::AbstractString, product::AbstractString, stage_prefix::AbstractString)
+function _canonical_reserve_file(
+    reserves_dir::AbstractString,
+    product::AbstractString,
+    stage_prefix::AbstractString,
+)
     isdir(reserves_dir) || return nothing
     candidates = [product]
-    haskey(RESERVE_PRODUCT_ALIASES, product) && push!(candidates, RESERVE_PRODUCT_ALIASES[product])
+    haskey(RESERVE_PRODUCT_ALIASES, product) &&
+        push!(candidates, RESERVE_PRODUCT_ALIASES[product])
     targets = Set(lowercase.(candidates))
     pattern = Regex("^$(stage_prefix)_regional_(.+)\\.csv\$", "i")
     for file in readdir(reserves_dir)
         reserve_match = match(pattern, file)
         reserve_match === nothing && continue
-        lowercase(reserve_match.captures[1]) in targets && return joinpath(reserves_dir, file)
+        lowercase(reserve_match.captures[1]) in targets &&
+            return joinpath(reserves_dir, file)
     end
     return nothing
 end
@@ -424,9 +549,14 @@ function create_sys_w_updated_ts(
     # legacy ERCOT NTP raw files when canonical load directories aren't supplied.
     #--------------------------------------------
     if canonical_load_dir !== nothing && canonical_reference_load_dir !== nothing
-        system_cfg === nothing && error("system_cfg is required when using canonical_load_dir")
-        reference_load_da = DataFrame(CSV.File(joinpath(canonical_reference_load_dir, "DAY_AHEAD_regional_Load.csv")))
-        reference_load_rt = DataFrame(CSV.File(joinpath(canonical_reference_load_dir, "REAL_TIME_regional_Load.csv")))
+        system_cfg === nothing &&
+            error("system_cfg is required when using canonical_load_dir")
+        reference_load_da = DataFrame(
+            CSV.File(joinpath(canonical_reference_load_dir, "DAY_AHEAD_regional_Load.csv")),
+        )
+        reference_load_rt = DataFrame(
+            CSV.File(joinpath(canonical_reference_load_dir, "REAL_TIME_regional_Load.csv")),
+        )
         loadscaler_peak_da = _canonical_load_peak(system_cfg, reference_load_da)
         loadscaler_peak_rt = _canonical_load_peak(system_cfg, reference_load_rt)
         loadscaler_da = loadscaler_peak_da / (loadscaler_base * 1000) # canonical load is already MW; loadscaler_base is GW
@@ -499,7 +629,7 @@ function create_sys_w_updated_ts(
     end
 
     # timestep here indicate how many MD periods are being constructed
-    timestep = StepRange(start_datetime_MD, sys_MD_res * interval, finish_datetime_MD);
+    timestep = StepRange(start_datetime_MD, sys_MD_res * interval, finish_datetime_MD)
     first_stage_total = Int((finish_datetime_MD - start_datetime_MD) / sys_MD_res + 1)
     additional_timestep = Int(
         horizon - (first_stage_total-(interval*(length(timestep)-1))) +
@@ -563,7 +693,11 @@ function create_sys_w_updated_ts(
     # needed; legacy ERCOT NTP data uses differently-named raw profile columns and
     # requires GeneratorNameMapping.csv to bridge PSY names to those CSV columns.
     canonical_wind_pv = canonical_wind_dir !== nothing || canonical_pv_dir !== nothing
-    namemapping = canonical_wind_pv ? nothing : DataFrame(CSV.File(joinpath(data_dir, "GeneratorNameMapping.csv")))
+    namemapping = if canonical_wind_pv
+        nothing
+    else
+        DataFrame(CSV.File(joinpath(data_dir, "GeneratorNameMapping.csv")))
+    end
     # To get raw DA data time stamps
     # first_ts_temp_MD = first(PSY.get_time_series_multiple(sys_MD))
     # start_datetime_MD = PSY.IS.get_initial_timestamp(first_ts_temp_MD);
@@ -600,7 +734,8 @@ function create_sys_w_updated_ts(
         end
 
         if get_prime_mover_type(d) == PrimeMovers.WT && canonical_wind_dir !== nothing
-            wind_filename = market_stage == "dayahead" ? "DAY_AHEAD_wind.csv" : "REAL_TIME_wind.csv"
+            wind_filename =
+                market_stage == "dayahead" ? "DAY_AHEAD_wind.csv" : "REAL_TIME_wind.csv"
             profile = DataFrame(CSV.File(joinpath(canonical_wind_dir, wind_filename)))
             if !(PSY.get_name(d) in names(profile))
                 @warn "No canonical wind time series column for generator \"$(PSY.get_name(d))\" in $(joinpath(canonical_wind_dir, wind_filename)); skipping time series attachment"
@@ -608,7 +743,8 @@ function create_sys_w_updated_ts(
             end
             newtsdata = profile[!, PSY.get_name(d)]
         elseif get_prime_mover_type(d) == PrimeMovers.PVe && canonical_pv_dir !== nothing
-            pv_filename = market_stage == "dayahead" ? "DAY_AHEAD_pv.csv" : "REAL_TIME_pv.csv"
+            pv_filename =
+                market_stage == "dayahead" ? "DAY_AHEAD_pv.csv" : "REAL_TIME_pv.csv"
             profile = DataFrame(CSV.File(joinpath(canonical_pv_dir, pv_filename)))
             if !(PSY.get_name(d) in names(profile))
                 @warn "No canonical PV time series column for generator \"$(PSY.get_name(d))\" in $(joinpath(canonical_pv_dir, pv_filename)); skipping time series attachment"
@@ -681,8 +817,13 @@ function create_sys_w_updated_ts(
     # Load Forecasts !!!!!!!!!!!!! CHECK SYSTEM BASE !!!!!!!!!
     #--------------------------------------------
     if canonical_load_dir !== nothing
-        system_cfg === nothing && error("system_cfg is required when using canonical_load_dir")
-        load_filename = market_stage == "dayahead" ? "DAY_AHEAD_regional_Load.csv" : "REAL_TIME_regional_Load.csv"
+        system_cfg === nothing &&
+            error("system_cfg is required when using canonical_load_dir")
+        load_filename = if market_stage == "dayahead"
+            "DAY_AHEAD_regional_Load.csv"
+        else
+            "REAL_TIME_regional_Load.csv"
+        end
         raw_profile = DataFrame(CSV.File(joinpath(canonical_load_dir, load_filename))) # already MW
         profile = _canonical_zone_load_frame(system_cfg, raw_profile)
         loadscaler = market_stage == "dayahead" ? loadscaler_da : loadscaler_rt
@@ -721,9 +862,11 @@ function create_sys_w_updated_ts(
         # Canonical mode builds `profile` with zones.csv's zone_name columns (via
         # _canonical_zone_load_frame), which may differ from the PSY area's own name;
         # resolve through the same zones.csv alias table rather than assuming they match.
-        zone_column = canonical_load_dir !== nothing ?
-            lowercase(get_zone_name(system_cfg, PSY.get_name(zone))) :
+        zone_column = if canonical_load_dir !== nothing
+            lowercase(get_zone_name(system_cfg, PSY.get_name(zone)))
+        else
             lowercase(PSY.get_name(zone))
+        end
         newtsdata = profile[!, zone_column]
         baseload = get_max_active_power(d)
 
@@ -801,12 +944,14 @@ function create_sys_w_updated_ts(
         stage_prefix = market_stage == "dayahead" ? "DAY_AHEAD" : "REAL_TIME"
         for d in get_components(Service, sys_MD)
             product = PSY.get_name(d)
-            reserve_file = _canonical_reserve_file(canonical_reserves_dir, product, stage_prefix)
+            reserve_file =
+                _canonical_reserve_file(canonical_reserves_dir, product, stage_prefix)
             if reserve_file === nothing
                 @warn "No canonical reserve time series file for service \"$(product)\" in $(canonical_reserves_dir); skipping time series attachment"
                 continue
             end
-            reserve_data[product] = _canonical_daily_hourly_series(reserve_file) ./ get_requirement(d)
+            reserve_data[product] =
+                _canonical_daily_hourly_series(reserve_file) ./ get_requirement(d)
         end
     else
         if market_stage == "dayahead"
@@ -858,7 +1003,8 @@ function create_sys_w_updated_ts(
         regdown_ts[!, "RegDown"] = sum(eachcol(regdown_ts))
         regup_ts[!, "RegUp"] = sum(eachcol(regup_ts))
 
-        for d in get_components(x -> PSY.get_name(x) in ["REG_DN", "REG_UP"], Service, sys_MD)
+        for d in
+            get_components(x -> PSY.get_name(x) in ["REG_DN", "REG_UP"], Service, sys_MD)
             product = PSY.get_name(d)
             raw = product == "REG_DN" ? regdown_ts[!, "RegDown"] : regup_ts[!, "RegUp"]
             reserve_data[product] = raw ./ get_requirement(d) / 100
@@ -973,7 +1119,7 @@ function create_PRAS_sys_json(
         start_datetime_PRAS,
         sys_PRAS_res * sys_PRAS_interval,
         finish_datetime_PRAS,
-    );
+    )
 
     ts_objects = Dict{String, Any}()
     ts_objects["gens"] = collect(
@@ -1138,7 +1284,7 @@ function create_PRAS_sys_NY_json(
     finish_datetime_PRAS =
         start_datetime_PRAS +
         Dates.Hour(DEFAULT_HOURS_PER_YEAR * sys_PRAS_res * length(sys_EDs) - sys_PRAS_res)
-    timestep = StepRange(start_datetime_PRAS, sys_PRAS_res, finish_datetime_PRAS);
+    timestep = StepRange(start_datetime_PRAS, sys_PRAS_res, finish_datetime_PRAS)
 
     ts_objects = Dict{String, Any}()
 

@@ -1667,8 +1667,8 @@ function load_sienna_systems!(
     simulation.system_EDs = Vector{PSY.System}()
     simulation.system_PRAS = Dict{String, PSY.System}()
     case = get_case(simulation)
-    data_dir = get_data_dir(case);
-    scenarios = string.(get_all_scenario_names(data_dir));
+    data_dir = get_data_dir(case)
+    scenarios = string.(get_all_scenario_names(data_dir))
 
     for year in 1:restore_year
         @info "Restoring systems for year $(year) from checkpoint."

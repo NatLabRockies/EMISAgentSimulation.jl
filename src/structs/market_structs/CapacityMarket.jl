@@ -5,7 +5,6 @@ The Capacity market is implemented using a piece-wise Capacity Demand Curve,
 with break-points and price-points parameterized within this struct.
 """
 struct CapacityMarket # Assumes a piece-wise linear demand curve
-
     break_points::Vector{Float64}   # demand curve break points
     price_points::Vector{Float64}    # $/MW-year
 
@@ -16,5 +15,4 @@ struct CapacityMarket # Assumes a piece-wise linear demand curve
         @assert length(p) == length(b)
         new(b, p)
     end
-
 end

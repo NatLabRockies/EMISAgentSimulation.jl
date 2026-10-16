@@ -2,7 +2,7 @@ const PROJECT_INIT_MANIFEST_COLUMNS = [:key, :scope, :path, :required, :source]
 
 """A minimal declarative manifest for the project initializer."""
 function build_project_init_manifest()
-    DataFrames.DataFrame(
+    DataFrames.DataFrame(;
         key = [
             "project_spec",
             "zones",
@@ -65,7 +65,7 @@ function validate_project_init_manifest(manifest::DataFrames.DataFrame)
     required_columns = Set(string.(PROJECT_INIT_MANIFEST_COLUMNS))
     missing = setdiff(required_columns, Set(string.(names(manifest))))
     isempty(missing) || error(
-        "Project init manifest is missing columns: $(join(sort!(collect(missing)), ", "))"
+        "Project init manifest is missing columns: $(join(sort!(collect(missing)), ", "))",
     )
     return manifest
 end
