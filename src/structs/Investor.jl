@@ -4,36 +4,59 @@ This struct contains all the data for an investor.
     data_dir: Directoty where investors' data is stored.
     projects: Vector of all projects owned by the investor.
     markets: Vector of markets in which the investor is participating.
+    carbon_tax: Vector of annual carbon tax.
     market_prices: Expected market prices.
-    rep_hour_weight: Representative hour weight for operating markets.
+    rep_period_interval: Total number of hours in representative period selection e.g., 24 for representative days, 168 for representative weeks, etc. Default =  24
+    rep_hour_weight: Representative hour weight for operating markets.    
+    avg_block_size: Number of hours in CEM aggregated time blocks. Default = 4. Set to 1 if hourly granularity is needed.
+    fixed_block_size: Whether the block size in CEM time block aggregation is fixed, i.e., all blocks are of the same length = avg_block_size. If set to FALSE, the model will select variable size time blocks based on chronological clustering.
+    chron_weights: Weights for representative hours for modeling chronological constraints
     forecast: Forecast parameters.
     cap_cost_multiplier: Capital cost multiplier.
     max_annual_projects: Maximum number of projects.
     risk_preference: Whether investor is Risk Neutral or Risk Averse.
+    retirement_lookback: Number of past years' data taken into account for making retirement decision
 """
 mutable struct Investor
     name::String
     data_dir::String
     projects::Vector{<: Project{<: BuildPhase}}
     markets::Vector{Symbol}
+    carbon_tax::Vector{Float64}
     market_prices::MarketPrices
-    rep_hour_weight::Vector{Float64}
-    forecast::F where F <: Forecast
+    rep_period_interval::Int64
+    rep_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}}
+    avg_block_size::Int64
+    fixed_block_size::Bool
+    chron_weights::Dict{String, Dict{Int64, Matrix{Int64}}}
+    forecast::F where {F <: Forecast}
     cap_cost_multiplier::Float64
+    preference_multiplier_range::NamedTuple{(:min, :max), Tuple{Float64, Float64}}
+    portfolio_preference_multipliers::Dict{Tuple{String, String}, Vector{Float64}}
     max_annual_projects::Int64
-    risk_preference::T where T <: RiskPreference
+    risk_preference::T where {T <: RiskPreference}
+    retirement_lookback::Int64
 end
 
 get_name(investor::Investor) = investor.name
 get_data_dir(investor::Investor) = investor.data_dir
 get_projects(investor::Investor) = investor.projects
 get_markets(investor::Investor) = investor.markets
+get_carbon_tax(investor::Investor) = investor.carbon_tax
 get_market_prices(investor::Investor) = investor.market_prices
+get_rep_period_interval(investor::Investor) = investor.rep_period_interval
 get_rep_hour_weight(investor::Investor) = investor.rep_hour_weight
+get_avg_block_size(investor::Investor) = investor.avg_block_size
+get_fixed_block_size(investor::Investor) = investor.fixed_block_size
+get_chron_weights(investor::Investor) = investor.chron_weights
 get_forecast(investor::Investor) = investor.forecast
 get_cap_cost_multiplier(investor::Investor) = investor.cap_cost_multiplier
 get_max_annual_projects(investor::Investor) = investor.max_annual_projects
 get_risk_preference(investor::Investor) = investor.risk_preference
+get_retirement_lookback(investor::Investor) = investor.retirement_lookback
+get_preference_multiplier_range(investor::Investor) = investor.preference_multiplier_range
+get_portfolio_preference_multipliers(investor::Investor) =
+    investor.portfolio_preference_multipliers
 
 # Get projects based on their buildphases
 function get_existing(investor::Investor)
@@ -78,8 +101,14 @@ end
 
 function find_active_invested_projects(projects::Vector{<: Project})
     leaftypes_option = leaftypes(Project{Option})
-    leaftypes_retired= leaftypes(Project{Retired})
-    active_invested_projects = filter(project -> (!in(typeof(project), leaftypes_option) && !in(typeof(project), leaftypes_retired) ), projects)
+    leaftypes_retired = leaftypes(Project{Retired})
+    active_invested_projects = filter(
+        project -> (
+            !in(typeof(project), leaftypes_option) &&
+            !in(typeof(project), leaftypes_retired)
+        ),
+        projects,
+    )
 
     return active_invested_projects
 end
@@ -92,6 +121,20 @@ function find_option_projects(projects::Vector{<: Project})
 end
 
 function set_market_prices!(investor::Investor,
-                           market_prices::MarketPrices)
+    market_prices::MarketPrices)
     investor.market_prices = market_prices
+end
+
+function get_preference_multiplier(investor::Investor, tech::String, zone::String)
+    return investor.portfolio_preference_multipliers[(tech, zone)]
+end
+
+function set_preference_multiplier!(
+    investor::Investor,
+    tech::String,
+    zone::String,
+    iteration_year::Int64,
+    value::Float64,
+)
+    investor.portfolio_preference_multipliers[(tech, zone)][iteration_year] = value
 end

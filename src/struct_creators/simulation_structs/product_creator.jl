@@ -3,115 +3,113 @@ This function returns a vector of the products provided by the project
 based on the data provided in the input files.
 """
 function create_products(simulation_data::AgentSimulationData,
-                         projectdata::DataFrames.DataFrameRow)
+    projectdata::DataFrames.DataFrameRow)
     products = Product[]
 
     markets = get_markets(simulation_data)
 
-    reserve_up_mkt_df = read_data(joinpath(get_data_dir(get_case(simulation_data)), "markets_data", "reserve_up_mkt_param.csv"))
-    reserve_down_mkt_df = read_data(joinpath(get_data_dir(get_case(simulation_data)), "markets_data", "reserve_down_mkt_param.csv"))
+    reserve_penalty = get_reserve_penalty(get_case(simulation_data))
+    mopr = get_mopr(get_case(simulation_data))
+    bat_cap = get_battery_cap_mkt(get_case(simulation_data))
 
-    reserve_up_eligible_categories = reserve_up_mkt_df[findfirst(x-> x == projectdata["Zone"], reserve_up_mkt_df[:, "zones"]), "eligible categories"]
-    reserve_down_eligible_categories = reserve_down_mkt_df[findfirst(x-> x == projectdata["Zone"], reserve_down_mkt_df[:, "zones"]), "eligible categories"]
+    simulation_horizon = get_simulation_years(get_case(simulation_data))
 
     # Energy market product
     variable_cost = projectdata["Fuel Price \$/MMBTU"] * projectdata["HR_avg_0"] / 1000
-        push!(products, Energy(:Energy,
-                               Dict{String, Array{Float64, 2}}(),
-                               variable_cost))
+    push!(products, Energy(:Energy, Dict{String, Array{Float64, 2}}(), variable_cost, 0.0))
 
-    if markets[:Reserves] && occursin(projectdata["Category"], reserve_up_eligible_categories) > 0
-        push!(products, OperatingReserve{ReserveUpEMIS}(:ReserveUp,
-                                        projectdata["Ramp Rate pu/Hr"],
-                                        0.0))
-    end
+    reserve_definition = read_data(
+        joinpath(
+            get_data_dir(get_case(simulation_data)),
+            "markets_data",
+            "reserve_products.csv",
+        ),
+    )
 
-    if markets[:Reserves] && occursin(projectdata["Category"], reserve_down_eligible_categories) > 0
-        push!(products, OperatingReserve{ReserveDownEMIS}(:ReserveDown,
-                                        projectdata["Ramp Rate pu/Hr"],
-                                        0.0))
-    end
+    reserve_products = split(reserve_definition[1, "all_products"], "; ")
 
-    if markets[:Capacity] && projectdata["Capacity Eligible"]
-        push!(products, Capacity(:Capacity,
-                                 0.0,
-                                 Dict{String, Array{Float64, 1}}(),
-                                 0.0))
-    end
+    for product in reserve_products
+        product_data = read_data(
+            joinpath(
+                get_data_dir(get_case(simulation_data)),
+                "markets_data",
+                "$(reserve_penalty)_reserve_penalty",
+                "$(product).csv",
+            ),
+        )
+        eligible_zones =
+            ["zone_$(n)" for n in split(product_data[1, "eligible_zones"], ";")]
 
-    if markets[:REC] && projectdata["REC Eligible"]
-        push!(products, REC(:REC,
-                            0.0,
-                            0.0))
-    end
-
-    return products
-end
-
-
-"""
-This function returns a vector of the products provided by the project
-based on the data provided in the input files and PSY Device data.
-"""
-function create_products(simulation_data::AgentSimulationData,
-                         device::T,
-                         projectdata::DataFrames.DataFrameRow) where T <: Union{PSY.Generator, PSY.Storage}
-
-    products = Product[]
-
-    markets = get_markets(simulation_data)
-
-    service_types = typeof.(PSY.get_services(device))
-
-    # Energy market product
-    variable_cost = projectdata["Fuel Price \$/MMBTU"] * projectdata["HR_avg_0"] / 1000.0
-
-    push!(products, Energy(:Energy,
-                               Dict{String, Array{Float64, 2}}(),
-                               variable_cost))
-
-    fields = collect(fieldnames(typeof(device)))
-
-    reserve_up_lim = 1.0
-    reserve_down_lim = 1.0
-
-    if in(:ramp_limits, fields)
-        ramp_limits = PSY.get_ramp_limits(device)
-        rating = get_device_size(device)
-        if !isnothing(ramp_limits)
-            reserve_up_lim = ramp_limits[:up] * 60 / rating
-            reserve_down_lim = ramp_limits[:down] * 60 / rating
+        if markets[Symbol(product)] && (projectdata["Zone"] in eligible_zones) &&
+           occursin(projectdata["Category"], product_data[1, "eligible categories"])
+            time_scale = product_data[1, "timescale (min)"]
+            direction = product_data[1, "direction"]
+            if lowercase(direction) == "up"
+                push!(
+                    products,
+                    OperatingReserve{ReserveUpEMIS}(Symbol(product),
+                        projectdata["Ramp Rate pu/Hr"] * time_scale / 60,
+                        0.0),
+                )
+            elseif lowercase(direction) == "down"
+                push!(
+                    products,
+                    OperatingReserve{ReserveDownEMIS}(Symbol(product),
+                        projectdata["Ramp Rate pu/Hr"] * time_scale / 60,
+                        0.0),
+                )
+            end
         end
     end
 
-
-
-    if in(PSY.VariableReserve{PSY.ReserveUp}, service_types)
-        push!(products, OperatingReserve{ReserveUpEMIS}(:ReserveUp,
-                                        reserve_up_lim,
-                                        0.0))
+    capacity_eligible = projectdata["Capacity Eligible"]
+    if mopr
+        if projectdata["Category"] == "Wind" || projectdata["Category"] == "Solar PV"
+            capacity_eligible = false
+        end
     end
 
-
-
-    if in(PSY.VariableReserve{PSY.ReserveDown}, service_types)
-        push!(products, OperatingReserve{ReserveDownEMIS}(:ReserveDown,
-                                        reserve_down_lim,
-                                        0.0))
+    if !(bat_cap)
+        if projectdata["Category"] == "Battery" ||
+           projectdata["Category"] == "Long Duration Energy Storage"
+            capacity_eligible = false
+        end
     end
 
-    if markets[:Capacity] && projectdata["Capacity Eligible"]
-        push!(products, Capacity(:Capacity,
-                                 0.0,
-                                 Dict{String, Array{Float64, 1}}(),
-                                 0.0))
+    if markets[:Capacity] && capacity_eligible
+        push!(
+            products,
+            Capacity(:Capacity,
+                Dict{String, Float64}(),
+                Dict{String, Array{Float64, 1}}(),
+                0.0),
+        )
     end
 
     if markets[:REC] && projectdata["REC Eligible"]
         push!(products, REC(:REC,
-                            0.0,
-                            0.0))
+            0.0,
+            ones(simulation_horizon),
+            0.0))
     end
 
+    push!(
+        products,
+        CarbonTax(:CarbonTax,
+            projectdata["CO2_Emissions ton/MMBTU"],
+            projectdata["HR_avg_0"] / 1000,
+            projectdata["Fuel Price \$/MMBTU"],
+            zeros(simulation_horizon)),
+    )
+
+    if markets[:Inertia]
+        push!(
+            products,
+            Inertia(:Inertia,
+                projectdata["Synchronous_Inertia"],
+                projectdata["Inertia MJ/MW"],
+                0.0),
+        )
+    end
     return products
 end

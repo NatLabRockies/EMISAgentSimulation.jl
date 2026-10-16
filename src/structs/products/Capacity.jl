@@ -1,13 +1,13 @@
 """
 This struct contains data for the capacity market product.
     name: Capacity.
-    derating: The derating factor for capacity market participation based on technology type.
+    derating: The derating factor for capacity market participation based on technology type for each scenario.
     accepted_perc: The percentage of capacity cleared in capacity markets for each scenario.
     capacity_bid: Capacity market bid placed by the project.
 """
 mutable struct Capacity <: Product
     name::Symbol
-    derating::Float64
+    derating::Dict{String, Float64}
     accepted_perc::Dict{String, Vector{Float64}}
     capacity_bid::Float64
 end
@@ -21,17 +21,17 @@ get_capacity_bid(prod::Product) = nothing
 get_capacity_bid(prod::Capacity) = prod.capacity_bid
 
 # Derating factors only set when product is of type Capacity
-function set_derating!(prod::T, derating_factor) where T <: Product
+function set_derating!(prod::T, scenario::String, derating_factor) where {T <: Product}
     return
 end
 
-function set_derating!(prod::Capacity, derating_factor)
-    prod.derating = derating_factor
+function set_derating!(prod::Capacity, scenario::String, derating_factor)
+    prod.derating[scenario] = derating_factor
     return
 end
 
 # Capacity bids only set when product is of type Capacity
-function set_capacity_bid!(prod::T, capacity_bid) where T <: Product
+function set_capacity_bid!(prod::T, capacity_bid) where {T <: Product}
     return
 end
 
@@ -42,14 +42,14 @@ end
 
 # Capacity accepted percentage only set when product is of type Capacity
 function set_accepted_perc!(product::T,
-                            scenario_name::String,
-                            capacity_accepted_perc::Array{Float64, 1}) where T <: Product
+    scenario_name::String,
+    capacity_accepted_perc::Array{Float64, 1}) where {T <: Product}
     return
 end
 
 function set_accepted_perc!(product::Capacity,
-                            scenario_name::String,
-                            capacity_accepted_perc::Array{Float64, 1})
+    scenario_name::String,
+    capacity_accepted_perc::Array{Float64, 1})
     product.accepted_perc[scenario_name] = capacity_accepted_perc
     return
 end

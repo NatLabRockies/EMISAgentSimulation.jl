@@ -2,29 +2,55 @@
 """
 This funtion does nothing if the product is not an operating market product.
 """
-function get_maxperc(product::T, scenario_name::String, num_years::Int64, num_hours::Int64) where T <: Product
+function get_maxperc(
+    product::T,
+    scenario_name::String,
+    num_years::Int64,
+    num_hours::Int64,
+) where {T <: Product}
     return
 end
 
 """
 This funtion returns the array of capacity factors if product is energy.
 """
-function get_maxperc(product::Energy, scenario_name::String, num_years::Int64, num_hours::Int64)
+function get_maxperc(
+    product::Energy,
+    scenario_name::String,
+    num_years::Int64,
+    num_hours::Int64,
+)
     return get_capacity_factors(product)[scenario_name]
 end
-
 
 """
 This funtion returns the array of maximum percentage limit if product is operating reserve.
 """
-function get_maxperc(product::OperatingReserve, scenario_name::String, num_years::Int64, num_hours::Int64)
+function get_maxperc(
+    product::OperatingReserve,
+    scenario_name::String,
+    num_years::Int64,
+    num_hours::Int64,
+)
     return ones(num_years, num_hours) * get_max_limit(product)
+end
+
+"""
+This funtion returns the array of ones if product is inertia.
+"""
+function get_maxperc(
+    product::Inertia,
+    scenario_name::String,
+    num_years::Int64,
+    num_hours::Int64,
+)
+    return ones(num_years, num_hours)
 end
 
 """
 This function does nothing if the product is not an operating market product.
 """
-function push_operating!(array::Array{OperatingProduct}, product::T) where T <: Product
+function push_operating!(array::Array{OperatingProduct}, product::T) where {T <: Product}
     return
 end
 
@@ -35,7 +61,6 @@ function push_operating!(array::Array{OperatingProduct}, product::OperatingProdu
     push!(array, product)
     return
 end
-
 
 function push_energy_product!(array::Array{Energy}, product::OperatingProduct)
     return
@@ -62,9 +87,9 @@ This function returns an array of only operating market products from an array o
 function find_operating_products(products::Array{Product})
     operating_products = OperatingProduct[]
 
-    for i = 1:length(products)
+    for i in 1:length(products)
         push_operating!(operating_products, products[i])
     end
 
-return  operating_products
+    return operating_products
 end

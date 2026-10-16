@@ -1,0 +1,55 @@
+const PSY_LOADS = Union{PSY.StandardLoad, PSY.PowerLoad}
+const PSY_THERMAL_GENERATORS = Union{PSY.ThermalStandard, PSY.ThermalMultiStart}
+
+const DEFAULT_TIME_RESOLUTION = 60
+const DEFAULT_HOURS_PER_YEAR = 8760
+
+const DEFAULT_LOAD_YEAR = 2020
+const DEFAULT_RTS_LOAD = 75.0 # GW
+
+const BASE_POWER = 100.0 # MW
+
+# PSI constants
+const BALANCE_SLACK_COST = 1e6
+const SERVICES_SLACK_COST = 1e5
+
+# Simulations constants
+const PENALTY_COST = 5000.0
+
+# PRAS constants
+const PRAS_N_SAMPLES = 1000
+const PRAS_WORKER = Ref{Union{Nothing, Int}}(nothing)
+const PRAS_MONTE_CARLO_SEED = 42
+
+# Outage constants (FORs — converted to transition probabilities via SPI.rate_to_probability)
+const NOMINAL_GEN_FOR = 0.04
+const NOMINAL_STORAGE_FOR = 0.0
+const DEFAULT_THERMAL_MTTR_HOURS = 24
+
+const SIM_START_DATE = Dates.DateTime("2018-01-01T00:00:00")
+const SIM_END_DATE = Dates.DateTime("2019-01-01T00:00:00")
+
+# Maps PSY.Area name to the zone number used in "zone_<n>" identifiers
+const ZONE_NUMBER_MAP = Dict(
+    "FarWest" => 1,
+    "North" => 2,
+    "West" => 3,
+    "Southern" => 4,
+    "NorthCentral" => 5,
+    "SouthCentral" => 6,
+    "Coast" => 7,
+    "East" => 8,
+)
+
+# File pointers
+const TIMESERIES_DATA_DIR = "/projects/gmlcmarkets/Phase2_EMIS_Analysis/NTP_TimeSeries_Data"
+const POINTER_FILE = Dict(
+    :NTPS_TS_DATA_DIR => joinpath(TIMESERIES_DATA_DIR, "input_processing"))
+
+const OBJ_SCALE = 1 # Scale factor to convert objective function values from $ to millions of dollars
+
+# Reading and writing data
+const SCHEMA_VERSION = 1
+
+# Capacity credit scalar file name (located at markets_data/derating_data/{scenario}/)
+const CC_SCALAR_FILENAME = "cc_scalar.csv"

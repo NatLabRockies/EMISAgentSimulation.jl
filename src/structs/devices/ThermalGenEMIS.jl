@@ -6,18 +6,24 @@ This struct contains the technical data of a thermal generator.
     ramp_limits: Ramp limits (MW/hr).
     time_limits: Minimum up and Minimum down time limits (hr).
     operation_cost: Operation cost based on PowerSystems.jl definitions.
+    fuel_cost: Fuel cost
+    heat_rate_curve: Heat Rate curve
     bus: Name of the bus on which the generator is located.
     zone: Name of zone in which the generator is located.
 """
-struct ThermalTech
+struct ThermalTech <: Tech
     type::String
     fuel::String
-    active_power_limits::NamedTuple{(:min, :max),Tuple{Float64,Float64}}
+    active_power_limits::NamedTuple{(:min, :max), Tuple{Float64, Float64}}
     ramp_limits::Union{Nothing, NamedTuple{(:up, :down), Tuple{Float64, Float64}}}
     time_limits::Union{Nothing, NamedTuple{(:up, :down), Tuple{Float64, Float64}}}
-    operation_cost::Union{Nothing, PSY.ThreePartCost}
-    bus::Int64
+    operation_cost::Union{Nothing, PSY.ThermalGenerationCost}
+    fuel_cost::Float64
+    heat_rate_curve::Vector{Tuple{Float64, Float64}}
+    bus::String
     zone::String
+    FOR::Float64
+    MTTR::Int64
 end
 
 get_type(tech::ThermalTech) = tech.type
@@ -26,8 +32,12 @@ get_active_power_limits(tech::ThermalTech) = tech.active_power_limits
 get_ramp_limits(tech::ThermalTech) = tech.ramp_limits
 get_time_limits(tech::ThermalTech) = tech.time_limits
 get_operation_cost(tech::ThermalTech) = tech.operation_cost
+get_fuel_cost(tech::ThermalTech) = tech.fuel_cost
 get_bus(tech::ThermalTech) = tech.bus
 get_zone(tech::ThermalTech) = tech.zone
+get_FOR(tech::ThermalTech) = tech.FOR
+get_MTTR(tech::ThermalTech) = tech.MTTR
+get_heat_rate_curve(tech::ThermalTech) = tech.heat_rate_curve
 
 """
 This struct contains all the data for a thermal generator.

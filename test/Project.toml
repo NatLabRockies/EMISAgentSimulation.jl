@@ -1,0 +1,15 @@
+[deps]
+AxisArrays = "39de3d68-74b9-583c-8d2d-e117c070f3a9"
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+EMISAgentSimulation = "31190161-dc2b-4b0d-b10a-53550de1824a"
+HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
+HydroPowerSimulations = "fc1677e0-6ad7-4515-bf3a-bd6bf20a0b1b"
+Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
+PowerSimulations = "e690365d-45e2-57bb-ac84-44ba829e73c4"
+PowerSystems = "bcd98974-b02a-5e2f-9ee0-a103f5c450dd"
+StorageSystemsSimulations = "e2f1a126-19d0-4674-9252-42b2384f8e3c"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[sources]
+EMISAgentSimulation = {path = ".."}

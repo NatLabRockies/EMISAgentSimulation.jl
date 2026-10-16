@@ -8,14 +8,16 @@ This struct contains the technical data of a hydropower generator.
     bus: Name of the bus on which the generator is located.
     zone: Name of zone in which the generator is located.
 """
-struct HydroTech
+struct HydroTech <: Tech
     type::String
-    active_power_limits::NamedTuple{(:min, :max),Tuple{Float64,Float64}}
+    active_power_limits::NamedTuple{(:min, :max), Tuple{Float64, Float64}}
     ramp_limits::Union{Nothing, NamedTuple{(:up, :down), Tuple{Float64, Float64}}}
     time_limits::Union{Nothing, NamedTuple{(:up, :down), Tuple{Float64, Float64}}}
-    operation_cost::Union{Nothing,PSY.TwoPartCost}
-    bus::Int64
+    operation_cost::Union{Nothing, PSY.HydroGenerationCost}
+    bus::String
     zone::String
+    FOR::Float64
+    MTTR::Int64
 end
 
 get_type(tech::HydroTech) = tech.type
@@ -25,6 +27,8 @@ get_ramp_limits(tech::HydroTech) = tech.ramp_limits
 get_operation_cost(tech::HydroTech) = tech.operation_cost
 get_bus(tech::HydroTech) = tech.bus
 get_zone(tech::HydroTech) = tech.zone
+get_FOR(tech::HydroTech) = tech.FOR
+get_MTTR(tech::HydroTech) = tech.MTTR
 
 """
 This struct contains all the data for a hydropower generator.
