@@ -235,6 +235,7 @@ function run_agent_simulation(
             get_reserve_penalty(case),
             get_resource_adequacy(simulation),
             get_irm_scalar(case),
+            get_seasonal_capacity_market(case),
             get_solver(case),
             get_parallel_investors(case),
             get_parallel_scenarios(case),
