@@ -69,6 +69,38 @@ function create_project_queuecost(size::Float64,
     return queue_cost
 end
 
+function _get_renewable_gens_in_zone(tech_type, bus, sys_UC, gennames)
+    gens_in_zone = filter(
+                        g ->
+                            (
+                                first("$(bus)", 1) == first(
+                                    string(
+                                        PSY.get_number(
+                                            PSY.get_bus(
+                                                PSY.get_component(
+                                                    PSY.StaticInjection,
+                                                    sys_UC,
+                                                    g,
+                                                ),
+                                            ),
+                                        ),
+                                    ),
+                                    1,
+                                )
+                            ) &&
+                            occursin(
+                                tech_type,
+                                string(
+                                    PSY.get_prime_mover_type(
+                                        PSY.get_component(PSY.StaticInjection, sys_UC, g),
+                                    ),
+                                ),
+                            ),
+                        gennames)
+    return gens_in_zone
+
+end
+
 """
 This function writes the project's hourly availability data
 to the "DAY_AHEAD_availability.csv" file
@@ -83,9 +115,6 @@ function add_investor_project_availability!(test_system_dir::String,
     system_availability_data::DataFrames.DataFrame,
     system_availability_data_rt::DataFrames.DataFrame)
 
-    # pv_availability_file = CSV.read(joinpath(test_system_dir, "RTS_Data", "upv_availability.csv"), DataFrame)
-    # wind_availability_file = CSV.read(joinpath(test_system_dir, "RTS_Data", "wind_availability.csv"), DataFrame)
-
     gennames = names(system_availability_data)[5:length(names(system_availability_data))] #################
     psy_gens = PSY.get_name.(PSY.get_components(PSY.Generator, sys_UC))
     gen_diff = setdiff(gennames, psy_gens)
@@ -99,6 +128,8 @@ function add_investor_project_availability!(test_system_dir::String,
             !in(project_name, names(system_availability_data)) &&
             !in(type_zone_id, names(system_availability_data))
         )
+
+            ##TODO: Thermal units are all ones. Can we improve instead of writing a whole dataframe?
             if typeof(project) == ThermalGenEMIS{Existing} ||
                typeof(project) == BatteryEMIS{Existing}
                 system_availability_data[:, project_name] =
@@ -117,97 +148,99 @@ function add_investor_project_availability!(test_system_dir::String,
                 availability = zeros(DataFrames.nrow(system_availability_data))
                 availability_rt = zeros(DataFrames.nrow(system_availability_data_rt))
                 bus = get_bus(tech)
-                if get_type(tech) == "WT"
-                    # gens_in_zone = filter(g -> (first("$(bus)", 1) == first(g, 1)) && (occursin("wind", lowercase(g)) || occursin("wt", lowercase(g))),
-                    #                                 names(system_availability_data))
-                    gens_in_zone = filter(
-                        g ->
-                            (
-                                first("$(bus)", 1) == first(
-                                    string(
-                                        PSY.get_number(
-                                            PSY.get_bus(
-                                                PSY.get_component(
-                                                    PSY.StaticInjection,
-                                                    sys_UC,
-                                                    g,
-                                                ),
-                                            ),
-                                        ),
-                                    ),
-                                    1,
-                                )
-                            ) &&
-                            occursin(
-                                "WT",
-                                string(
-                                    PSY.get_prime_mover_type(
-                                        PSY.get_component(PSY.StaticInjection, sys_UC, g),
-                                    ),
-                                ),
-                            ),
-                        gennames)
-                elseif get_type(tech) == "PVe"
-                    # gens_in_zone = filter(g -> (first("$(bus)", 1)== first(g, 1)) && occursin("pv", lowercase(g)),
-                    #                                 names(system_availability_data))
-                    gens_in_zone = filter(
-                        g ->
-                            (
-                                first("$(bus)", 1) == first(
-                                    string(
-                                        PSY.get_number(
-                                            PSY.get_bus(
-                                                PSY.get_component(
-                                                    PSY.StaticInjection,
-                                                    sys_UC,
-                                                    g,
-                                                ),
-                                            ),
-                                        ),
-                                    ),
-                                    1,
-                                )
-                            ) &&
-                            occursin(
-                                "PVe",
-                                string(
-                                    PSY.get_prime_mover_type(
-                                        PSY.get_component(PSY.StaticInjection, sys_UC, g),
-                                    ),
-                                ),
-                            ),
-                        gennames)
-                elseif get_type(tech) == "HY"
-                    # gens_in_zone = filter(g -> (first("$(bus)", 1) == first(g, 1)) && occursin("hy", lowercase(g)),
-                    #                                 names(system_availability_data))
-                    gens_in_zone = filter(
-                        g ->
-                            (
-                                first("$(bus)", 1) == first(
-                                    string(
-                                        PSY.get_number(
-                                            PSY.get_bus(
-                                                PSY.get_component(
-                                                    PSY.StaticInjection,
-                                                    sys_UC,
-                                                    g,
-                                                ),
-                                            ),
-                                        ),
-                                    ),
-                                    1,
-                                )
-                            ) &&
-                            occursin(
-                                "HY",
-                                string(
-                                    PSY.get_prime_mover_type(
-                                        PSY.get_component(PSY.StaticInjection, sys_UC, g),
-                                    ),
-                                ),
-                            ),
-                        gennames)
-                end
+                gens_in_zone = _get_renewable_gens_in_zone(get_type(tech), bus, sys_UC, gennames)
+
+                # if get_type(tech) == "WT"
+                #     # gens_in_zone = filter(g -> (first("$(bus)", 1) == first(g, 1)) && (occursin("wind", lowercase(g)) || occursin("wt", lowercase(g))),
+                #     #                                 names(system_availability_data))
+                #     gens_in_zone = filter(
+                #         g ->
+                #             (
+                #                 first("$(bus)", 1) == first(
+                #                     string(
+                #                         PSY.get_number(
+                #                             PSY.get_bus(
+                #                                 PSY.get_component(
+                #                                     PSY.StaticInjection,
+                #                                     sys_UC,
+                #                                     g,
+                #                                 ),
+                #                             ),
+                #                         ),
+                #                     ),
+                #                     1,
+                #                 )
+                #             ) &&
+                #             occursin(
+                #                 "WT",
+                #                 string(
+                #                     PSY.get_prime_mover_type(
+                #                         PSY.get_component(PSY.StaticInjection, sys_UC, g),
+                #                     ),
+                #                 ),
+                #             ),
+                #         gennames)
+                # elseif get_type(tech) == "PVe"
+                #     # gens_in_zone = filter(g -> (first("$(bus)", 1)== first(g, 1)) && occursin("pv", lowercase(g)),
+                #     #                                 names(system_availability_data))
+                #     gens_in_zone = filter(
+                #         g ->
+                #             (
+                #                 first("$(bus)", 1) == first(
+                #                     string(
+                #                         PSY.get_number(
+                #                             PSY.get_bus(
+                #                                 PSY.get_component(
+                #                                     PSY.StaticInjection,
+                #                                     sys_UC,
+                #                                     g,
+                #                                 ),
+                #                             ),
+                #                         ),
+                #                     ),
+                #                     1,
+                #                 )
+                #             ) &&
+                #             occursin(
+                #                 "PVe",
+                #                 string(
+                #                     PSY.get_prime_mover_type(
+                #                         PSY.get_component(PSY.StaticInjection, sys_UC, g),
+                #                     ),
+                #                 ),
+                #             ),
+                #         gennames)
+                # elseif get_type(tech) == "HY"
+                #     # gens_in_zone = filter(g -> (first("$(bus)", 1) == first(g, 1)) && occursin("hy", lowercase(g)),
+                #     #                                 names(system_availability_data))
+                #     gens_in_zone = filter(
+                #         g ->
+                #             (
+                #                 first("$(bus)", 1) == first(
+                #                     string(
+                #                         PSY.get_number(
+                #                             PSY.get_bus(
+                #                                 PSY.get_component(
+                #                                     PSY.StaticInjection,
+                #                                     sys_UC,
+                #                                     g,
+                #                                 ),
+                #                             ),
+                #                         ),
+                #                     ),
+                #                     1,
+                #                 )
+                #             ) &&
+                #             occursin(
+                #                 "HY",
+                #                 string(
+                #                     PSY.get_prime_mover_type(
+                #                         PSY.get_component(PSY.StaticInjection, sys_UC, g),
+                #                     ),
+                #                 ),
+                #             ),
+                #         gennames)
+                # end
 
                 if length(gens_in_zone) < 1
                     @info "project name: $(project_name), bus: $(bus), type: $(get_type(tech))"
@@ -223,13 +256,6 @@ function add_investor_project_availability!(test_system_dir::String,
                         availability_rt / length(gens_in_zone)
                 end
 
-                # if get_type(tech) == "WT"
-                #     system_availability_data[:, type_zone_id] = wind_availability_file[:, get_zone(tech)]
-                #     system_availability_data_rt[:, type_zone_id] = wind_availability_file[:, get_zone(tech)]
-                # elseif get_type(tech) == "PVe"
-                #     system_availability_data[:, type_zone_id] = pv_availability_file[:, get_zone(tech)]
-                #     system_availability_data_rt[:, type_zone_id] = pv_availability_file[:, get_zone(tech)]
-                # end
             end
         end
     end
@@ -383,7 +409,6 @@ function create_investment_data(size::Float64,
     construction_year = decision_year + (queue_time + projectdata["Lagtime"]) * lag_bool
 
     capex_years = projectdata["Capex Years"]
-
     capex_data = read_data(joinpath(investor_dir, "project_capex.csv"))
 
     category = String(projectdata["Category"])
