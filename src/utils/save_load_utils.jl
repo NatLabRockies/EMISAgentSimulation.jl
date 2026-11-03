@@ -2160,7 +2160,7 @@ function save_expected_market_data(path::String,
     h5open(path, "w") do f
         attributes(f)["schema_version"] = SCHEMA_VERSION
 
-        save_axisarray!(create_group(f, "capacity_price"), capacity_price)
+        save_capacity_price_seasonal!(create_group(f, "capacity_price"), capacity_price)
         save_axisarray!(create_group(f, "energy_price"), energy_price)
         _save_dict_str_matrix!(create_group(f, "reserve_price"), reserve_price)
         save_axisarray!(create_group(f, "rec_price"), rec_price)
@@ -2245,7 +2245,7 @@ that call sites in investor_iteration.jl need no changes.
 function load_expected_market_data(path::String)
     h5open(path, "r") do f
         return Dict{String, Any}(
-            "capacity_price" => load_axisarray(f["capacity_price"]),
+            "capacity_price" => load_capacity_price_seasonal(f["capacity_price"]),
             "energy_price" => load_axisarray(f["energy_price"]),
             "reserve_price" => _load_dict_str_matrix(f["reserve_price"]),
             "rec_price" => load_axisarray(f["rec_price"]),
@@ -2319,7 +2319,7 @@ function transform_jld2_to_h5(base_path::String)
                 )
                 expected_data = FileIO.load(data_path)
 
-                capacity_price = expected_data["capacity_price"]
+                capacity_price = Dict("annual" => expected_data["capacity_price"])
                 energy_price = expected_data["energy_price"]
                 reserve_price = expected_data["reserve_price"]
                 rec_price = expected_data["rec_price"]
