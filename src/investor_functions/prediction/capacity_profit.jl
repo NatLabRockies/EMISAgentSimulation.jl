@@ -41,28 +41,28 @@ if the product is a capacity product.
 Returns nothing.
 """
 function update_profit!(project::P,
-                        scenario_name::String,
-                        product::Capacity,
-                        operating_profit::AxisArrays.AxisArray{Float64, 2},
-                        capacity_revenues::Vector{Float64},
-                        capacity_forward_years::Int64,
-                        rec_revenues::Vector{Float64},
-                        price_years::NamedTuple{(:start_year, :end_year),
-                                     Tuple{Int64, Int64}},
-                        update_years::NamedTuple{(:start_year, :end_year),
-                                      Tuple{Int64, Int64}},
-                        iteration_year::Int64) where P <: Project{<: BuildPhase}
+    scenario_name::String,
+    product::Capacity,
+    operating_profit::AxisArrays.AxisArray{Float64, 2},
+    capacity_revenues::Vector{Float64},
+    capacity_forward_years::Int64,
+    rec_revenues::Vector{Float64},
+    price_years::NamedTuple{(:start_year, :end_year),
+        Tuple{Int64, Int64}},
+    update_years::NamedTuple{(:start_year, :end_year),
+        Tuple{Int64, Int64}},
+    iteration_year::Int64) where {P <: Project{<: BuildPhase}}
+    capacity_revenue_start_year =
+        max(1, capacity_forward_years - price_years[:start_year] + 1)
 
-    capacity_revenue_start_year = max(1, capacity_forward_years - price_years[:start_year] + 1)
-
-        for i in capacity_revenue_start_year:length(capacity_revenues)
-                set_scenario_profit!(get_finance_data(project),
-                            scenario_name,
-                            get_name(product),
-                            iteration_year,
-                            update_years[:start_year] + i - 1,
-                            capacity_revenues[i])
-        end
+    for i in capacity_revenue_start_year:length(capacity_revenues)
+        set_scenario_profit!(get_finance_data(project),
+            scenario_name,
+            get_name(product),
+            iteration_year,
+            update_years[:start_year] + i - 1,
+            capacity_revenues[i])
+    end
 
     return
 end

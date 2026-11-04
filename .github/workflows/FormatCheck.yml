@@ -1,0 +1,31 @@
+name: Format Check
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: "1.12"
+      - uses: julia-actions/cache@v2
+      - name: Run formatter
+        run: julia --project=scripts/formatter scripts/formatter/formatter_code.jl ./src
+      - name: Fail if the formatter changed any file
+        run: |
+          if ! git diff --quiet; then
+            echo "::error::Code is not formatted. Run locally: julia --project=scripts/formatter scripts/formatter/formatter_code.jl"
+            git diff --stat
+            exit 1
+          fi

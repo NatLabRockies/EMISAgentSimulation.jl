@@ -126,23 +126,22 @@ function find_representative_periods(simulation_dir::String,
         wind = zeros(length(load))
         pv = zeros(length(load))
 
-        existing_generator_data = DataFrames.DataFrame(
-            CSV.File(joinpath(test_system_dir, "RTS_Data", "SourceData", "gen.csv")),
-        )
+        existing_generator_data = read_generator_table(test_system_dir, simulation_dir)
+        system_config = load_system_config(simulation_dir)
 
         for i in names(net_load_data)
-            if length(
-                filter(row -> row."GEN UID" in [i], existing_generator_data)."Unit Type",
-            ) > 0
-                if occursin(
-                    "WIND",
-                    filter(row -> row."GEN UID" in [i], existing_generator_data)."Unit Type"[1],
-                ) #occursin("WIND", i) || occursin("WT", i)
+            # Net-load columns are generator IDs; use configured metadata to group VRE output.
+            generator_rows = filter(row -> row."GEN UID" == i, existing_generator_data)
+            if DataFrames.nrow(generator_rows) > 0
+                kind = vre_kind(
+                    get_technology_category(
+                        system_config,
+                        String(generator_rows[1, "Unit Type"]),
+                    ),
+                )
+                if kind == :wind
                     wind += net_load_data[:, i]
-                elseif occursin(
-                    "PV",
-                    filter(row -> row."GEN UID" in [i], existing_generator_data)."Unit Type"[1],
-                )#occursin("PV", i) || occursin("PVe", i)
+                elseif kind == :pv
                     pv += net_load_data[:, i]
                 end
             end

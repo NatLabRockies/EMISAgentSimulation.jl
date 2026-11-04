@@ -61,8 +61,8 @@ function create_project_queuecost(size::Float64,
             M2 = queue_cost_data[M2_row, "greater than 1000 MW"] * size
         end
     else
-        D1 = 0;
-        D2 = 0;
+        D1 = 0
+        D2 = 0
         M2 = 0
     end
     queue_cost = [D1 + D2, M2]
@@ -89,9 +89,13 @@ function add_investor_project_availability!(test_system_dir::String,
     gennames = names(system_availability_data)[5:length(names(system_availability_data))] #################
     psy_gens = PSY.get_name.(PSY.get_components(PSY.Generator, sys_UC))
     gen_diff = setdiff(gennames, psy_gens)
+    # devices_to_remove.csv can drop a generator from sys_UC while its column
+    # still exists in the availability CSV; exclude those names from zone matching.
+    matchable_gennames = setdiff(gennames, gen_diff)
+    isempty(gen_diff) ||
+        @warn "Excluding $(length(gen_diff)) availability column(s) not present in sys_UC from zone matching: $(gen_diff)"
 
     for project in projects
-        # println("this is $(get_name(project))")
         project_name = get_name(project)
         tech = get_tech(project)
         type_zone_id = "$(get_type(tech))_$(get_zone(tech))"
@@ -147,7 +151,7 @@ function add_investor_project_availability!(test_system_dir::String,
                                     ),
                                 ),
                             ),
-                        gennames)
+                        matchable_gennames)
                 elseif get_type(tech) == "PVe"
                     # gens_in_zone = filter(g -> (first("$(bus)", 1)== first(g, 1)) && occursin("pv", lowercase(g)),
                     #                                 names(system_availability_data))
@@ -177,7 +181,7 @@ function add_investor_project_availability!(test_system_dir::String,
                                     ),
                                 ),
                             ),
-                        gennames)
+                        matchable_gennames)
                 elseif get_type(tech) == "HY"
                     # gens_in_zone = filter(g -> (first("$(bus)", 1) == first(g, 1)) && occursin("hy", lowercase(g)),
                     #                                 names(system_availability_data))
@@ -207,7 +211,7 @@ function add_investor_project_availability!(test_system_dir::String,
                                     ),
                                 ),
                             ),
-                        gennames)
+                        matchable_gennames)
                 end
 
                 if length(gens_in_zone) < 1
@@ -271,6 +275,7 @@ function create_operation_cost(
     sys_base_power::Float64,
     products::Vector{Product},
     carbon_tax::Vector{Float64},
+    system_config::SystemConfig,
 )
     output_point_fields = String[]
     heat_rate_fields = String[]
@@ -331,13 +336,6 @@ function create_operation_cost(
     start_up_cost = fuel_cost * projectdata["Start Heat Cold MBTU"] * 1000.0
     shut_down_cost = 0.0
 
-    # #TODO: for debugging cost curve end point: max_power is 67 and cost curve ends at 60
-    # if projectdata["GEN_UID"] == "GREENS_BAYOU_GT4"
-    #     @info "Debugging operation cost for project: $(projectdata["GEN_UID"])"
-    #     @info "var_cost: $(var_cost), fixed: $(fixed), start_up_cost: $(start_up_cost), shut_down_cost: $(shut_down_cost)"
-    #     @info "Size: $(size)"
-    # end
-
     ### NY_change: parse into new operation cost format
     value_curve_vec = []
     for i in 1:length(var_cost)
@@ -348,21 +346,15 @@ function create_operation_cost(
 
     cost_curve = PSY.CostCurve(value_curve)
 
-    if occursin("CC", projectdata["Unit Type"]) ||
-       occursin("CT", projectdata["Unit Type"]) ||
-       occursin("GT", projectdata["Unit Type"]) ||
-       occursin("ST", projectdata["Unit Type"]) ||
-       occursin("NU_ST", projectdata["Unit Type"]) ||
-       occursin("RE_CT", projectdata["Unit Type"])
+    technology_class = get_technology_class(system_config, String(projectdata["Unit Type"]))
+    if technology_class == "thermal"
         operation_cost =
             PSY.ThermalGenerationCost(cost_curve, fixed, start_up_cost, shut_down_cost)
-    elseif occursin("WT", projectdata["Unit Type"]) ||
-           occursin("PVe", projectdata["Unit Type"])
+    elseif technology_class == "renewable"
         operation_cost = PSY.RenewableGenerationCost(cost_curve)
-    elseif occursin("HY", projectdata["Unit Type"])
+    elseif technology_class == "hydro"
         operation_cost = PSY.HydroGenerationCost(cost_curve, fixed)
-    elseif occursin("BA", projectdata["Unit Type"]) ||
-           occursin("LDES", projectdata["Unit Type"])
+    elseif technology_class == "storage"
         operation_cost = PSY.StorageCost()
     end
 
@@ -565,6 +557,7 @@ function create_tech_type(name::String,
     finance_data::Finance,
     sys_UC::Union{PSY.System, Nothing},
     carbon_tax::Vector{Float64},
+    system_config::SystemConfig,
 )
     type = projectdata["Unit Type"]
     min_cap = projectdata["Min Gen pu"] * size
@@ -589,6 +582,7 @@ function create_tech_type(name::String,
             sys_base_power,
             products,
             carbon_tax,
+            system_config,
         )
         up_down_time =
             (up = projectdata["Min Up Time Hr"], down = projectdata["Min Down Time Hr"])
@@ -597,7 +591,8 @@ function create_tech_type(name::String,
         up_down_time = nothing
     end
 
-    if type in ["ST", "CT", "CC", "NU_ST", "GT", "RE_CT"]
+    technology_class = get_technology_class(system_config, String(type))
+    if technology_class == "thermal"
         heat_rate = _build_heat_rate_curve(projectdata, size)
 
         tech = ThermalTech(type,
@@ -621,7 +616,7 @@ function create_tech_type(name::String,
             end_life_year,
             products,
             finance_data)
-    elseif type in ["WT", "PVe"]
+    elseif technology_class == "renewable"
         tech = RenewableTech(type,
             active_power_limits,
             ramp_limits,
@@ -640,7 +635,7 @@ function create_tech_type(name::String,
             products,
             finance_data)
 
-    elseif type == "HY"
+    elseif technology_class == "hydro"
         tech = HydroTech(type,
             active_power_limits,
             ramp_limits,
@@ -660,7 +655,7 @@ function create_tech_type(name::String,
             products,
             finance_data)
 
-    elseif type in ["BA", "LDES"]
+    elseif technology_class == "storage"
         storage_capacity = parse(Float64, projectdata["Duration Hr"]) * size
         tech = BatteryTech(type,
             (min = 0.0, max = parse(Float64, projectdata["Input Power Rating pu"]) * size),
@@ -680,8 +675,6 @@ function create_tech_type(name::String,
             FOR,
             MTTR,
             base_power)
-        # @info "Inside create_tech_type created for battery project: $(name), type: $(type), size: $(size), storage_capacity: $(storage_capacity)"
-        # @info tech
         return BatteryEMIS{BuildPhase}(name,
             tech,
             decision_year,
@@ -886,11 +879,6 @@ function create_tech_type(name::String,
     FOR = projectdata["FOR"]
     MTTR = projectdata["MTTR Hr"]
 
-    # @info type
-    # @info "input_active_power_limits: $(input_active_power_limits), output_active_power_limits: $(output_active_power_limits)"
-    # @info "storage_level_limits: $(storage_level_limits), storage_capacity_mwh: $(storage_capacity_mwh), device_base_power: $(device_base_power)"
-    # @info "initial_storage_capacity_level: $(initial_storage_capacity_level), rating: $(rating), efficiency: $(efficiency)"
-
     tech = BatteryTech(type,
         (
             min = input_active_power_limits[:min] * device_base_power,
@@ -915,10 +903,6 @@ function create_tech_type(name::String,
         FOR,
         MTTR,
         device_base_power)
-    # @info "Inside Tech created for battery project: $(name), type: $(type)"
-    # @info "$(storage_level_limits), storage_capacity_mwh: $(storage_capacity_mwh), device_base_power: $(device_base_power)"
-    # @info "approximate duration hr from storage capacity and power limits: $(storage_capacity_mwh / output_active_power_limits[:max]) hours"
-    # @info tech
 
     return BatteryEMIS{BuildPhase}(name,
         tech,
@@ -954,6 +938,7 @@ function create_project(projectdata::DataFrames.DataFrameRow,
 
     base_power = size
     carbon_tax = get_carbon_tax(simulation_data)
+    system_config = load_system_config(get_data_dir(get_case(simulation_data)))
 
     products = create_products(simulation_data,
         projectdata)
@@ -977,7 +962,7 @@ function create_project(projectdata::DataFrames.DataFrameRow,
 
     project = create_tech_type(name, projectdata, size, base_power,
         decision_year, construction_year, retirement_year,
-        end_life_year, products, finance_data, sys_UC, carbon_tax)
+        end_life_year, products, finance_data, sys_UC, carbon_tax, system_config)
 
     return project
 end

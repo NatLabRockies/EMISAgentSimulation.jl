@@ -440,47 +440,27 @@ function gather_data(case::CaseDefinition; results_dir::Union{String, Nothing} =
         end
     end
 
-    # Parallelize the processing of scenarios using Distributed.pmap
-    # NOTE: pmap can crash here because each worker receives serialized PSY.System
-    # objects with process-local SQLite handles inside sys_PRAS.
-    # simulations,
-    # iteration_years,
-    # methodologies,
-    # ra_metric_list,
-    # marginal_cc_switches = repeat_arguments(
-    #     num_scenarios,
-    #     simulation_data,
-    #     iteration_year,
-    #     accreditation_methodology,
-    #     accreditation_metric,
-    #     marginal_cc_switch,
-    # )
-    # @timeit EMIS_TIMER "setup/update_derating" Distributed.pmap(
-    #     parallelize_update_derating_data,
-    #     zip(
-    #         scenarios,
-    #         simulations,
-    #         iteration_years,
-    #         methodologies,
-    #         ra_metric_list,
-    #         marginal_cc_switches,
-    #         timeseries_data_dir_list,
-    #     ),
-    # )
-
-    # Run sequentially to avoid Distributed serialization of PSY.System
-    # objects that contain process-local SQLite handles.
-    @timeit EMIS_TIMER "setup/update_derating" for scenario in scenarios
-        update_simulation_derating_data!(
-            simulation_data,
-            scenario,
-            iteration_year,
-            timeseries_data_dir;
-            methodology = accreditation_methodology,
-            ra_metric = accreditation_metric,
-            marginal_cc = marginal_cc_switch,
-        )
-    end
+    # sys_PRAS is reloaded from file on each worker; see parallelize_update_derating_data.
+    pras_sys_paths = [_pras_sys_path(get_case(simulation_data), s) for s in scenarios]
+    simulations, iteration_years,
+    methodologies, ra_metric_list, marginal_cc_switches, timeseries_data_dir_list =
+        repeat_arguments(length(scenarios),
+            simulation_data, iteration_year,
+            accreditation_methodology, accreditation_metric,
+            marginal_cc_switch, timeseries_data_dir)
+    @timeit EMIS_TIMER "setup/update_derating" Distributed.pmap(
+        parallelize_update_derating_data,
+        zip(
+            scenarios,
+            simulations,
+            iteration_years,
+            methodologies,
+            ra_metric_list,
+            marginal_cc_switches,
+            timeseries_data_dir_list,
+            pras_sys_paths,
+        ),
+    )
 
     active_projects = get_activeprojects(simulation_data)
 
@@ -503,8 +483,7 @@ This function creates the data directory for the simulated case.
 """
 function make_case_data_dir(case::CaseDefinition)
     case_dir = get_data_dir(case)
-    dir_exists(case_dir)
-    if !isdir(case_dir)
+    if !isdir(case_dir) || isempty(readdir(case_dir))
         projects_type = get_heterogeneity(case) ? "Heterogeneous" : "Homogeneous"
         @info "Copying system data for case $(get_name(case)) from $(get_base_dir(case)) to $case_dir: $projects_type"
         sys_data_dir = joinpath(get_base_dir(case), projects_type)

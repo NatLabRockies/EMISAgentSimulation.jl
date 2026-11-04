@@ -22,7 +22,9 @@ function create_PSY_generator(gen::ThermalGenEMIS{<: BuildPhase}, sys::PSY.Syste
     if isempty(bus)
         bus = filter(b -> PSY.get_name(b) == get_bus(tech), collect(buses))
         if isempty(bus)
-            error("No matching bus found for generator $(gen_name) with bus name $(get_bus(tech))")
+            error(
+                "No matching bus found for generator $(gen_name) with bus name $(get_bus(tech))",
+            )
         else
             gen_bus = only(bus)
         end
@@ -92,7 +94,9 @@ function create_PSY_generator(gen::RenewableGenEMIS{<: BuildPhase}, sys::PSY.Sys
     if isempty(bus)
         bus = filter(b -> PSY.get_name(b) == get_bus(tech), collect(buses))
         if isempty(bus)
-            error("No matching bus found for generator $(gen_name) with bus name $(get_bus(tech))")
+            error(
+                "No matching bus found for generator $(gen_name) with bus name $(get_bus(tech))",
+            )
         else
             gen_bus = only(bus)
         end
@@ -127,7 +131,6 @@ This function creates a PowerSystems EnergyReservoirStorage unit.
 EnergyReservoirStorage in PSY: https://nrel-sienna.github.io/PowerSystems.jl/stable/model_library/generated_EnergyReservoirStorage/#EnergyReservoirStorage
 """
 function create_PSY_generator(gen::BatteryEMIS{<: BuildPhase}, sys::PSY.System)
-    # @info "Creating PSY EnergyReservoirStorage for battery $(get_name(gen))"
     tech = get_tech(gen)
     base_power = get_base_power(gen)
     gen_name = get_name(gen)
@@ -146,7 +149,9 @@ function create_PSY_generator(gen::BatteryEMIS{<: BuildPhase}, sys::PSY.System)
     if isempty(bus)
         bus = filter(b -> PSY.get_name(b) == get_bus(tech), collect(buses))
         if isempty(bus)
-            error("No matching bus found for generator $(gen_name) with bus name $(get_bus(tech))")
+            error(
+                "No matching bus found for generator $(gen_name) with bus name $(get_bus(tech))",
+            )
         else
             gen_bus = only(bus)
         end

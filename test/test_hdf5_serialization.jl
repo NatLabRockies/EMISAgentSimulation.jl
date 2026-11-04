@@ -27,7 +27,7 @@ function vals_equal(a, b, path::String = "root")::Bool
             return false
         end
         if collect(a) != collect(b)
-            println("FAIL [$path]: AxisArray data differs")
+            @info "FAIL [$path]: AxisArray data differs"
             return false
         end
         vals_a, vals_b = AxisArrays.axisvalues(a), AxisArrays.axisvalues(b)
@@ -45,14 +45,14 @@ function vals_equal(a, b, path::String = "root")::Bool
     end
     if a isa Dict
         if keys(a) != keys(b)
-            println("FAIL [$path]: Dict keys $(keys(a)) ≠ $(keys(b))")
+            @info "FAIL [$path]: Dict keys $(keys(a)) ≠ $(keys(b))"
             return false
         end
         return all(vals_equal(a[k], b[k], "$path.$k") for k in keys(a))
     end
     if a isa AbstractArray
         if size(a) != size(b)
-            println("FAIL [$path]: array size $(size(a)) ≠ $(size(b))")
+            @info "FAIL [$path]: array size $(size(a)) ≠ $(size(b))"
             return false
         end
         return a == b
@@ -71,7 +71,7 @@ function vals_equal(a, b, path::String = "root")::Bool
                    for f in fieldnames(typeof(a)))
     end
     ok = (a == b)
-    ok || println("FAIL [$path]: $a ≠ $b")
+    ok || @info "FAIL [$path]: $a ≠ $b"
     return ok
 end
 
@@ -352,12 +352,14 @@ function make_simulation()
     )
 
     # CaseDefinition has no zero-argument constructor; use the keyword constructor.
-    # Its constructor calls make_case_data_dir, which creates {base_dir}/{name}
-    # (and copies nothing, since that directory then exists), so base_dir must be
-    # writable: use a fresh temp directory (removed when Julia exits). The other
-    # paths are only stored. The solver is not serialized to HDF5, so any
-    # optimizer works here.
+    # Its constructor calls make_case_data_dir, which copies
+    # {base_dir}/Homogeneous into {base_dir}/{name} when that case directory is
+    # missing or empty. So use a fresh temp base_dir (removed when Julia exits)
+    # with an empty Homogeneous/ source: the copy then only creates an empty case
+    # directory. The other paths are only stored. The solver is not serialized to
+    # HDF5, so any optimizer works here.
     case_root = mktempdir()
+    mkpath(joinpath(case_root, "Homogeneous"))
     case = CaseDefinition(
         "hdf5_roundtrip_test",
         case_root,
@@ -543,6 +545,9 @@ end
 # Run
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Re-enabled (was commented out on master on 2026-10-14 because make_simulation()
+# called a nonexistent CaseDefinition()): make_simulation() now builds a real
+# CaseDefinition in a temp directory, and the test uses the HDF5-level save/load API.
 @testset "HDF5 AgentSimulation roundtrip" begin
     tmpfile = tempname() * ".h5"
     try

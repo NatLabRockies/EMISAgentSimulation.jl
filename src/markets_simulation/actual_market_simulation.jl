@@ -31,22 +31,8 @@ function create_realized_marketdata(simulation::AgentSimulation,
     single_stage_bool = get_single_stage(case)
     step_size = get_step_size(case)
 
-    # DEPRECATED: Commenting out all code related to load growth.
-
-    #annual_growth = get_annual_growth(simulation)[:, iteration_year]
-
     hour_weight = get_hour_weight(simulation)[pcm_scenario][iteration_year]
 
-    # Get actual value of load growth
-    #= load_growth = AxisArrays.AxisArray(zeros(length(zones)), zones)
-    for (idx, zone) in enumerate(zones)
-        load_growth[idx] = annual_growth["load_$(zone)"]
-    end
-
-    energy_annual_increment = load_growth
-    reserveup_annual_increment = load_growth
-    reservedown_annual_increment = load_growth
-    =#
     ######## Energy and Ancillary Services market clearing ############################################
 
     zonal_load, system = create_economic_dispatch_problem(simulation,
@@ -144,7 +130,6 @@ function create_realized_marketdata(simulation::AgentSimulation,
                 end
             end
         end
-        #println("Clean energy contribution for day $(day) is $(round(daily_cec_production * 100.0 / daily_total_production, digits = 2)) percent")
     end
 
     @info "Total Annual clean energy contribution is $(round(total_cec_production * 100.0 / total_production, digits = 2)) percent"
@@ -329,7 +314,6 @@ function create_realized_marketdata(simulation::AgentSimulation,
     end
 
     clean_energy_percentage = min(1.0, (total_clean_production / total_demand))
-    #println(clean_energy_percentage)
 
     if in(:REC, market_names)
         if length(rec_supply_curve) >= 1
@@ -345,22 +329,6 @@ function create_realized_marketdata(simulation::AgentSimulation,
                 rec_supply_curve,
                 solver,
             )
-
-            # if iteration_year <= rec_non_binding_years
-
-            #     rec_energy_requirment = min(total_clean_production, rec_energy_requirment)
-            #     #println(rec_energy_requirment)
-            #     rec_price, rec_accepted_bids = rec_market_clearing_non_binding(rec_energy_requirment, pricecap_rec, rec_supply_curve, solver)
-            # else
-            #     total = 0
-            #     for i in rec_supply_curve
-            #         total += i[2]
-            #     end
-            #     #println(total)
-            #     rec_energy_requirment = min(total_clean_production, rec_energy_requirment)
-            #     #println(rec_energy_requirment)
-            #     rec_price, rec_accepted_bids = rec_market_clearing_binding(rec_energy_requirment, pricecap_rec, rec_supply_curve, solver)
-            # end
 
             set_rec_price!(market_prices, "realized", rec_price)
         end
@@ -445,17 +413,18 @@ function calculate_reserve_scaling_factor(simulation::AgentSimulation)
     case = get_case(simulation)
 
     test_system_dir = get_sys_dir(case)
-    existing_generator_data = DataFrames.DataFrame(
-        CSV.File(joinpath(test_system_dir, "RTS_Data", "SourceData", "gen.csv")),
-    )
+    data_dir = get_data_dir(case)
+    system_config = load_system_config(data_dir)
+    is_pv_or_wind(unit_type) =
+        !isnothing(vre_kind(get_technology_category(system_config, String(unit_type))))
+
+    existing_generator_data = read_generator_table(test_system_dir, data_dir)
     initial_pv_wind_capacity = sum(
         existing_generator_data[
-            (existing_generator_data[
-                :,
-                "Unit Type",
-            ] .== "WIND") .| (existing_generator_data[:, "Unit Type"] .== "PV"),
+            is_pv_or_wind.(existing_generator_data[:, "Unit Type"]),
             "PMax MW",
-        ],
+        ];
+        init = 0.0,
     )
 
     current_portfolio = vcat(get_existing.(get_investors(simulation))...)
@@ -463,7 +432,7 @@ function calculate_reserve_scaling_factor(simulation::AgentSimulation)
     current_pv_wind_capacity = 0.0
 
     for project in current_portfolio
-        if get_type(get_tech(project)) == "WT" || get_type(get_tech(project)) == "PVe"
+        if is_pv_or_wind(get_type(get_tech(project)))
             current_pv_wind_capacity = current_pv_wind_capacity + get_maxcap(project)
         end
     end

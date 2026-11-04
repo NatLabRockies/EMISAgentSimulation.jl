@@ -14,6 +14,18 @@ function get_all_techs(sys::PSY.System)
 end
 
 """
+Returns names of all generation and storage components stored in the PSY System,
+including unavailable ones. Component name uniqueness in PSY is enforced against the
+full component store regardless of `available`, so this (not `get_all_techs`) is the
+correct source of truth for duplicate-name checks before `PSY.add_component!`.
+"""
+function get_all_tech_names(sys::PSY.System)
+    sys_gens = PSY.get_components(PSY.Generator, sys)
+    sys_storage = PSY.get_components(PSY.Storage, sys)
+    return PSY.get_name.(union(sys_gens, sys_storage))
+end
+
+"""
 This function does nothing if the PSY System is not defined.
 """
 function get_system_services(sys::Nothing)
@@ -375,7 +387,7 @@ function update_PSY_timeseries!(
     )
     for service in services
         service_name = PSY.get_name(service)
-        println("Current service is $(service_name)")
+        @info "Current service is $(service_name)"
         if service_name in ordc_products
             ### TODO: CHange when ORDC is available
             ### NY_change: ORDC timeseries is not available now
@@ -469,32 +481,32 @@ function update_PSY_outage_timeseries!(sys_UC::PSY.System,
         outage_csv_location;
         add_scenario = outagescenario,
         iteration_year = iteration_year,
-    ); # align outage structure to be the same as PRAS-ED (same value persist 36 times)
+    ) # align outage structure to be the same as PRAS-ED (same value persist 36 times)
 
     # Check to see if all ThermalStandard has time series data
     # For generators that don't have time series, add artifical outage time series
     file_location = joinpath(outage_csv_location, "1/Generator_year$(iteration_year).csv")
-    df_outage_profile = DataFrames.DataFrame(CSV.File(file_location));
+    df_outage_profile = DataFrames.DataFrame(CSV.File(file_location))
     for d in PSY.get_components(ThermalGen, sys_UC)
         if ~("outage" in get_time_series_names(Deterministic, d))
             @info "Adding outage time series to new generators..."
-            first_ts_temp_DA = first(PSY.get_time_series_multiple(sys_UC));
-            len_ts_data_DA = length(first_ts_temp_DA.data);
+            first_ts_temp_DA = first(PSY.get_time_series_multiple(sys_UC))
+            len_ts_data_DA = length(first_ts_temp_DA.data)
             days_of_interest = range(1; length = len_ts_data_DA)
-            num_days = length(days_of_interest);
+            num_days = length(days_of_interest)
             period_of_interest = range(
                 days_of_interest.start==1 ? 1 : (24*days_of_interest.start)+1;
                 length = num_days*24,
             )
-            N = length(period_of_interest);
-            start_datetime_DA = PSY.IS.get_initial_timestamp(first_ts_temp_DA);
+            N = length(period_of_interest)
+            start_datetime_DA = PSY.IS.get_initial_timestamp(first_ts_temp_DA)
             sys_DA_res_in_hour = PSY.get_time_series_resolutions(sys_UC)[1]
             start_datetime_DA =
                 start_datetime_DA +
-                Dates.Hour((period_of_interest.start-1)*sys_DA_res_in_hour);
-            finish_datetime_DA = start_datetime_DA + Dates.Hour((N-1)*sys_DA_res_in_hour);
+                Dates.Hour((period_of_interest.start-1)*sys_DA_res_in_hour)
+            finish_datetime_DA = start_datetime_DA + Dates.Hour((N-1)*sys_DA_res_in_hour)
             all_timestamps =
-                StepRange(start_datetime_DA, sys_DA_res_in_hour, finish_datetime_DA);
+                StepRange(start_datetime_DA, sys_DA_res_in_hour, finish_datetime_DA)
             allnames = PSY.get_name.(
                 PSY.get_components(
                     ThermalFastStartSIIP,
@@ -560,42 +572,26 @@ function update_PSY_outage_timeseries!(sys_UC::PSY.System,
 end
 
 """
-This function finds the buses located in each zone.
+    find_zonal_area(zone, sys, system_config = nothing)
+
+Return the PSY `Area` corresponding to `zone`. `zone` may be the PSY area name or, when
+`system_config` is provided, the `zone_name` that `zones.csv` maps from the area's
+`area_name`. Errors if no area matches.
 """
-function find_zonal_bus(zone::String, sys::PSY.System)
-    # buses = PSY.get_components(PSY.Bus, sys)
-
-    # zonal_bus = nothing
-
-    # for b in buses
-    #     if "zone_$(PSY.get_name(PSY.get_area(b)))" == zone
-    #         zonal_bus = b
-    #     end
-    # end
-
-    zonal_bus = PSY.get_component(PSY.ACBus, sys, zone)
-
-    return zonal_bus
-end
-
-function find_zonal_area(zone::String, sys::PSY.System)
-    zone_number_map = Dict(
-        "FarWest" => 1,
-        "North" => 2,
-        "West" => 3,
-        "Southern" => 4,
-        "NorthCentral" => 5,
-        "SouthCentral" => 6,
-        "Coast" => 7,
-        "East" => 8,
-    )
+function find_zonal_area(
+    zone::String,
+    sys::PSY.System,
+    system_config::Union{Nothing, SystemConfig} = nothing,
+)
     for area in PSY.get_components(PSY.Area, sys)
-        name = PSY.get_name(area)
-        if zone == "zone_$(zone_number_map[name])"
+        area_name = PSY.get_name(area)
+        config_zone =
+            isnothing(system_config) ? area_name : get_zone_name(system_config, area_name)
+        if zone == area_name || zone == config_zone
             return area
         end
     end
-    return nothing
+    error("No PSY Area matches zone \"$(zone)\"; check area_name in zones.csv")
 end
 
 """
@@ -680,6 +676,19 @@ function add_nominal_outage_to_component!(sys::PSY.System, component::PSY.Compon
     return
 end
 
+"""
+Return all `PSY.Bus` components in `sys` that belong to the area named `area_name`.
+"""
+function get_buses_in_area(sys::PSY.System, area_name::String)
+    return collect(
+        PSY.get_components(
+            b -> PSY.get_name(PSY.get_area(b)) == area_name,
+            PSY.Bus,
+            sys,
+        ),
+    )
+end
+
 function add_psy_inertia!(simulation_dir::String,
     sys::Nothing,
     reserve_penalty::String,
@@ -720,7 +729,7 @@ function add_psy_inertia!(simulation_dir::String,
             collect(PSY.get_components(PSY.HydroDispatch, sys)),
             collect(PSY.get_components(PSY.HydroTurbine, sys)),
             collect(PSY.get_components(PSY.EnergyReservoirStorage, sys)),
-        );
+        )
 
     PSY.add_service!(sys, inertia_reserve, contri_devices)
 
@@ -736,19 +745,19 @@ function add_psy_inertia!(simulation_dir::String,
                 SIM_START_DATE,
                 Dates.Hour(1),
                 SIM_END_DATE,
-            );
+            )
         elseif type == "ED"
             time_stamps = StepRange(
                 SIM_START_DATE,
                 Dates.Hour(1),
                 SIM_END_DATE,
-            );
+            )
         else
             error("Type should be UC or ED")
         end
 
         ts_data = ones(length(time_stamps))
-        ts = TimeSeries.TimeArray(time_stamps, ts_data);
+        ts = TimeSeries.TimeArray(time_stamps, ts_data)
         forecast = PSY.SingleTimeSeries("requirement", ts)
         PSY.add_time_series!(sys, inertia_reserve, forecast)
     end
@@ -781,7 +790,7 @@ function add_psy_clean_energy_constraint!(sys::PSY.System,
             forecast_count * sys_interval/sys_resolution +
             (sys_horizon - sys_interval/sys_resolution) - 1
         ))
-    time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
+    time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime)
     #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     clean_energy_ts_data = zeros(length(time_stamps))
@@ -831,7 +840,7 @@ function add_psy_clean_energy_constraint!(sys::PSY.System,
             collect(PSY.get_components(PSY.RenewableDispatch, sys)),
             collect(PSY.get_components(PSY.HydroDispatch, sys)),
             collect(PSY.get_components(PSY.HydroTurbine, sys)),
-        );
+        )
 
     PSY.add_service!(sys, clean_energy_reserve, contri_devices)
 
@@ -856,8 +865,6 @@ function calculate_total_load(
                 load,
                 "max_active_power"),
         )
-
-        # @info "Calculating load for $(PSY.get_name(load)), load length is $(length(ts_data))"
 
         total_load +=
             sum(TS.values(ts_data[period_of_interest]) * PSY.get_max_active_power(load)) *
@@ -918,41 +925,4 @@ function convert_thermal_fast_start!(system::PSY.System)
             convert_to_thermal_fast_start!(gen, system)
         end
     end
-end
-
-function apply_PSY_past_load_growth!(sys::PSY.System,
-    load_growth::AxisArrays.AxisArray{Float64, 1},
-    simulation_dir::String)
-
-    # update load timeseries.
-    nodal_loads = PSY.get_components(PSY_LOADS, sys)
-
-    for load in nodal_loads
-        zone = "load_zone_$(PSY.get_name(PSY.get_area(PSY.get_bus(load))))"
-        scaled_active_power =
-            deepcopy(PSY.get_max_active_power(load)) * (1 + load_growth[zone])
-        PSY.set_max_active_power!(load, scaled_active_power)
-    end
-
-    average_load_growth = Statistics.mean(load_growth)
-
-    # update service requirement timeseries.
-    services = get_system_services(sys)
-    ordc_products = split(
-        read_data(joinpath(simulation_dir, "markets_data", "reserve_products.csv"))[
-            1,
-            "ordc_products",
-        ],
-        "; ",
-    )
-    for service in services
-        service_name = PSY.get_name(service)
-        if !(service_name in ordc_products || service_name == "Clean_Energy")
-            scaled_requirement =
-                deepcopy(PSY.get_requirement(service)) * (1 + average_load_growth)
-            PSY.set_requirement!(service, scaled_requirement)
-        end
-    end
-
-    return
 end

@@ -167,3 +167,38 @@ const HSI = HydroPowerSimulations
         )
     end
 end
+
+# EMIS fixes for PSI bugs are written as methods more specific than PSI's own (replacing a
+# PSI method is not allowed during precompilation). Guard that they win dispatch for every
+# type EMIS uses, and that PSI's general methods are still there.
+@testset "EMIS PSI fixes dispatch as more specific methods" begin
+    EMIS = EMISAgentSimulation
+    # Every service type EMIS builds a ServiceModel for must hit the EMIS dual fix.
+    source = read(joinpath(@__DIR__, "..", "src", "markets_simulation", "siip_simulation_definition.jl"), String)
+    used_types = unique(m.captures[1] for m in eachmatch(r"PSI\.ServiceModel\(\s*(PSY\.\w+\{PSY\.\w+\})", source))
+    @test !isempty(used_types)
+    for type_text in used_types, formulation in (PSI.RangeReserve, PSI.StepwiseCostReserve)
+        service_type = Core.eval(EMIS, Meta.parse(type_text))
+        @test service_type <: EMIS.EMIS_DUAL_SERVICE_TYPES
+        method = which(
+            PSI.add_constraint_dual!,
+            (PSI.OptimizationContainer, PSY.System, PSI.ServiceModel{service_type, formulation}),
+        )
+        @test method.module === EMIS
+    end
+    @test any(
+        m -> m.module === PSI && occursin("ServiceModel", string(m.sig)),
+        methods(PSI.add_constraint_dual!),
+    )
+    area_method = which(
+        PSI.add_constraint_dual!,
+        (PSI.OptimizationContainer, PSY.System, PSI.NetworkModel{PSI.AreaBalancePowerModel}),
+    )
+    @test area_method.module === EMIS
+
+    for key in (PSI.InitialEnergyLevel, PSI.DeviceStatus), value in (Float64, EMIS.JuMP.VariableRef)
+        ics = Vector{Union{PSI.InitialCondition{key, Nothing}, PSI.InitialCondition{key, value}}}
+        method = which(PSI.update_initial_conditions!, (ics, PSI.SimulationState, EMIS.Dates.Millisecond))
+        @test method.module === EMIS
+    end
+end

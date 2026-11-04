@@ -211,8 +211,7 @@ function take_retirement_decision(project::P,
                 cash_flow[(iteration_year - retirement_lookback):(iteration_year - 1)]
             if (annual_profit < -1) && (project_utility < 0) &&
                (all(previous_cashflow .< -1))
-                println("RETIRING:")
-                println(get_name(project))
+                @info "Retiring Project: $(get_name(project))"
                 set_retirement_year!(projects[index], iteration_year)
                 projects[index] = retire_project!(project)
                 for y in iteration_year:simulation_years

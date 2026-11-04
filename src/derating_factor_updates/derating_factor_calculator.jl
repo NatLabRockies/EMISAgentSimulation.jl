@@ -115,7 +115,7 @@ function calculate_derating_data(simulation::Union{AgentSimulation, AgentSimulat
         ]...,
     )
     availability_data =
-        read_availability_df(timeseries_data_dir, scenario, simulation_years, "REAL_TIME")
+        get_availability_df(timeseries_data_dir, scenario, simulation_years, "REAL_TIME")
 
     num_hours = DataFrames.nrow(load_n_vg_data)
     base_num_top_hours = cap_mkt_params.num_top_hours[1]
@@ -142,6 +142,88 @@ function calculate_derating_data(simulation::Union{AgentSimulation, AgentSimulat
         # rather than silently producing derating factors from incomplete data.
         error("calculate_derating_data (year=$iteration_year, scenario=$scenario): columns missing from net-load CSV: $missing_cols. The net-load data was not written properly.")
     end
+
+    for zone in zones
+        for type in types
+            type_zone_id = "$(type)_$(zone)"
+            gen_sorted_df = deepcopy(
+                DataFrames.sort(
+                    net_load_df,
+                    "net_load_w/o_existing_$(type_zone_id)";
+                    rev = true,
+                ),
+            )
+
+            load_reduction =
+                gen_sorted_df[1:num_top_hours, "net_load_w/o_existing_$(type_zone_id)"] -
+                gen_sorted_df[1:num_top_hours, "net_load"]
+            derating_factors[:, "existing_$(type_zone_id)"] .= min(
+                sum(load_reduction) / type_zone_max_cap[type_zone_id] /
+                num_top_hours,
+                1.0,
+            )
+        end
+    end
+
+    for g in renewable_options
+        gen_name = get_name(g)
+        tech = get_tech(g)
+        type_zone_id = "$(get_type(tech))_$(get_zone(tech))"
+        gen_cap = get_maxcap(g)
+
+        net_load_df[:, "net_load_with_$(gen_name)"] = deepcopy(
+            net_load_df[:, "net_load"] - availability_data[:, "$(type_zone_id)"] * gen_cap,
+        )
+        gen_sorted_df =
+            deepcopy(DataFrames.sort(net_load_df, "net_load_with_$(gen_name)"; rev = true))
+
+        load_reduction =
+            net_load_sorted_df[1:num_top_hours, "net_load"] -
+            gen_sorted_df[1:num_top_hours, "net_load_with_$(gen_name)"]
+
+        derating_factors[:, "new_$(type_zone_id)"] .=
+            min(sum(load_reduction) / gen_cap / num_top_hours, 1.0)
+    end
+
+    # Storage CC script
+    stor_buffer_minutes = cap_mkt_params.stor_buffer_minutes[1]
+    all_battery_existing = filter(p -> typeof(p) == BatteryEMIS{Existing}, active_projects)
+    all_battery_options = filter(p -> typeof(p) == BatteryEMIS{Option}, active_projects)
+
+    # Define a dictionary to store batteries with their corresponding storage durations
+    existing_storage_duration_dict = Dict{Int, Vector{BatteryEMIS{Existing}}}()
+    option_storage_duration_dict = Dict{Int, Vector{BatteryEMIS{Option}}}()
+
+    # Iterate over each existing battery
+    for battery in all_battery_existing
+        stor_duration =
+            Int(round(get_storage_capacity(get_tech(battery))[:max] / get_maxcap(battery)))
+        if haskey(existing_storage_duration_dict, stor_duration)
+            push!(existing_storage_duration_dict[stor_duration], battery)
+        else
+            existing_storage_duration_dict[stor_duration] = [battery]
+        end
+    end
+
+    # Iterate over each option battery
+    for battery in all_battery_options
+        stor_duration =
+            Int(round(get_storage_capacity(get_tech(battery))[:max] / get_maxcap(battery)))
+        if haskey(option_storage_duration_dict, stor_duration)
+            push!(option_storage_duration_dict[stor_duration], battery)
+        else
+            option_storage_duration_dict[stor_duration] = [battery]
+        end
+    end
+
+    peak_reductions_existing = Dict(
+        sd => sum(get_maxcap.(existing_storage_duration_dict[sd])) for
+        sd in keys(existing_storage_duration_dict)
+    )
+    init_CC = Dict(
+        sd => derating_factors[1, "STOR_$sd"] for
+        sd in keys(existing_storage_duration_dict)
+    )
 
     function calculate_average_storage_cc(
         stor_duration::Int64,
@@ -668,6 +750,8 @@ function calculate_derating_factors(
         availability_df_rt,
     )
 
+    @info "Created base system for derating factor calculation"
+
     # create "Base" PRAS system to be used for calculation of ELCC or EFC.
     base_pras_system = make_pras_system_spi(
         adjusted_base_system,
@@ -688,6 +772,8 @@ function calculate_derating_factors(
         season => collect(get_regional_load_shares(sys)) for
         (season, sys) in base_pras_season_systems
     )
+
+    @info "Calculating derating factors for new projects"
 
     if marginal_cc
         for zone in zones
@@ -755,6 +841,9 @@ function calculate_derating_factors(
         end
     end
 
+    @info "Finished calculating derating factors for new projects"
+    @info "Calculating derating factors for existing projects"
+
     # For average ELCC/EFC, existing units are removed. The new system with reduced units now becomes the base PRAS system.
     # No deepcopy needed here: SPI.generate_pras_system only reads the PSY system to build a
     # PRAS struct and does not mutate it. The resulting augmented_pras_system is a fresh object.
@@ -813,6 +902,8 @@ function calculate_derating_factors(
         end
     end
 
+    @info "Finished calculating derating factors for existing projects"
+
     all_battery_existing = filter(p -> typeof(p) == BatteryEMIS{Existing}, active_projects)
     all_battery_options = filter(p -> typeof(p) == BatteryEMIS{Option}, active_projects)
 
@@ -843,6 +934,8 @@ function calculate_derating_factors(
             option_storage_duration_dict[stor_duration] = [battery]
         end
     end
+
+    @info "Starting calculation of derating factors for existing storage durations"
 
     for (stor_duration, battery_existing) in existing_storage_duration_dict
         total_capacity = sum(get_maxcap.(battery_existing))
@@ -875,11 +968,14 @@ function calculate_derating_factors(
                 cc_final
         end
     end
+    @info "Finished calculation of derating factors for existing storage durations"
 
     # augmented_pras_system(s) are no longer needed after the existing storage loop above.
     # Release them before the battery marginal CC block to reduce peak memory.
     augmented_pras_system_full = nothing
     augmented_pras_season_systems = nothing
+
+    @info "Starting calculation of derating factors for new storage durations"
 
     if marginal_cc
         new_project_names = []
@@ -945,6 +1041,8 @@ function calculate_derating_factors(
             end
         end
     end
+
+    @info "Finished calculation of derating factors for new storage durations"
 
     # Overwrite file with new derating factors.
     write_data(
@@ -1133,8 +1231,6 @@ function update_derating_factor!(project::BatteryEMIS{Existing},
     duration = Int(round(get_storage_capacity(tech)[:max] / get_maxcap(project)))
     project_type = "existing_STOR_$(duration)"
 
-    # @info "Existing battery derating factor update: $(get_name(project)), storage_capacity $(get_storage_capacity(tech)[:max]), max_cap $(get_maxcap(project)), duration of $(duration) hours"
-
     derating_data = read_data(
         joinpath(
             simulation_dir,
@@ -1170,8 +1266,6 @@ function update_derating_factor!(project::BatteryEMIS{<:BuildPhase},
 )
     tech = get_tech(project)
     duration = Int(round(get_storage_capacity(tech)[:max] / get_maxcap(project)))
-
-    # @info "BuildPhase battery derating factor update: $(get_name(project)), storage_capacity $(get_storage_capacity(tech)[:max]), max_cap $(get_maxcap(project)), duration of $(duration) hours"
 
     if marginal_cc
         project_type = "new_STOR_$(duration)"
@@ -1242,4 +1336,3 @@ function update_simulation_derating_data!(
 
     return
 end
-
