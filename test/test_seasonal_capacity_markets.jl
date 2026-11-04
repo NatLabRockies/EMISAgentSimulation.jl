@@ -775,6 +775,82 @@ end
 end
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Phase 3d — market_utils.jl: update_capacity_accepted_perc! stores per season
+#
+# The CEM's commitment c[g, p] is not season-indexed, so it returns ONE accepted
+# fraction vector per project. investor_iteration.jl passes the seasons taken from
+# the loaded capacity prices, and both methods (built/existing projects keyed by
+# project name, Option projects keyed by "option_<type>_<zone>") must store that
+# same vector under every season so update_capacity_revenues! finds one per season.
+# ─────────────────────────────────────────────────────────────────────────────
+
+@testset "Phase 3d — update_capacity_accepted_perc! stores the CEM vector under every season" begin
+    scenario = "scenario_1"
+    seasons = ["summer", "winter"]
+
+    @testset "existing/built project: keyed by project name" begin
+        prod = make_capacity_product()
+        project = make_thermal_project([make_energy_product(), prod])
+        accepted = Dict(get_name(project) => [0.25, 0.5, 1.0], "other_project" => [9.0, 9.0, 9.0])
+
+        EMISAgentSimulation.update_capacity_accepted_perc!(project, scenario, accepted, seasons)
+
+        @test Set(keys(prod.accepted_perc[scenario])) == Set(seasons)
+        for season in seasons
+            @test EMISAgentSimulation.get_accepted_perc(prod, scenario, season) == [0.25, 0.5, 1.0]
+        end
+    end
+
+    @testset "Option project: keyed by option_<type>_<zone>" begin
+        prod = make_capacity_product()
+        project = make_renewable_option_project([prod])
+        tech = EMISAgentSimulation.get_tech(project)
+        option_key = "option_$(EMISAgentSimulation.get_type(tech))_$(EMISAgentSimulation.get_zone(tech))"
+        accepted = Dict(option_key => [0.1, 0.2], get_name(project) => [9.0, 9.0])
+
+        EMISAgentSimulation.update_capacity_accepted_perc!(project, scenario, accepted, seasons)
+
+        @test Set(keys(prod.accepted_perc[scenario])) == Set(seasons)
+        for season in seasons
+            @test EMISAgentSimulation.get_accepted_perc(prod, scenario, season) == [0.1, 0.2]
+        end
+    end
+
+    @testset "annual mode stores a single \"annual\" entry (pre-seasonal shape)" begin
+        prod = make_capacity_product()
+        project = make_thermal_project([prod])
+        accepted = Dict(get_name(project) => [0.75])
+
+        EMISAgentSimulation.update_capacity_accepted_perc!(project, scenario, accepted, ["annual"])
+
+        @test collect(keys(prod.accepted_perc[scenario])) == ["annual"]
+        @test EMISAgentSimulation.get_accepted_perc(prod, scenario) == [0.75]   # 2-arg annual accessor
+    end
+
+    @testset "feeds update_capacity_revenues!: one accepted vector per priced season" begin
+        # End-to-end with the 3d consumer: seasons come from the price dict, exactly as
+        # investor_iteration.jl does (capacity_seasons = keys(expected capacity_price)).
+        prod = make_capacity_product()
+        EMISAgentSimulation.set_derating!(prod, scenario, "summer", 0.8)
+        EMISAgentSimulation.set_derating!(prod, scenario, "winter", 0.6)
+        project = make_thermal_project([prod])
+        capacity_prices = Dict(scenario => Dict(
+            "summer" => AxisArrays.AxisArray(fill(10.0, 2), AxisArrays.Axis{:year}(1:2)),
+            "winter" => AxisArrays.AxisArray(fill(20.0, 2), AxisArrays.Axis{:year}(1:2)),
+        ))
+        price_seasons = collect(keys(capacity_prices[scenario]))
+
+        EMISAgentSimulation.update_capacity_accepted_perc!(
+            project, scenario, Dict(get_name(project) => [0.5, 1.0]), price_seasons)
+        revenues = EMISAgentSimulation.update_capacity_revenues!(
+            prod, scenario, (start_year = 1, end_year = 2), zeros(2), capacity_prices, 100.0)
+
+        # year y: (10 * 0.8 + 20 * 0.6) * 100 * accepted[y]
+        @test revenues ≈ [2000.0 * 0.5, 2000.0 * 1.0]
+    end
+end
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Phase 4a — actual_capacity_mkt_clearing.jl
 # ─────────────────────────────────────────────────────────────────────────────
 

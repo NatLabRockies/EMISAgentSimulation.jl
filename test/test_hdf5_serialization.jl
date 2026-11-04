@@ -662,3 +662,193 @@ end
         end
     end
 end
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Plan 5d — whole-file round-trip of seasonal capacity data
+#
+# The tests above check the capacity helpers in isolation. These go through the
+# public file writers/readers used in a run:
+#   save_expected_market_data / load_expected_market_data   (CEM output, per investor)
+#   save_realized_market_data / load_realized_market_data   (actual clearing, per year)
+# They check that a two-season capacity_price (and, for realized data,
+# capacity_accepted_bids) survives with the right season keys and values, and that a
+# legacy file with the flat pre-seasonal layout loads as "annual".
+#
+# Non-capacity fields get small placeholder values of the right shape; they are only
+# there because the writers take every field positionally.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_ax1() = AxisArrays.AxisArray([1.0, 2.0], 1:2)
+_ax2() = AxisArrays.AxisArray([1.0 2.0; 3.0 4.0], ["a", "b"], 1:2)
+_dict_mat() = Dict("Gen1" => [1.0 2.0; 3.0 4.0])
+_dict_float() = Dict("Gen1" => 1.5)
+
+# Positional arguments of save_expected_market_data after `path`, in signature order.
+function _expected_market_args(capacity_price)
+    return (
+        capacity_price,                                  # capacity_price
+        _ax2(),                                          # energy_price
+        _dict_mat(),                                     # reserve_price
+        _ax1(),                                          # rec_price
+        _ax1(),                                          # inertia_price
+        _dict_mat(),                                     # capacity_factors
+        _dict_mat(),                                     # total_utilization
+        Dict("Gen1" => [0.25, 1.0]),                     # capacity_accepted_perc
+        Dict("option_WT_Z1" => 2),                       # new_options
+        _dict_float(),                                   # new_options_by_type
+        _ax1(), _ax1(), _ax1(),                          # REC_slack, REC_supply, REC_demand
+        ["Gen1"],                                        # rps_compliant_projects
+        _ax1(),                                          # rec_requirement
+        _ax2(), _ax2(),                                  # investment, retirement
+        _dict_float(), _dict_float(),                    # max_new_options, max_gen
+        _ax2(),                                          # demand_e
+        Dict("scenario_1" => Dict(1 => [1.0, 2.0])),     # rep_hour_weight
+        _ax2(), _ax2(), _ax2(), _ax2(), _ax2(),          # p_e_print, in/out_flow_print, v_e_print, p_in_print
+        _dict_float(), _dict_float(),                    # linepowerlimit, rec_correction
+        _ax2(),                                          # p_e_storage_print
+        Dict("Z1" => ["Batt1"], "Z2" => String[]),       # zone_storage
+        Dict("Z1" => ["Gen1"]),                          # zone_projects
+        Dict("Z1" => ["L1"]), Dict("Z1" => String[]),    # lines_to_zone, lines_from_zone
+        _dict_float(),                                   # init_storage
+        _ax2(),                                          # p_e_detail
+        _dict_float(),                                   # remaining_buildtime
+        ["Gen1", "Batt1"], ["Gen1"], ["Batt1"],          # projects, generator_projects, storage_projects
+        ["Reg_Up"], ["ORDC"], ["Reg_Down"],              # reserve_up/ordc/reserve_down products
+        _ax2(), _ax2(), _ax2(), _ax2(),                  # p_in_{ru,ordc,inertia,rd}_detail
+        _ax2(), _ax2(), _ax2(), _ax2(),                  # p_out_{ru,ordc,inertia,rd}_detail
+    )
+end
+
+# Positional arguments of save_realized_market_data after `path`, in signature order.
+function _realized_market_args(capacity_price, capacity_accepted_bids)
+    reserve_perc = Dict("Reg_Up" => Dict("Gen1" => [0.1 0.2]))
+    return (
+        capacity_price,                                  # capacity_price
+        _ax2(), _ax2(), _ax2(),                          # energy_price_ed/uc/md
+        _dict_mat(), _dict_mat(), _dict_mat(),           # reserve_price_ed/uc/md
+        _ax1(), _ax1(),                                  # rec_price, inertia_price
+        _dict_mat(), _dict_mat(), _dict_mat(),           # capacity_factors_md/uc/ed
+        reserve_perc, reserve_perc, reserve_perc,        # reserve_perc_md/uc/ed
+        capacity_accepted_bids,                          # capacity_accepted_bids
+        _dict_float(),                                   # rec_accepted_bids
+        _dict_mat(), _dict_mat(), _dict_mat(),           # inertia_perc, start_up_costs, shut_down_costs
+        _ax2(), _ax2(), _ax2(),                          # energy_voll, energy_voll_uc, energy_voll_md
+        _dict_mat(), _dict_mat(), _dict_mat(),           # reserve_voll, reserve_voll_uc, reserve_voll_md
+        _ax1(),                                          # inertia_voll
+        Vector{Union{String, Float64}}[["Gen1", 5.0, 100.0]],  # rec_supply_curve
+        1000.0,                                          # rec_energy_requirment
+        0.9,                                             # cet_achieved_ratio
+    )
+end
+
+# Replace a group in an existing file with the legacy flat layout, as files written
+# before the seasonal change have it.
+function _rewrite_as_legacy!(path, group_name, write_flat!)
+    h5open(path, "r+") do f
+        HDF5.delete_object(f, group_name)
+        write_flat!(HDF5.create_group(f, group_name))
+    end
+end
+
+@testset "Plan 5d — expected/realized market data files: seasonal capacity round-trip" begin
+    summer = AxisArrays.AxisArray([10.0, 11.0, 12.0], 1:3)
+    winter = AxisArrays.AxisArray([20.0, 21.0, 22.0], 1:3)
+    seasonal_price = Dict("summer" => summer, "winter" => winter)
+
+    @testset "expected market data: two seasons survive with keys and values" begin
+        tmpfile = tempname() * ".h5"
+        try
+            EMISAgentSimulation.save_expected_market_data(tmpfile, _expected_market_args(seasonal_price)...)
+            loaded = EMISAgentSimulation.load_expected_market_data(tmpfile)
+
+            cap = loaded["capacity_price"]
+            @test Set(keys(cap)) == Set(["summer", "winter"])
+            for (season, orig) in seasonal_price
+                @test collect(cap[season]) == collect(orig)
+                @test AxisArrays.axisvalues(cap[season]) == AxisArrays.axisvalues(orig)
+            end
+            # investor_iteration.jl takes the seasons from these keys and passes the
+            # nested dict to set_capacity_price! (Dict{String, <:AxisArray}).
+            @test cap isa Dict{String, <:AxisArrays.AxisArray{Float64, 1}}
+            # The rest of the file is unaffected by the capacity layout.
+            @test loaded["capacity_accepted_perc"] == Dict("Gen1" => [0.25, 1.0])
+        finally
+            isfile(tmpfile) && rm(tmpfile)
+        end
+    end
+
+    @testset "expected market data: annual mode writes and reads a single \"annual\" season" begin
+        tmpfile = tempname() * ".h5"
+        try
+            annual = Dict("annual" => AxisArrays.AxisArray([30.0, 31.0], 1:2))
+            EMISAgentSimulation.save_expected_market_data(tmpfile, _expected_market_args(annual)...)
+            cap = EMISAgentSimulation.load_expected_market_data(tmpfile)["capacity_price"]
+            @test collect(keys(cap)) == ["annual"]
+            @test collect(cap["annual"]) == [30.0, 31.0]
+        finally
+            isfile(tmpfile) && rm(tmpfile)
+        end
+    end
+
+    @testset "expected market data: legacy flat capacity_price loads as \"annual\"" begin
+        tmpfile = tempname() * ".h5"
+        try
+            EMISAgentSimulation.save_expected_market_data(tmpfile, _expected_market_args(seasonal_price)...)
+            legacy = AxisArrays.AxisArray([40.0, 41.0], 1:2)
+            _rewrite_as_legacy!(tmpfile, "capacity_price",
+                g -> EMISAgentSimulation.save_axisarray!(g, legacy))
+
+            cap = EMISAgentSimulation.load_expected_market_data(tmpfile)["capacity_price"]
+            @test collect(keys(cap)) == ["annual"]
+            @test collect(cap["annual"]) == [40.0, 41.0]
+        finally
+            isfile(tmpfile) && rm(tmpfile)
+        end
+    end
+
+    realized_price = Dict("summer" => AxisArrays.AxisArray(reshape([15000.0], 1), [1]),
+                          "winter" => AxisArrays.AxisArray(reshape([25000.0], 1), [1]))
+    realized_bids = Dict("summer" => Dict("Gen1" => 1.0, "Gen2" => 0.4),
+                         "winter" => Dict("Gen1" => 0.5))
+
+    @testset "realized market data: two seasons of price and accepted bids survive" begin
+        tmpfile = tempname() * ".h5"
+        try
+            EMISAgentSimulation.save_realized_market_data(
+                tmpfile, _realized_market_args(realized_price, realized_bids)...)
+            loaded = EMISAgentSimulation.load_realized_market_data(tmpfile)
+
+            cap = loaded["capacity_price"]
+            @test Set(keys(cap)) == Set(["summer", "winter"])
+            @test cap["summer"][1] == 15000.0
+            @test cap["winter"][1] == 25000.0
+
+            bids = loaded["capacity_accepted_bids"]
+            @test bids == realized_bids
+            # Shape expected by calculate_realized_profit / annual_updates.jl.
+            @test bids isa Dict{String, Dict{String, Float64}}
+            @test loaded["cet_achieved_ratio"] == 0.9
+        finally
+            isfile(tmpfile) && rm(tmpfile)
+        end
+    end
+
+    @testset "realized market data: legacy flat price and bids load as \"annual\"" begin
+        tmpfile = tempname() * ".h5"
+        try
+            EMISAgentSimulation.save_realized_market_data(
+                tmpfile, _realized_market_args(realized_price, realized_bids)...)
+            _rewrite_as_legacy!(tmpfile, "capacity_price",
+                g -> EMISAgentSimulation.save_axisarray!(g, AxisArrays.AxisArray(reshape([7000.0], 1), [1])))
+            _rewrite_as_legacy!(tmpfile, "capacity_accepted_bids",
+                g -> EMISAgentSimulation._save_dict_str_float!(g, Dict("Gen1" => 0.75)))
+
+            loaded = EMISAgentSimulation.load_realized_market_data(tmpfile)
+            @test collect(keys(loaded["capacity_price"])) == ["annual"]
+            @test loaded["capacity_price"]["annual"][1] == 7000.0
+            @test loaded["capacity_accepted_bids"] == Dict("annual" => Dict("Gen1" => 0.75))
+        finally
+            isfile(tmpfile) && rm(tmpfile)
+        end
+    end
+end
