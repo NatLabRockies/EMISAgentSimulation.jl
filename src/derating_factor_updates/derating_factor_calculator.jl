@@ -35,11 +35,16 @@ end
 
 """
 Initializes the output derating table for annual or seasonal mode.
-In seasonal mode, creates one row per season by replicating the template's baseline
-row so that pre-populated values (e.g. thermal/hydro default deratings or other
-constant numeric columns) are preserved. Only the columns that are actually
-recomputed per season are overwritten later; untouched columns retain their
-template baseline instead of being zeroed out.
+In seasonal mode, creates one row per season, starting from that season's matching
+template row (by the `season` column). Rows are matched by name, so the order of
+`seasons` and of the template rows may differ. A season with no matching row, or a
+template with no `season` column, starts from the template's first row; if the
+template has a `season` column, a missing season also logs a warning.
+
+Only the columns that are actually recomputed per season are overwritten later.
+The rest (e.g. thermal/hydro deratings) keep their template values, including any
+season-specific values, because `derating_dict.csv` is both the template and the
+output of the calculators and is re-read on every update.
 """
 function initialize_derating_output(
     derating_template::DataFrame,
@@ -54,13 +59,24 @@ function initialize_derating_output(
         return annual_output
     end
 
-    # Use the template's first row as the baseline for every season, preserving any
-    # pre-populated numeric columns that are not recomputed per season.
-    baseline_row = derating_template[1:1, :]
-    derating_factors = deepcopy(baseline_row)
-    for _ in 2:length(seasons)
-        append!(derating_factors, baseline_row)
+    # Map each season to its template row (first match if a season is repeated).
+    # `string` normalizes the inline string types that CSV.File returns.
+    template_row_by_season = Dict{String, Int}()
+    if "season" in names(derating_template)
+        for (row, season) in enumerate(derating_template[!, "season"])
+            ismissing(season) || get!(template_row_by_season, string(season), row)
+        end
+        unmatched_seasons = [s for s in seasons if !haskey(template_row_by_season, s)]
+        if !isempty(unmatched_seasons)
+            @warn "derating_dict.csv has no row for season(s) $(unmatched_seasons); " *
+                  "using its first row as their baseline. Template seasons: " *
+                  "$(sort(collect(keys(template_row_by_season))))."
+        end
     end
+
+    # Indexing with a vector returns a new DataFrame, so the template is not modified.
+    derating_factors =
+        derating_template[[get(template_row_by_season, s, 1) for s in seasons], :]
     derating_factors[!, "season"] = seasons
     return derating_factors
 end
@@ -144,88 +160,6 @@ function calculate_derating_data(simulation::Union{AgentSimulation, AgentSimulat
             "calculate_derating_data (year=$iteration_year, scenario=$scenario): columns missing from net-load CSV: $missing_cols. The net-load data was not written properly.",
         )
     end
-
-    for zone in zones
-        for type in types
-            type_zone_id = "$(type)_$(zone)"
-            gen_sorted_df = deepcopy(
-                DataFrames.sort(
-                    net_load_df,
-                    "net_load_w/o_existing_$(type_zone_id)";
-                    rev = true,
-                ),
-            )
-
-            load_reduction =
-                gen_sorted_df[1:num_top_hours, "net_load_w/o_existing_$(type_zone_id)"] -
-                gen_sorted_df[1:num_top_hours, "net_load"]
-            derating_factors[:, "existing_$(type_zone_id)"] .= min(
-                sum(load_reduction) / type_zone_max_cap[type_zone_id] /
-                num_top_hours,
-                1.0,
-            )
-        end
-    end
-
-    for g in renewable_options
-        gen_name = get_name(g)
-        tech = get_tech(g)
-        type_zone_id = "$(get_type(tech))_$(get_zone(tech))"
-        gen_cap = get_maxcap(g)
-
-        net_load_df[:, "net_load_with_$(gen_name)"] = deepcopy(
-            net_load_df[:, "net_load"] - availability_data[:, "$(type_zone_id)"] * gen_cap,
-        )
-        gen_sorted_df =
-            deepcopy(DataFrames.sort(net_load_df, "net_load_with_$(gen_name)"; rev = true))
-
-        load_reduction =
-            net_load_sorted_df[1:num_top_hours, "net_load"] -
-            gen_sorted_df[1:num_top_hours, "net_load_with_$(gen_name)"]
-
-        derating_factors[:, "new_$(type_zone_id)"] .=
-            min(sum(load_reduction) / gen_cap / num_top_hours, 1.0)
-    end
-
-    # Storage CC script
-    stor_buffer_minutes = cap_mkt_params.stor_buffer_minutes[1]
-    all_battery_existing = filter(p -> typeof(p) == BatteryEMIS{Existing}, active_projects)
-    all_battery_options = filter(p -> typeof(p) == BatteryEMIS{Option}, active_projects)
-
-    # Define a dictionary to store batteries with their corresponding storage durations
-    existing_storage_duration_dict = Dict{Int, Vector{BatteryEMIS{Existing}}}()
-    option_storage_duration_dict = Dict{Int, Vector{BatteryEMIS{Option}}}()
-
-    # Iterate over each existing battery
-    for battery in all_battery_existing
-        stor_duration =
-            Int(round(get_storage_capacity(get_tech(battery))[:max] / get_maxcap(battery)))
-        if haskey(existing_storage_duration_dict, stor_duration)
-            push!(existing_storage_duration_dict[stor_duration], battery)
-        else
-            existing_storage_duration_dict[stor_duration] = [battery]
-        end
-    end
-
-    # Iterate over each option battery
-    for battery in all_battery_options
-        stor_duration =
-            Int(round(get_storage_capacity(get_tech(battery))[:max] / get_maxcap(battery)))
-        if haskey(option_storage_duration_dict, stor_duration)
-            push!(option_storage_duration_dict[stor_duration], battery)
-        else
-            option_storage_duration_dict[stor_duration] = [battery]
-        end
-    end
-
-    peak_reductions_existing = Dict(
-        sd => sum(get_maxcap.(existing_storage_duration_dict[sd])) for
-        sd in keys(existing_storage_duration_dict)
-    )
-    init_CC = Dict(
-        sd => derating_factors[1, "STOR_$sd"] for
-        sd in keys(existing_storage_duration_dict)
-    )
 
     function calculate_average_storage_cc(
         stor_duration::Int64,

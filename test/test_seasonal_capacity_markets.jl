@@ -1415,6 +1415,62 @@ end
         @test output[1, "existing_Wind_Z1"] == 0.41
     end
 
+    @testset "seasonal output keeps each season's matching template row" begin
+        template = DataFrame(
+            season = ["winter", "summer"],
+            CC = [0.91, 0.81],
+            HY = [0.66, 0.62],
+        )
+        original = deepcopy(template)
+
+        # Requested in a different order than the template rows: match by name.
+        output = EMIS.initialize_derating_output(template, ["summer", "winter"], true)
+
+        @test output[!, "season"] == ["summer", "winter"]
+        @test output[!, "CC"] == [0.81, 0.91]
+        @test output[!, "HY"] == [0.62, 0.66]
+        @test template == original   # the template itself is not modified
+
+        # A rewritten output, used as the next template, keeps the same values.
+        again = EMIS.initialize_derating_output(output, ["summer", "winter"], true)
+        @test again == output
+    end
+
+    @testset "seasonal values survive a derating_dict.csv round trip" begin
+        # read_data returns inline strings (String7) for the season column.
+        mktempdir() do dir
+            path = joinpath(dir, "derating_dict.csv")
+            write(path, "season,CC,HY\nsummer,0.81,0.62\nwinter,0.91,0.66\n")
+            template = EMIS.read_data(path)
+
+            output = EMIS.initialize_derating_output(template, ["winter", "summer"], true)
+
+            @test output[!, "season"] == ["winter", "summer"]
+            @test output[!, "CC"] == [0.91, 0.81]
+            @test output[!, "HY"] == [0.66, 0.62]
+        end
+    end
+
+    @testset "a season with no matching row starts from row 1 and warns" begin
+        template = DataFrame(season = ["summer", "winter"], CC = [0.81, 0.91])
+
+        output = @test_logs (:warn, r"no row for season\(s\) \[\"spring\"\]") EMIS.initialize_derating_output(
+            template, ["winter", "spring"], true)
+
+        @test output[!, "season"] == ["winter", "spring"]
+        @test output[!, "CC"] == [0.91, 0.81]
+    end
+
+    @testset "a template with no season column seeds every season from row 1, silently" begin
+        template = DataFrame(CC = [0.81, 0.5], HY = [0.62, 0.5])
+
+        output = @test_logs EMIS.initialize_derating_output(template, ["summer", "winter"], true)
+
+        @test output[!, "season"] == ["summer", "winter"]
+        @test output[!, "CC"] == [0.81, 0.81]
+        @test output[!, "HY"] == [0.62, 0.62]
+    end
+
     @testset "season_hour_columns selects only the requested months, ascending, across years" begin
         simulation_years = 2
         months = [6, 7, 8]

@@ -644,7 +644,7 @@ end
         end
     end
 
-    @testset "load_product(Capacity): legacy flat scenario->value derating -> annual" begin
+    @testset "load_product(Capacity): legacy keys/values derating -> annual" begin
         tmpfile = tempname() * ".h5"
         try
             h5open(tmpfile, "w") do f
@@ -652,8 +652,11 @@ end
                 HDF5.attributes(g)["product_type"] = "Capacity"
                 write(g, "name", "Capacity")
                 write(g, "capacity_bid", 100.0)
+                # The layout real pre-seasonal checkpoints use: parallel datasets, in
+                # Dict iteration order rather than sorted, so pairing is by position.
                 der = HDF5.create_group(g, "derating")
-                write(der, "scenario_1", 0.85)
+                write(der, "keys", ["scenario_2", "scenario_1"])
+                write(der, "values", [0.85, 0.71])
                 ap = HDF5.create_group(g, "accepted_perc")
                 write(ap, "scenario_1", [0.7, 0.8])
             end
@@ -661,8 +664,38 @@ end
                 EMISAgentSimulation.load_product(f["product"])
             end
             @test prod isa Capacity
-            @test get_derating(prod, "scenario_1", "annual") == 0.85
+            @test Set(keys(prod.derating)) == Set(["scenario_1", "scenario_2"])
+            @test get_derating(prod, "scenario_2", "annual") == 0.85
+            @test get_derating(prod, "scenario_1", "annual") == 0.71
             @test get_accepted_perc(prod, "scenario_1", "annual") == [0.7, 0.8]
+        finally
+            isfile(tmpfile) && rm(tmpfile)
+        end
+    end
+
+    @testset "load_case_definition: missing seasonal_capacity_market defaults to false" begin
+        # Pre-seasonal checkpoints have no such field. Start from a current case and
+        # remove it, so this keeps working as CaseDefinition gains other fields.
+        case_root = mktempdir()
+        mkpath(joinpath(case_root, "Homogeneous"))
+        case = CaseDefinition(
+            "legacy_case", case_root, case_root, case_root, case_root, case_root,
+            EMISAgentSimulation.JuMP.optimizer_with_attributes(EMISAgentSimulation.HiGHS.Optimizer);
+            seasonal_capacity_market = true,
+        )
+        tmpfile = tempname() * ".h5"
+        try
+            h5open(tmpfile, "w") do f
+                g = HDF5.create_group(f, "case")
+                EMISAgentSimulation.save_case_definition!(g, case)
+                # A current file keeps its saved value...
+                @test EMISAgentSimulation.get_seasonal_capacity_market(
+                    EMISAgentSimulation.load_case_definition(g)) == true
+                # ...and an old file without the field loads in annual mode.
+                HDF5.delete_object(g, "seasonal_capacity_market")
+                @test EMISAgentSimulation.get_seasonal_capacity_market(
+                    EMISAgentSimulation.load_case_definition(g)) == false
+            end
         finally
             isfile(tmpfile) && rm(tmpfile)
         end

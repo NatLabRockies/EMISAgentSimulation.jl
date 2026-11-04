@@ -139,7 +139,8 @@ function load_case_definition(g::HDF5.Group)
         read(g, "ordc_unavailability_method"),
         read(g, "reserve_penalty"),
         read(g, "static_capacity_market"),
-        read(g, "seasonal_capacity_market"),
+        # Checkpoints written before the seasonal feature don't have this field.
+        haskey(g, "seasonal_capacity_market") ? read(g, "seasonal_capacity_market") : false,
         read(g, "irm_scalar"),
         read(g, "accreditation_methodology"),
         read(g, "accreditation_metric"),
@@ -1581,21 +1582,25 @@ function load_product(g::HDF5.Group)
     elseif pt == "Capacity"
         name = Symbol(read(g, "name"))
         bid = read(g, "capacity_bid")
-        # Backward compatibility: legacy (pre-seasonal) files stored derating/accepted_perc
-        # as scenario -> value (der_g[scen] is a leaf Dataset). New files store
-        # scenario -> season -> value (der_g[scen] is a Group). Map legacy leaves to the
-        # "annual" season so old files load in default annual mode.
+        # Backward compatibility: pre-seasonal files map to the "annual" season so they
+        # load in default annual mode. New files store scenario -> season -> value for
+        # both fields. The legacy layouts differ:
+        #   derating:      parallel datasets derating/keys and derating/values, paired
+        #                  by position (keys are not sorted)
+        #   accepted_perc: one dataset per scenario
         der_g = g["derating"]
-        der = Dict(
-            scen => (
-                if der_g[scen] isa HDF5.Group
-                    Dict(season => read(der_g[scen], season) for season in keys(der_g[scen]))
-                else
-                    Dict("annual" => read(der_g, scen))
-                end
+        der = if haskey(der_g, "keys") && der_g["keys"] isa HDF5.Dataset
+            scenarios = read(der_g, "keys")
+            values = read(der_g, "values")
+            Dict{String, Dict{String, Float64}}(
+                scenarios[i] => Dict("annual" => values[i]) for i in eachindex(scenarios)
             )
-            for scen in keys(der_g)
-        )
+        else
+            Dict(
+                scen => Dict(season => read(der_g[scen], season) for season in keys(der_g[scen]))
+                for scen in keys(der_g)
+            )
+        end
         ap_g = g["accepted_perc"]
         ap = Dict(
             scen => (
