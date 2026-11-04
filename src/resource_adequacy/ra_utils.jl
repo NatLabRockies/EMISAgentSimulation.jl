@@ -353,28 +353,28 @@ start of the season. This is inherent to the divide approach and is accepted her
 not corrected.
 """
 function subset_pras_system(
-    sys::PRAS.SystemModel{N,L,T,P,E},
+    sys::PRAS.SystemModel{N, L, T, P, E},
     cols::AbstractVector{Int},
-) where {N,L,T,P,E}
+) where {N, L, T, P, E}
     N2 = length(cols)
 
     ts0 = first(sys.timestamps)
     dt = step(sys.timestamps)
     timestamps = ts0:dt:(ts0 + (N2 - 1) * dt)
 
-    regions = PRAS.Regions{N2,P}(
+    regions = PRAS.Regions{N2, P}(
         sys.regions.names,
         copy(sys.regions.load[:, cols]),
     )
 
-    interfaces = PRAS.Interfaces{N2,P}(
+    interfaces = PRAS.Interfaces{N2, P}(
         sys.interfaces.regions_from,
         sys.interfaces.regions_to,
         copy(sys.interfaces.limit_forward[:, cols]),
         copy(sys.interfaces.limit_backward[:, cols]),
     )
 
-    generators = PRAS.Generators{N2,L,T,P}(
+    generators = PRAS.Generators{N2, L, T, P}(
         sys.generators.names,
         sys.generators.categories,
         copy(sys.generators.capacity[:, cols]),
@@ -382,7 +382,7 @@ function subset_pras_system(
         copy(sys.generators.μ[:, cols]),
     )
 
-    storages = PRAS.Storages{N2,L,T,P,E}(
+    storages = PRAS.Storages{N2, L, T, P, E}(
         sys.storages.names,
         sys.storages.categories,
         copy(sys.storages.charge_capacity[:, cols]),
@@ -395,7 +395,7 @@ function subset_pras_system(
         copy(sys.storages.μ[:, cols]),
     )
 
-    generatorstorages = PRAS.GeneratorStorages{N2,L,T,P,E}(
+    generatorstorages = PRAS.GeneratorStorages{N2, L, T, P, E}(
         sys.generatorstorages.names,
         sys.generatorstorages.categories,
         copy(sys.generatorstorages.charge_capacity[:, cols]),
@@ -411,7 +411,7 @@ function subset_pras_system(
         copy(sys.generatorstorages.μ[:, cols]),
     )
 
-    demandresponses = PRAS.DemandResponses{N2,L,T,P,E}(
+    demandresponses = PRAS.DemandResponses{N2, L, T, P, E}(
         sys.demandresponses.names,
         sys.demandresponses.categories,
         copy(sys.demandresponses.borrow_capacity[:, cols]),
@@ -425,7 +425,7 @@ function subset_pras_system(
         copy(sys.demandresponses.payback_efficiency[:, cols]),
     )
 
-    lines = PRAS.Lines{N2,L,T,P}(
+    lines = PRAS.Lines{N2, L, T, P}(
         sys.lines.names,
         sys.lines.categories,
         copy(sys.lines.forward_capacity[:, cols]),

@@ -73,10 +73,13 @@ function create_products(simulation_data::AgentSimulationData,
     end
 
     if markets[:Capacity] && capacity_eligible
-        push!(products, Capacity(:Capacity,
-                                 Dict{String, Dict{String, Float64}}(),
-                                 Dict{String, Dict{String, Vector{Float64}}}(),
-                                 0.0))
+        push!(
+            products,
+            Capacity(:Capacity,
+                Dict{String, Dict{String, Float64}}(),
+                Dict{String, Dict{String, Vector{Float64}}}(),
+                0.0),
+        )
     end
 
     if markets[:REC] && projectdata["REC Eligible"]

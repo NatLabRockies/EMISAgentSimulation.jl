@@ -9,7 +9,10 @@ This struct holds the market price data for each product.
 mutable struct MarketPrices
     energy_price::Union{Nothing, Dict{String, AxisArrays.AxisArray{Float64, 3}}}
     reserve_price::Union{Nothing, Dict{String, Dict{String, Array{Float64, 2}}}}
-    capacity_price::Union{Nothing, Dict{String, Dict{String, AxisArrays.AxisArray{Float64, 1}}}}
+    capacity_price::Union{
+        Nothing,
+        Dict{String, Dict{String, AxisArrays.AxisArray{Float64, 1}}},
+    }
     rec_price::Union{Nothing, Dict{String, AxisArrays.AxisArray{Float64, 1}}}
     inertia_price::Union{Nothing, Dict{String, AxisArrays.AxisArray{Float64, 2}}}
 end
@@ -73,7 +76,11 @@ function set_reserve_price!(
     return
 end
 
-function set_capacity_price!(prices::MarketPrices, scenario_name::String, capacity_price::Dict{String, <:AxisArrays.AxisArray{Float64, 1}})
+function set_capacity_price!(
+    prices::MarketPrices,
+    scenario_name::String,
+    capacity_price::Dict{String, <:AxisArrays.AxisArray{Float64, 1}},
+)
     if !isnothing(prices.capacity_price)
         prices.capacity_price[scenario_name] = capacity_price
     else

@@ -196,7 +196,9 @@ function create_realized_marketdata(simulation::AgentSimulation,
         season => AxisArrays.AxisArray(reshape([0.0], 1), [1]) for season in seasons
     )
     capacity_accepted_bids_dict =
-        Dict{String, Dict{String, Float64}}(season => Dict("no_accepted_bids" => 0.0) for season in seasons)
+        Dict{String, Dict{String, Float64}}(
+            season => Dict("no_accepted_bids" => 0.0) for season in seasons
+        )
 
     if in(:Capacity, market_names) &&
        iteration_year + capacity_forward_years - 1 <= simulation_years
@@ -259,7 +261,11 @@ function create_realized_marketdata(simulation::AgentSimulation,
             )
 
             capacity_price_dict[season], capacity_accepted_bids_dict[season] =
-                capacity_market_clearing(seasonal_demand_curve, seasonal_supply_curve, solver)
+                capacity_market_clearing(
+                    seasonal_demand_curve,
+                    seasonal_supply_curve,
+                    solver,
+                )
         end
     end
 

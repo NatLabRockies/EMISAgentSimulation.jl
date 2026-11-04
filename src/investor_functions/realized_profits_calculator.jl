@@ -160,26 +160,25 @@ end
 This function does nothing if the method is not specified for a product.
 """
 function calculate_realized_profit(project::Project,
-                                   product::T,
-                                   market_prices::MarketPrices,
-                                   capacity_factors_md::Dict{String, Array{Float64, 2}},
-                                   capacity_factors_uc::Dict{String, Array{Float64, 2}},
-                                   capacity_factors_ed::Dict{String, Array{Float64, 2}},
-                                   reserve_perc_md::Dict{String, Dict{String, Array{Float64, 2}}},
-                                   reserve_perc_uc::Dict{String, Dict{String, Array{Float64, 2}}},
-                                   reserve_perc_ed::Dict{String, Dict{String, Array{Float64, 2}}},
-                                   inertia_perc::Dict{String, Array{Float64, 2}},
-                                   capacity_accepted_bids::Dict{String, Dict{String, Float64}},
-                                   rec_accepted_bids::Dict{String, Float64},
-                                   realized_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
-                                   iteration_year::Int64,
-                                   capacity_forward_years::Int64,
-                                   carbon_tax::Float64,
-                                   da_resolution::Int64,
-                                   rt_resolution::Int64,
-                                   rt_products::Vector{String},
-                                   pcm_scenario::String) where T <: Product
-
+    product::T,
+    market_prices::MarketPrices,
+    capacity_factors_md::Dict{String, Array{Float64, 2}},
+    capacity_factors_uc::Dict{String, Array{Float64, 2}},
+    capacity_factors_ed::Dict{String, Array{Float64, 2}},
+    reserve_perc_md::Dict{String, Dict{String, Array{Float64, 2}}},
+    reserve_perc_uc::Dict{String, Dict{String, Array{Float64, 2}}},
+    reserve_perc_ed::Dict{String, Dict{String, Array{Float64, 2}}},
+    inertia_perc::Dict{String, Array{Float64, 2}},
+    capacity_accepted_bids::Dict{String, Dict{String, Float64}},
+    rec_accepted_bids::Dict{String, Float64},
+    realized_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
+    iteration_year::Int64,
+    capacity_forward_years::Int64,
+    carbon_tax::Float64,
+    da_resolution::Int64,
+    rt_resolution::Int64,
+    rt_products::Vector{String},
+    pcm_scenario::String) where {T <: Product}
     return nothing, 0
 end
 
@@ -187,26 +186,25 @@ end
 This function calculates the realized energy market profits.
 """
 function calculate_realized_profit(project::Project,
-                                   product::Energy,
-                                   market_prices::MarketPrices,
-                                   capacity_factors_md::Dict{String, Array{Float64, 2}},
-                                   capacity_factors_uc::Dict{String, Array{Float64, 2}},
-                                   capacity_factors_ed::Dict{String, Array{Float64, 2}},
-                                   reserve_perc_md::Dict{String, Dict{String, Array{Float64, 2}}},
-                                   reserve_perc_uc::Dict{String, Dict{String, Array{Float64, 2}}},
-                                   reserve_perc_ed::Dict{String, Dict{String, Array{Float64, 2}}},
-                                   inertia_perc::Dict{String, Array{Float64, 2}},
-                                   capacity_accepted_bids::Dict{String, Dict{String, Float64}},
-                                   rec_accepted_bids::Dict{String, Float64},
-                                   realized_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
-                                   iteration_year::Int64,
-                                   capacity_forward_years::Int64,
-                                   carbon_tax::Float64,
-                                   da_resolution::Int64,
-                                   rt_resolution::Int64,
-                                   rt_products::Vector{String},
-                                   pcm_scenario::String)
-
+    product::Energy,
+    market_prices::MarketPrices,
+    capacity_factors_md::Dict{String, Array{Float64, 2}},
+    capacity_factors_uc::Dict{String, Array{Float64, 2}},
+    capacity_factors_ed::Dict{String, Array{Float64, 2}},
+    reserve_perc_md::Dict{String, Dict{String, Array{Float64, 2}}},
+    reserve_perc_uc::Dict{String, Dict{String, Array{Float64, 2}}},
+    reserve_perc_ed::Dict{String, Dict{String, Array{Float64, 2}}},
+    inertia_perc::Dict{String, Array{Float64, 2}},
+    capacity_accepted_bids::Dict{String, Dict{String, Float64}},
+    rec_accepted_bids::Dict{String, Float64},
+    realized_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
+    iteration_year::Int64,
+    capacity_forward_years::Int64,
+    carbon_tax::Float64,
+    da_resolution::Int64,
+    rt_resolution::Int64,
+    rt_products::Vector{String},
+    pcm_scenario::String)
     project_name = get_name(project)
     size = get_maxcap(project)
     zone = get_zone(get_tech(project))
@@ -262,26 +260,25 @@ end
 This function calculates the realized reserve up market profits.
 """
 function calculate_realized_profit(project::Project,
-                                  product::Union{OperatingReserve{ReserveUpEMIS}, OperatingReserve{ReserveDownEMIS}},
-                                  market_prices::MarketPrices,
-                                  capacity_factors_md::Dict{String, Array{Float64, 2}},
-                                  capacity_factors_uc::Dict{String, Array{Float64, 2}},
-                                  capacity_factors_ed::Dict{String, Array{Float64, 2}},
-                                  reserve_perc_md::Dict{String, Dict{String, Array{Float64, 2}}},
-                                  reserve_perc_uc::Dict{String, Dict{String, Array{Float64, 2}}},
-                                  reserve_perc_ed::Dict{String, Dict{String, Array{Float64, 2}}},
-                                  inertia_perc::Dict{String, Array{Float64, 2}},
-                                  capacity_accepted_bids::Dict{String, Dict{String, Float64}},
-                                  rec_accepted_bids::Dict{String, Float64},
-                                  realized_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
-                                  iteration_year::Int64,
-                                  capacity_forward_years::Int64,
-                                  carbon_tax::Float64,
-                                  da_resolution::Int64,
-                                  rt_resolution::Int64,
-                                  rt_products::Vector{String},
-                                  pcm_scenario::String)
-
+    product::Union{OperatingReserve{ReserveUpEMIS}, OperatingReserve{ReserveDownEMIS}},
+    market_prices::MarketPrices,
+    capacity_factors_md::Dict{String, Array{Float64, 2}},
+    capacity_factors_uc::Dict{String, Array{Float64, 2}},
+    capacity_factors_ed::Dict{String, Array{Float64, 2}},
+    reserve_perc_md::Dict{String, Dict{String, Array{Float64, 2}}},
+    reserve_perc_uc::Dict{String, Dict{String, Array{Float64, 2}}},
+    reserve_perc_ed::Dict{String, Dict{String, Array{Float64, 2}}},
+    inertia_perc::Dict{String, Array{Float64, 2}},
+    capacity_accepted_bids::Dict{String, Dict{String, Float64}},
+    rec_accepted_bids::Dict{String, Float64},
+    realized_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
+    iteration_year::Int64,
+    capacity_forward_years::Int64,
+    carbon_tax::Float64,
+    da_resolution::Int64,
+    rt_resolution::Int64,
+    rt_products::Vector{String},
+    pcm_scenario::String)
     project_name = get_name(project)
     size = get_maxcap(project)
 
@@ -320,26 +317,25 @@ end
 This function calculates the realized capacity market profits.
 """
 function calculate_realized_profit(project::Project,
-                                  product::Capacity,
-                                  market_prices::MarketPrices,
-                                  capacity_factors_md::Dict{String, Array{Float64, 2}},
-                                  capacity_factors_uc::Dict{String, Array{Float64, 2}},
-                                  capacity_factors_ed::Dict{String, Array{Float64, 2}},
-                                  reserve_perc_md::Dict{String, Dict{String, Array{Float64, 2}}},
-                                  reserve_perc_uc::Dict{String, Dict{String, Array{Float64, 2}}},
-                                  reserve_perc_ed::Dict{String, Dict{String, Array{Float64, 2}}},
-                                  inertia_perc::Dict{String, Array{Float64, 2}},
-                                  capacity_accepted_bids::Dict{String, Dict{String, Float64}},
-                                  rec_accepted_bids::Dict{String, Float64},
-                                  realized_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
-                                  iteration_year::Int64,
-                                  capacity_forward_years::Int64,
-                                  carbon_tax::Float64,
-                                  da_resolution::Int64,
-                                  rt_resolution::Int64,
-                                  rt_products::Vector{String},
-                                  pcm_scenario::String)
-
+    product::Capacity,
+    market_prices::MarketPrices,
+    capacity_factors_md::Dict{String, Array{Float64, 2}},
+    capacity_factors_uc::Dict{String, Array{Float64, 2}},
+    capacity_factors_ed::Dict{String, Array{Float64, 2}},
+    reserve_perc_md::Dict{String, Dict{String, Array{Float64, 2}}},
+    reserve_perc_uc::Dict{String, Dict{String, Array{Float64, 2}}},
+    reserve_perc_ed::Dict{String, Dict{String, Array{Float64, 2}}},
+    inertia_perc::Dict{String, Array{Float64, 2}},
+    capacity_accepted_bids::Dict{String, Dict{String, Float64}},
+    rec_accepted_bids::Dict{String, Float64},
+    realized_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
+    iteration_year::Int64,
+    capacity_forward_years::Int64,
+    carbon_tax::Float64,
+    da_resolution::Int64,
+    rt_resolution::Int64,
+    rt_products::Vector{String},
+    pcm_scenario::String)
     project_name = get_name(project)
     size = get_maxcap(project)
 
@@ -360,10 +356,11 @@ function calculate_realized_profit(project::Project,
         season_bids = get(capacity_accepted_bids, season, Dict{String, Float64}())
         if in(project_name, keys(season_bids))
             cleared_any = true
-            profit += size *
-                      get_derating(product, pcm_scenario, season) *
-                      season_price[1] *
-                      season_bids[project_name]
+            profit +=
+                size *
+                get_derating(product, pcm_scenario, season) *
+                season_price[1] *
+                season_bids[project_name]
         end
     end
 
@@ -378,26 +375,25 @@ end
 This function calculates the realized REC market profits.
 """
 function calculate_realized_profit(project::Project,
-                                  product::REC,
-                                  market_prices::MarketPrices,
-                                  capacity_factors_md::Dict{String, Array{Float64, 2}},
-                                  capacity_factors_uc::Dict{String, Array{Float64, 2}},
-                                  capacity_factors_ed::Dict{String, Array{Float64, 2}},
-                                  reserve_perc_md::Dict{String, Dict{String, Array{Float64, 2}}},
-                                  reserve_perc_uc::Dict{String, Dict{String, Array{Float64, 2}}},
-                                  reserve_perc_ed::Dict{String, Dict{String, Array{Float64, 2}}},
-                                  inertia_perc::Dict{String, Array{Float64, 2}},
-                                  capacity_accepted_bids::Dict{String, Dict{String, Float64}},
-                                  rec_accepted_bids::Dict{String, Float64},
-                                  realized_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
-                                  iteration_year::Int64,
-                                  capacity_forward_years::Int64,
-                                  carbon_tax::Float64,
-                                  da_resolution::Int64,
-                                  rt_resolution::Int64,
-                                  rt_products::Vector{String},
-                                  pcm_scenario::String)
-
+    product::REC,
+    market_prices::MarketPrices,
+    capacity_factors_md::Dict{String, Array{Float64, 2}},
+    capacity_factors_uc::Dict{String, Array{Float64, 2}},
+    capacity_factors_ed::Dict{String, Array{Float64, 2}},
+    reserve_perc_md::Dict{String, Dict{String, Array{Float64, 2}}},
+    reserve_perc_uc::Dict{String, Dict{String, Array{Float64, 2}}},
+    reserve_perc_ed::Dict{String, Dict{String, Array{Float64, 2}}},
+    inertia_perc::Dict{String, Array{Float64, 2}},
+    capacity_accepted_bids::Dict{String, Dict{String, Float64}},
+    rec_accepted_bids::Dict{String, Float64},
+    realized_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
+    iteration_year::Int64,
+    capacity_forward_years::Int64,
+    carbon_tax::Float64,
+    da_resolution::Int64,
+    rt_resolution::Int64,
+    rt_products::Vector{String},
+    pcm_scenario::String)
     project_name = get_name(project)
     update_year = iteration_year
     if in(project_name, keys(rec_accepted_bids))
@@ -415,26 +411,25 @@ end
 This function calculates the realized Inertia market profits.
 """
 function calculate_realized_profit(project::Project,
-                                  product::Inertia,
-                                  market_prices::MarketPrices,
-                                  capacity_factors_md::Dict{String, Array{Float64, 2}},
-                                  capacity_factors_uc::Dict{String, Array{Float64, 2}},
-                                  capacity_factors_ed::Dict{String, Array{Float64, 2}},
-                                  reserve_perc_md::Dict{String, Dict{String, Array{Float64, 2}}},
-                                  reserve_perc_uc::Dict{String, Dict{String, Array{Float64, 2}}},
-                                  reserve_perc_ed::Dict{String, Dict{String, Array{Float64, 2}}},
-                                  inertia_perc::Dict{String, Array{Float64, 2}},
-                                  capacity_accepted_bids::Dict{String, Dict{String, Float64}},
-                                  rec_accepted_bids::Dict{String, Float64},
-                                  realized_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
-                                  iteration_year::Int64,
-                                  capacity_forward_years::Int64,
-                                  carbon_tax::Float64,
-                                  da_resolution::Int64,
-                                  rt_resolution::Int64,
-                                  rt_products::Vector{String},
-                                  pcm_scenario::String)
-
+    product::Inertia,
+    market_prices::MarketPrices,
+    capacity_factors_md::Dict{String, Array{Float64, 2}},
+    capacity_factors_uc::Dict{String, Array{Float64, 2}},
+    capacity_factors_ed::Dict{String, Array{Float64, 2}},
+    reserve_perc_md::Dict{String, Dict{String, Array{Float64, 2}}},
+    reserve_perc_uc::Dict{String, Dict{String, Array{Float64, 2}}},
+    reserve_perc_ed::Dict{String, Dict{String, Array{Float64, 2}}},
+    inertia_perc::Dict{String, Array{Float64, 2}},
+    capacity_accepted_bids::Dict{String, Dict{String, Float64}},
+    rec_accepted_bids::Dict{String, Float64},
+    realized_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
+    iteration_year::Int64,
+    capacity_forward_years::Int64,
+    carbon_tax::Float64,
+    da_resolution::Int64,
+    rt_resolution::Int64,
+    rt_products::Vector{String},
+    pcm_scenario::String)
     project_name = get_name(project)
     size = get_maxcap(project)
 

@@ -160,7 +160,10 @@ In annual mode the Dict has a single `"annual"` key; in seasonal mode it has one
 (e.g. `"summer"`, `"winter"`). Returns an empty `Dict{String, Float64}()` if the project has no
 capacity market participation (no `Capacity` product).
 """
-function get_project_derating(project::P, scenario::String) where P <: Project{<: BuildPhase}
+function get_project_derating(
+    project::P,
+    scenario::String,
+) where {P <: Project{<: BuildPhase}}
     derating_factor = Dict{String, Float64}()
     for product in get_products(project)
         derating_temp = get_derating(product)
@@ -479,7 +482,8 @@ function create_market_project(project::P,
 
     market_project.name = "option_$(market_project.tech_type)_$(market_project.zone)"
 
-    if isempty(market_project.derating_factor) || all(values(market_project.derating_factor) .== 0.0)
+    if isempty(market_project.derating_factor) ||
+       all(values(market_project.derating_factor) .== 0.0)
         derating = 0.5                              # Dummy derating for maximum capacity if capacity product doesn't exist
     else
         derating = maximum(values(market_project.derating_factor))

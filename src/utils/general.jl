@@ -421,7 +421,10 @@ function season_hour_columns(season_months::Vector{Int64}, simulation_years::Int
     season_month_set = Set(season_months)
     # Precompute the constant hour-of-year → month table once (non-leap reference year),
     # matching the no-leap 8760-hour data blocks rather than the leap-aware timestamp axis.
-    hoy_month = [Dates.month(SIM_START_DATE + Dates.Hour(hoy)) for hoy in 0:(DEFAULT_HOURS_PER_YEAR - 1)]
+    hoy_month = [
+        Dates.month(SIM_START_DATE + Dates.Hour(hoy)) for
+        hoy in 0:(DEFAULT_HOURS_PER_YEAR - 1)
+    ]
     cols = Int[]
     for h in 1:total_hours
         hoy = mod(h - 1, DEFAULT_HOURS_PER_YEAR)
@@ -507,8 +510,8 @@ The `"annual"` season covers all months (`season_months_for`), so
 annual peak. Errors if a season has no hours in `load_data`.
 """
 function seasonal_peak_loads(load_data::DataFrames.DataFrame,
-                             season_months::Dict{String, Vector{Int64}},
-                             seasons::Vector{String})
+    season_months::Dict{String, Vector{Int64}},
+    seasons::Vector{String})
     zone_data = load_data[:, DataFrames.Not(:Year, :Month, :Day, :Period)]
     system_load = vec(sum(Matrix{Float64}(zone_data); dims = 2))
     months = derive_month_vector(load_data)
@@ -518,8 +521,10 @@ function seasonal_peak_loads(load_data::DataFrames.DataFrame,
         month_set = Set(season_months_for(season_months, season))
         mask = map(m -> m in month_set, months)
         if !any(mask)
-            error("No load hours found for capacity season '$season' " *
-                  "(months $(sort(collect(month_set)))) in the load data.")
+            error(
+                "No load hours found for capacity season '$season' " *
+                "(months $(sort(collect(month_set)))) in the load data.",
+            )
         end
         peaks[season] = maximum(system_load[mask])
     end
@@ -537,12 +542,14 @@ Callers skip this in annual mode and use `peak_load` directly, so annual runs do
 extra file reads.
 """
 function seasonal_peak_loads(timeseries_data_dir::String,
-                             scenario::String,
-                             sim_year::Int64,
-                             season_months::Dict{String, Vector{Int64}},
-                             seasons::Vector{String})
-    load_data = read_data(joinpath(timeseries_data_dir, scenario,
-                                   "sim_year_$(sim_year)", "Load", "load.csv"))
+    scenario::String,
+    sim_year::Int64,
+    season_months::Dict{String, Vector{Int64}},
+    seasons::Vector{String})
+    load_data = read_data(
+        joinpath(timeseries_data_dir, scenario,
+            "sim_year_$(sim_year)", "Load", "load.csv"),
+    )
     return seasonal_peak_loads(load_data, season_months, seasons)
 end
 
@@ -561,24 +568,26 @@ Peak load per capacity season, used for each season's reliability requirement.
   results would be silently inconsistent, so it errors.
 """
 function resolve_seasonal_peak_loads(annual_peak::Float64,
-                                     timeseries_data_dir::String,
-                                     scenario::String,
-                                     sim_year::Int64,
-                                     season_months::Dict{String, Vector{Int64}},
-                                     seasons::Vector{String})
+    timeseries_data_dir::String,
+    scenario::String,
+    sim_year::Int64,
+    season_months::Dict{String, Vector{Int64}},
+    seasons::Vector{String})
     if seasons == ["annual"]
         return Dict{String, Float64}("annual" => annual_peak)
     end
 
     peaks = seasonal_peak_loads(timeseries_data_dir, scenario, sim_year,
-                                season_months, seasons)
+        season_months, seasons)
 
     covered = sort(vcat([season_months_for(season_months, s) for s in seasons]...))
     if covered == collect(1:12) &&
        !isapprox(maximum(values(peaks)), annual_peak; rtol = 1e-6)
-        error("Seasonal peak loads $(peaks) for scenario '$scenario', sim_year " *
-              "$sim_year: the largest seasonal peak does not equal the annual peak " *
-              "$annual_peak used elsewhere. Check load.csv under $timeseries_data_dir.")
+        error(
+            "Seasonal peak loads $(peaks) for scenario '$scenario', sim_year " *
+            "$sim_year: the largest seasonal peak does not equal the annual peak " *
+            "$annual_peak used elsewhere. Check load.csv under $timeseries_data_dir.",
+        )
     end
     return peaks
 end

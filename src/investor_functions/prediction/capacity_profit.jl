@@ -2,12 +2,12 @@
 This function does nothing if the product is not of Capacity type.
 """
 function update_capacity_revenues!(product::T,
-                                scenario_name::String,
-                                price_years::NamedTuple{(:start_year, :end_year),
-                                    Tuple{Int64, Int64}},
-                                capacity_revenues::Vector{Float64},
-                                capacity_prices::Dict{String, <:Dict{String, <:AxisArrays.AxisArray{Float64, 1}}},
-                                max_cap::Float64) where T <: Product
+    scenario_name::String,
+    price_years::NamedTuple{(:start_year, :end_year),
+        Tuple{Int64, Int64}},
+    capacity_revenues::Vector{Float64},
+    capacity_prices::Dict{String, <:Dict{String, <:AxisArrays.AxisArray{Float64, 1}}},
+    max_cap::Float64) where {T <: Product}
     return capacity_revenues
 end
 
@@ -16,21 +16,21 @@ This function calculates expected capacity revenues for each project.
 Returns capacity revenues.
 """
 function update_capacity_revenues!(product::Capacity,
-                                scenario_name::String,
-                                price_years::NamedTuple{(:start_year, :end_year),
-                                    Tuple{Int64, Int64}},
-                                capacity_revenues::Vector{Float64},
-                                capacity_prices::Dict{String, <:Dict{String, <:AxisArrays.AxisArray{Float64, 1}}},
-                                max_cap::Float64)
+    scenario_name::String,
+    price_years::NamedTuple{(:start_year, :end_year),
+        Tuple{Int64, Int64}},
+    capacity_revenues::Vector{Float64},
+    capacity_prices::Dict{String, <:Dict{String, <:AxisArrays.AxisArray{Float64, 1}}},
+    max_cap::Float64)
     years = price_years[:start_year]:price_years[:end_year]
 
     # Sum expected revenue over capacity seasons ("annual" only in non-seasonal mode).
     for (season, season_prices) in capacity_prices[scenario_name]
-
-        capacity_revenues += season_prices[years] .* 
-                         get_accepted_perc(product, scenario_name, season)[years] *
-                         max_cap *
-                         get_derating(product, scenario_name, season)
+        capacity_revenues +=
+            season_prices[years] .*
+            get_accepted_perc(product, scenario_name, season)[years] *
+            max_cap *
+            get_derating(product, scenario_name, season)
     end
     return capacity_revenues
 end

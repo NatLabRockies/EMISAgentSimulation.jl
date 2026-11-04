@@ -26,7 +26,6 @@ function create_cem_mkt_clr_problem(investor_dir::String,
     iteration_year::Int64,
     yearly_horizon::Int64,
     timeseries_data_dir::String)
-
     @info "Function create_cem_clr_problem"
     @info "Creating CEM market clearing problem for $(investor_dir) in year $(iteration_year) with solver."
 
@@ -224,7 +223,7 @@ function create_cem_mkt_clr_problem(investor_dir::String,
 
     rec_markets = Vector{RECMarket}(undef, num_invperiods)
     inertia_markets = Vector{InertiaMarket}(undef, num_invperiods)
-    
+
     capacity_mkt_params_all = read_data(capacity_mkt_param_file)
     capacity_mkt_params = capacity_mkt_params_all[1, :]
 
@@ -273,7 +272,7 @@ function create_cem_mkt_clr_problem(investor_dir::String,
                 capacity_mkt_active;
                 season_share = season_share(season_months_for(season_months, season)),
             ) for season in seasons)
-            
+
         rec_markets[p] = RECMarket(
             min(rec_req + rec_annual_increment * (p + iteration_year - 1), 1),
             price_cap_rec,

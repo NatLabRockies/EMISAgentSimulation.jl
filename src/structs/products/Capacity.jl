@@ -16,18 +16,25 @@ end
 get_derating(prod::Product) = nothing
 get_derating(prod::Product, scenario::String, season::String) = nothing
 get_derating(prod::Capacity) = prod.derating
-get_derating(prod::Capacity, scenario::String, season::String) = prod.derating[scenario][season]
+get_derating(prod::Capacity, scenario::String, season::String) =
+    prod.derating[scenario][season]
 get_derating(prod::Capacity, scenario::String) = prod.derating[scenario]["annual"]
 get_accepted_perc(prod::Product) = nothing
 get_accepted_perc(prod::Product, scenario::String, season::String) = nothing
 get_accepted_perc(prod::Capacity) = prod.accepted_perc
-get_accepted_perc(prod::Capacity, scenario::String, season::String) = prod.accepted_perc[scenario][season]
+get_accepted_perc(prod::Capacity, scenario::String, season::String) =
+    prod.accepted_perc[scenario][season]
 get_accepted_perc(prod::Capacity, scenario::String) = prod.accepted_perc[scenario]["annual"]
 get_capacity_bid(prod::Product) = nothing
 get_capacity_bid(prod::Capacity) = prod.capacity_bid
 
 # Derating factors only set when product is of type Capacity
-function set_derating!(prod::T, scenario::String, season::String, derating_factor) where T <: Product
+function set_derating!(
+    prod::T,
+    scenario::String,
+    season::String,
+    derating_factor,
+) where {T <: Product}
     return
 end
 
@@ -40,7 +47,7 @@ function set_derating!(prod::Capacity, scenario::String, season::String, deratin
 end
 
 # Capacity bids only set when product is of type Capacity
-function set_capacity_bid!(prod::T, capacity_bid) where T <: Product
+function set_capacity_bid!(prod::T, capacity_bid) where {T <: Product}
     return
 end
 
@@ -51,16 +58,16 @@ end
 
 # Capacity accepted percentage only set when product is of type Capacity
 function set_accepted_perc!(product::T,
-                            scenario_name::String,
-                            season::String,
-                            capacity_accepted_perc::Array{Float64, 1}) where T <: Product
+    scenario_name::String,
+    season::String,
+    capacity_accepted_perc::Array{Float64, 1}) where {T <: Product}
     return
 end
 
 function set_accepted_perc!(product::Capacity,
-                            scenario_name::String,
-                            season::String,
-                            capacity_accepted_perc::Array{Float64, 1})
+    scenario_name::String,
+    season::String,
+    capacity_accepted_perc::Array{Float64, 1})
     if !haskey(product.accepted_perc, scenario_name)
         product.accepted_perc[scenario_name] = Dict{String, Vector{Float64}}()
     end

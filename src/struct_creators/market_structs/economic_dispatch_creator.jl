@@ -166,8 +166,10 @@ function create_economic_dispatch_problem(simulation::AgentSimulation,
         # Create market products data for the horizon
         for p in 1:num_invperiods
             system_peak_load = peak_load
-            capacity_markets[p] = Dict("annual" => create_capacity_demand_curve(
-            capacity_mkt_param_file, system_peak_load, irm_scalar, delta_irm, capacity_market_bool)
+            capacity_markets[p] = Dict(
+                "annual" => create_capacity_demand_curve(
+                    capacity_mkt_param_file, system_peak_load, irm_scalar,
+                    delta_irm, capacity_market_bool),
             )
 
             energy_markets[p] = EnergyMarket(

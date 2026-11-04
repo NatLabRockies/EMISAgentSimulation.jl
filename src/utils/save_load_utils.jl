@@ -725,7 +725,11 @@ end
 
 function _ordered_keys(parent::HDF5.Group, child::String)
     order_name = child * "_order"
-    return haskey(parent, order_name) ? read(parent, order_name) : collect(keys(parent[child]))
+    return if haskey(parent, order_name)
+        read(parent, order_name)
+    else
+        collect(keys(parent[child]))
+    end
 end
 
 function save_forecast!(g::HDF5.Group, f::Perfect)
@@ -1583,16 +1587,24 @@ function load_product(g::HDF5.Group)
         # "annual" season so old files load in default annual mode.
         der_g = g["derating"]
         der = Dict(
-            scen => (der_g[scen] isa HDF5.Group ?
-                     Dict(season => read(der_g[scen], season) for season in keys(der_g[scen])) :
-                     Dict("annual" => read(der_g, scen)))
+            scen => (
+                if der_g[scen] isa HDF5.Group
+                    Dict(season => read(der_g[scen], season) for season in keys(der_g[scen]))
+                else
+                    Dict("annual" => read(der_g, scen))
+                end
+            )
             for scen in keys(der_g)
         )
         ap_g = g["accepted_perc"]
         ap = Dict(
-            scen => (ap_g[scen] isa HDF5.Group ?
-                     Dict(season => read(ap_g[scen], season) for season in keys(ap_g[scen])) :
-                     Dict("annual" => read(ap_g, scen)))
+            scen => (
+                if ap_g[scen] isa HDF5.Group
+                    Dict(season => read(ap_g[scen], season) for season in keys(ap_g[scen]))
+                else
+                    Dict("annual" => read(ap_g, scen))
+                end
+            )
             for scen in keys(ap_g)
         )
         return Capacity(name, der, ap, bid)
@@ -2593,7 +2605,8 @@ function load_realized_market_data(path::String)
             "reserve_perc_md" => _load_nested_dict_str_matrix(f["reserve_perc_md"]),
             "reserve_perc_uc" => _load_nested_dict_str_matrix(f["reserve_perc_uc"]),
             "reserve_perc_ed" => _load_nested_dict_str_matrix(f["reserve_perc_ed"]),
-            "capacity_accepted_bids" => load_capacity_bids_seasonal(f["capacity_accepted_bids"]),
+            "capacity_accepted_bids" =>
+                load_capacity_bids_seasonal(f["capacity_accepted_bids"]),
             "rec_accepted_bids" => _load_dict_str_float(f["rec_accepted_bids"]),
             "inertia_perc" => _load_dict_str_matrix(f["inertia_perc"]),
             "start_up_costs" => _load_dict_str_matrix(f["start_up_costs"]),

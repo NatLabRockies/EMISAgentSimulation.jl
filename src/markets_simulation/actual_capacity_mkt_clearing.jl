@@ -9,11 +9,11 @@ collapses to annual-only (`is_annual_only_seasons`); otherwise returns the seaso
 names from `season_months`.
 """
 function resolve_capacity_seasons(season_months::Dict{String, Vector{Int64}},
-                                  seasonal_capacity_market::Bool)
-   if is_annual_only_seasons(season_months, seasonal_capacity_market)
-      return ["annual"]
-   end
-   return collect(keys(season_months))
+    seasonal_capacity_market::Bool)
+    if is_annual_only_seasons(season_months, seasonal_capacity_market)
+        return ["annual"]
+    end
+    return collect(keys(season_months))
 end
 
 """
@@ -28,71 +28,84 @@ no explicit `annual` row, and a `Capacity.csv` out of sync with `capacity_season
 When no `season` column exists, every requested season maps to that first row.
 """
 function index_capacity_params_by_season(capacity_mkt_params_all,
-                                         seasons::Vector{String})
-   first_row = capacity_mkt_params_all[1, :]
-   if "season" in DataFrames.names(capacity_mkt_params_all)
-      rows_by_season = Dict(String(row["season"]) => row
-                            for row in DataFrames.eachrow(capacity_mkt_params_all))
-      # A requested season with no matching row is expected only for the annual-mode
-      # fallback (toggle off -> seasons == ["annual"] while Capacity.csv still carries
-      # seasonal rows). Any other unmatched season means Capacity.csv is out of sync
-      # with capacity_seasons.csv, so warn before falling back to the first row.
-      for season in seasons
-         haskey(rows_by_season, season) && continue
-         @warn "Season '$season' has no matching row in Capacity.csv's 'season' " *
-               "column; falling back to the first row (season " *
-               "'$(String(first_row["season"]))'). Available Capacity.csv seasons: " *
-               "$(sort(collect(keys(rows_by_season))))."
-      end
-      return Dict(season => get(rows_by_season, season, first_row) for season in seasons)
-   else
-      return Dict(season => first_row for season in seasons)
-   end
+    seasons::Vector{String})
+    first_row = capacity_mkt_params_all[1, :]
+    if "season" in DataFrames.names(capacity_mkt_params_all)
+        rows_by_season = Dict(
+            String(row["season"]) => row
+            for row in DataFrames.eachrow(capacity_mkt_params_all)
+        )
+        # A requested season with no matching row is expected only for the annual-mode
+        # fallback (toggle off -> seasons == ["annual"] while Capacity.csv still carries
+        # seasonal rows). Any other unmatched season means Capacity.csv is out of sync
+        # with capacity_seasons.csv, so warn before falling back to the first row.
+        for season in seasons
+            haskey(rows_by_season, season) && continue
+            @warn "Season '$season' has no matching row in Capacity.csv's 'season' " *
+                  "column; falling back to the first row (season " *
+                  "'$(String(first_row["season"]))'). Available Capacity.csv seasons: " *
+                  "$(sort(collect(keys(rows_by_season))))."
+        end
+        return Dict(season => get(rows_by_season, season, first_row) for season in seasons)
+    else
+        return Dict(season => first_row for season in seasons)
+    end
 end
 
 """
 This function does nothing if the product is not Capacity
 """
-function update_capacity_supply_curve!(capacity_supply_curve::Vector{Vector{Union{String, Float64}}},
-                                       product::T,
-                                       project::P,
-                                       scenario::String,
-                                       season::String) where {T <: Product, P <: Project{<: BuildPhase}}
-
-   return capacity_supply_curve
+function update_capacity_supply_curve!(
+    capacity_supply_curve::Vector{Vector{Union{String, Float64}}},
+    product::T,
+    project::P,
+    scenario::String,
+    season::String) where {T <: Product, P <: Project{<: BuildPhase}}
+    return capacity_supply_curve
 end
 
 """
 This function pushes project bids in the capacity supply curve
 """
-function update_capacity_supply_curve!(capacity_supply_curve::Vector{Vector{Union{String, Float64}}},
-                                       product::Capacity,
-                                       project::P,
-                                       scenario::String,
-                                       season::String) where P <: Project{<: BuildPhase}
+function update_capacity_supply_curve!(
+    capacity_supply_curve::Vector{Vector{Union{String, Float64}}},
+    product::Capacity,
+    project::P,
+    scenario::String,
+    season::String) where {P <: Project{<: BuildPhase}}
 
-   # Each Element of the Supply Curve:
-   #   [1] - Project Name
-   #   [2] - Project Size
-   #   [3] - Project Capacity Bid
-   #   [4] - Project Derating Factor (season-specific)
+    # Each Element of the Supply Curve:
+    #   [1] - Project Name
+    #   [2] - Project Size
+    #   [3] - Project Capacity Bid
+    #   [4] - Project Derating Factor (season-specific)
 
-   push!(capacity_supply_curve, [get_name(project),
-                                 get_maxcap(project),
-                                 get_project_capacity_market_bid(project),
-                                 get(get_project_derating(project, scenario), season, 0.0)])
-   return capacity_supply_curve
+    push!(
+        capacity_supply_curve,
+        [get_name(project),
+            get_maxcap(project),
+            get_project_capacity_market_bid(project),
+            get(get_project_derating(project, scenario), season, 0.0)],
+    )
+    return capacity_supply_curve
 end
 
 """
 Transitional annual wrapper — keeps the existing 4-arg caller compiling until the
 Phase 4b seasonal clearing loop passes an explicit `season`. Remove once 4b lands.
 """
-function update_capacity_supply_curve!(capacity_supply_curve::Vector{Vector{Union{String, Float64}}},
-                                       product::T,
-                                       project::P,
-                                       scenario::String) where {T <: Product, P <: Project{<: BuildPhase}}
-   return update_capacity_supply_curve!(capacity_supply_curve, product, project, scenario, "annual")
+function update_capacity_supply_curve!(
+    capacity_supply_curve::Vector{Vector{Union{String, Float64}}},
+    product::T,
+    project::P,
+    scenario::String) where {T <: Product, P <: Project{<: BuildPhase}}
+    return update_capacity_supply_curve!(
+        capacity_supply_curve,
+        product,
+        project,
+        scenario,
+        "annual",
+    )
 end
 
 """
@@ -103,12 +116,11 @@ function create_capacity_demand_curve(input_file::String,
     irm_scalar::Float64,
     delta_irm::Float64,
     capacity_mkt_bool::Bool)
-
-   return create_capacity_demand_curve(read_data(input_file)[1, :],
-                                       system_peak_load,
-                                       irm_scalar,
-                                       delta_irm,
-                                       capacity_mkt_bool)
+    return create_capacity_demand_curve(read_data(input_file)[1, :],
+        system_peak_load,
+        irm_scalar,
+        delta_irm,
+        capacity_mkt_bool)
 end
 
 """
@@ -128,30 +140,33 @@ Seasonal inputs:
 With `season_share = 1.0` (annual mode) the curve is exactly the pre-seasonal one.
 """
 function create_capacity_demand_curve(capacity_demand_params::DataFrames.DataFrameRow,
-                                      system_peak_load::Float64,
-                                      irm_scalar::Float64,
-                                      delta_irm::Float64,
-                                      capacity_mkt_bool::Bool;
-                                      season_share::Float64 = 1.0)
+    system_peak_load::Float64,
+    irm_scalar::Float64,
+    delta_irm::Float64,
+    capacity_mkt_bool::Bool;
+    season_share::Float64 = 1.0)
+    @assert 0.0 < season_share <= 1.0 "season_share must be in (0, 1], got $season_share"
 
-   @assert 0.0 < season_share <= 1.0 "season_share must be in (0, 1], got $season_share"
-
-   eford = capacity_demand_params["EFORd"] # Equivalent demand forced outage rate
-   base_irm = capacity_demand_params["IRM"] # Installed Reserve Margin
-   adjusted_irm = (base_irm + delta_irm) * irm_scalar
-   fpr = (1 + adjusted_irm) * (1 - eford) #Forecast Pool Req
-   rel_req = system_peak_load * fpr * capacity_mkt_bool # Reliability Requirement
-   irm_perc_points = parse.(Float64, split(capacity_demand_params["IRM perc points"], ";")) #Installed Reserve Margin percentage points
-   # Net CONE for this season: per-day value x 365 x season share (= x days in season).
-   net_CONE = capacity_demand_params["Net CONE per day"] * 365 * season_share * capacity_mkt_bool # Net CONE
-   net_CONE_perc_points = parse.(Float64, split(capacity_demand_params["Net CONE perc points"], ";")) #Net CONE percentage points
+    eford = capacity_demand_params["EFORd"] # Equivalent demand forced outage rate
+    base_irm = capacity_demand_params["IRM"] # Installed Reserve Margin
+    adjusted_irm = (base_irm + delta_irm) * irm_scalar
+    fpr = (1 + adjusted_irm) * (1 - eford) #Forecast Pool Req
+    rel_req = system_peak_load * fpr * capacity_mkt_bool # Reliability Requirement
+    irm_perc_points = parse.(Float64, split(capacity_demand_params["IRM perc points"], ";")) #Installed Reserve Margin percentage points
+    # Net CONE for this season: per-day value x 365 x season share (= x days in season).
+    net_CONE =
+        capacity_demand_params["Net CONE per day"] * 365 * season_share * capacity_mkt_bool # Net CONE
+    net_CONE_perc_points =
+        parse.(Float64, split(capacity_demand_params["Net CONE perc points"], ";")) #Net CONE percentage points
 
     @assert length(net_CONE_perc_points) == length(irm_perc_points)
 
-   # Gross CONE for this season, scaled the same way as Net CONE.
-   gross_CONE_value = capacity_demand_params["Gross CONE per day"] * 365 * season_share * capacity_mkt_bool  # Gross CONE
-   gross_CONE_points = zeros(length(net_CONE_perc_points))
-   gross_CONE_points[1] = gross_CONE_value
+    # Gross CONE for this season, scaled the same way as Net CONE.
+    gross_CONE_value =
+        capacity_demand_params["Gross CONE per day"] * 365 * season_share *
+        capacity_mkt_bool  # Gross CONE
+    gross_CONE_points = zeros(length(net_CONE_perc_points))
+    gross_CONE_points[1] = gross_CONE_value
 
     max_clear = capacity_demand_params["Max Clear"]
 

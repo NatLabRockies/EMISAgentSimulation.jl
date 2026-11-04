@@ -424,8 +424,11 @@ function cem(system::MarketClearingProblem{Z, T},
     )
 
     # Capacity market elastic demand, indexed by season
-    JuMP.@variable(m, d_cap[p in invperiods, season in seasons,
-                             s in 1:cap_numsegments[season][p]] >= 0)
+    JuMP.@variable(
+        m,
+        d_cap[p in invperiods, season in seasons,
+            s in 1:cap_numsegments[season][p]] >= 0
+    )
 
     # OPERATION DECISION VARIABLES
     JuMP.@variable(m, p_e[g in projects, p in invperiods, t in opperiods] >= 0) # Unit energy production [MW]
@@ -666,14 +669,18 @@ function cem(system::MarketClearingProblem{Z, T},
 
         # Capacity market welfare
         sum(
-            sum(d_cap[p, season, s] * cap_price_points[season][p][s] 
-            for season in seasons, s in 1:cap_numsegments[season][p]) *
+            sum(
+                d_cap[p, season, s] * cap_price_points[season][p][s]
+                for season in seasons, s in 1:cap_numsegments[season][p]
+            ) *
             social_npv_array[p] for p in invperiods
         )
         +
         1/2 * sum(
-            sum(cap_segmentgrad[season][p][s] * d_cap[p, season, s]^2
-            for season in seasons, s in 1:cap_numsegments[season][p]) *
+            sum(
+                cap_segmentgrad[season][p][s] * d_cap[p, season, s]^2
+                for season in seasons, s in 1:cap_numsegments[season][p]
+            ) *
             social_npv_array[p] for p in invperiods
         )
 
@@ -1038,7 +1045,9 @@ function cem(system::MarketClearingProblem{Z, T},
 
     # Capacity market
     JuMP.@constraint(m, capacity_market[p in invperiods, season in seasons],
-        sum(c[g, p] * max_gen[g] * derating_factor[g][season] for g in capacity_mkt_projects) ==
+        sum(
+            c[g, p] * max_gen[g] * derating_factor[g][season] for g in capacity_mkt_projects
+        ) ==
         sum(d_cap[p, season, s] for s in 1:cap_numsegments[season][p]))
 
     # REC market
@@ -1277,7 +1286,8 @@ function cem(system::MarketClearingProblem{Z, T},
 
     for p in invperiods
         for season in seasons
-            nominal_capacity_price[season][p] = capacity_price[p, season] / social_npv_array[p]
+            nominal_capacity_price[season][p] =
+                capacity_price[p, season] / social_npv_array[p]
         end
 
         nominal_REC_price[p] = REC_price[p] / social_npv_array[p]

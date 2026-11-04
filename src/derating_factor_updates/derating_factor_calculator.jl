@@ -140,7 +140,9 @@ function calculate_derating_data(simulation::Union{AgentSimulation, AgentSimulat
     if !isempty(missing_cols)
         # Missing columns mean the net-load dataframe was not written correctly; fail fast
         # rather than silently producing derating factors from incomplete data.
-        error("calculate_derating_data (year=$iteration_year, scenario=$scenario): columns missing from net-load CSV: $missing_cols. The net-load data was not written properly.")
+        error(
+            "calculate_derating_data (year=$iteration_year, scenario=$scenario): columns missing from net-load CSV: $missing_cols. The net-load data was not written properly.",
+        )
     end
 
     for zone in zones
@@ -381,8 +383,19 @@ function calculate_derating_data(simulation::Union{AgentSimulation, AgentSimulat
         end
 
         season_num_top_hours =
-            seasonal_mode ? max(1, Int(round(base_num_top_hours * simulation_years * length(season_months[season]) / 12))) :
-            Int(base_num_top_hours * simulation_years)
+            if seasonal_mode
+                max(
+                1,
+                Int(
+                    round(
+                        base_num_top_hours * simulation_years *
+                        length(season_months[season]) / 12,
+                    ),
+                ),
+            )
+            else
+                Int(base_num_top_hours * simulation_years)
+            end
 
         season_load_n_vg_data = load_n_vg_data[season_mask, :]
         season_availability_data = availability_data[season_mask, :]
@@ -439,11 +452,12 @@ function calculate_derating_data(simulation::Union{AgentSimulation, AgentSimulat
                 load_reduction =
                     gen_sorted_df[1:top_hours, "net_load_w/o_existing_$(type_zone_id)"] -
                     gen_sorted_df[1:top_hours, "net_load"]
-                derating_factors[season_row_index[season], "existing_$(type_zone_id)"] = min(
-                    sum(load_reduction) / type_zone_max_cap[type_zone_id] /
-                    top_hours,
-                    1.0,
-                )
+                derating_factors[season_row_index[season], "existing_$(type_zone_id)"] =
+                    min(
+                        sum(load_reduction) / type_zone_max_cap[type_zone_id] /
+                        top_hours,
+                        1.0,
+                    )
             end
         end
 
@@ -462,7 +476,9 @@ function calculate_derating_data(simulation::Union{AgentSimulation, AgentSimulat
                 season_availability_data[:, "$(type_zone_id)"] * gen_cap,
             )
             gen_sorted_df =
-                deepcopy(DataFrames.sort(net_load_df, "net_load_with_$(gen_name)"; rev = true))
+                deepcopy(
+                    DataFrames.sort(net_load_df, "net_load_with_$(gen_name)"; rev = true),
+                )
             top_hours = min(season_num_top_hours, DataFrames.nrow(gen_sorted_df))
             if top_hours == 0
                 continue
@@ -478,7 +494,13 @@ function calculate_derating_data(simulation::Union{AgentSimulation, AgentSimulat
 
         # Storage CC script (grouping hoisted above; only season-dependent values here)
         init_CC = Dict(
-            sd => ("STOR_$sd" in names(derating_factors) ? derating_factors[season_row_index[season], "STOR_$sd"] : 0.0) for
+            sd => (
+                if "STOR_$sd" in names(derating_factors)
+                    derating_factors[season_row_index[season], "STOR_$sd"]
+                else
+                    0.0
+                end
+            ) for
             sd in keys(existing_storage_duration_dict)
         )
         season_num_hours = DataFrames.nrow(net_load_df)
@@ -531,10 +553,19 @@ function calculate_derating_data(simulation::Union{AgentSimulation, AgentSimulat
         else
             for (stor_duration, battery_option) in option_storage_duration_dict
                 if "existing_STOR_$(stor_duration)" in names(derating_factors)
-                    derating_factors[season_row_index[season], "new_STOR_$(stor_duration)"] =
-                        derating_factors[season_row_index[season], "existing_STOR_$(stor_duration)"]
+                    derating_factors[
+                        season_row_index[season],
+                        "new_STOR_$(stor_duration)",
+                    ] =
+                        derating_factors[
+                            season_row_index[season],
+                            "existing_STOR_$(stor_duration)",
+                        ]
                 else
-                    derating_factors[season_row_index[season], "new_STOR_$(stor_duration)"] =
+                    derating_factors[
+                        season_row_index[season],
+                        "new_STOR_$(stor_duration)",
+                    ] =
                         derating_factors[season_row_index[season], "STOR_$(stor_duration)"]
                 end
             end
@@ -767,7 +798,10 @@ function calculate_derating_factors(
     # repeated per season. See subset_pras_system's docstring for the SoC/outage-seam
     # caveat inherent to this divide approach.
     base_pras_season_systems =
-        Dict(season => subset_pras_system(base_pras_system, cols) for (season, cols) in season_cols)
+        Dict(
+            season => subset_pras_system(base_pras_system, cols) for
+            (season, cols) in season_cols
+        )
     regional_load_shares_by_season = Dict(
         season => collect(get_regional_load_shares(sys)) for
         (season, sys) in base_pras_season_systems
@@ -816,7 +850,8 @@ function calculate_derating_factors(
                     season_base_systems =
                         [base_pras_season_systems[s] for s in valid_seasons]
                     season_augmented_systems = [
-                        subset_pras_system(augmented_pras_system_full, season_cols[s]) for
+                        subset_pras_system(augmented_pras_system_full, season_cols[s])
+                        for
                         s in valid_seasons
                     ]
                     accreditations = [
@@ -1152,7 +1187,9 @@ function update_derating_factor!(project::RenewableGenEMIS{Existing},
     )
     expected_col = "existing_$(type_zone_id)"
     if !in(expected_col, names(derating_data))
-        error("Derating column '$expected_col' not found for project '$name' (type_zone_id=$type_zone_id) in $derating_file. Available columns: $(names(derating_data)).")
+        error(
+            "Derating column '$expected_col' not found for project '$name' (type_zone_id=$type_zone_id) in $derating_file. Available columns: $(names(derating_data)).",
+        )
     end
 
     seasonal = "season" in names(derating_data)
@@ -1200,7 +1237,9 @@ function update_derating_factor!(project::RenewableGenEMIS{<:BuildPhase},
     )
     col_name = marginal_cc ? "new_$(type_zone_id)" : "existing_$(type_zone_id)"
     if !in(col_name, names(derating_data))
-        error("Derating column '$col_name' not found for project '$name' (type_zone_id=$type_zone_id, marginal_cc=$marginal_cc) in $derating_file. Available columns: $(names(derating_data)).")
+        error(
+            "Derating column '$col_name' not found for project '$name' (type_zone_id=$type_zone_id, marginal_cc=$marginal_cc) in $derating_file. Available columns: $(names(derating_data)).",
+        )
     end
 
     seasonal = "season" in names(derating_data)
