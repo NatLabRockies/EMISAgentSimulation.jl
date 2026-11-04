@@ -319,14 +319,14 @@ function calculate_derating_data(simulation::Union{AgentSimulation, AgentSimulat
         season_num_top_hours =
             if seasonal_mode
                 max(
-                1,
-                Int(
-                    round(
-                        base_num_top_hours * simulation_years *
-                        length(season_months[season]) / 12,
+                    1,
+                    Int(
+                        round(
+                            base_num_top_hours * simulation_years *
+                            length(season_months[season]) / 12,
+                        ),
                     ),
-                ),
-            )
+                )
             else
                 Int(base_num_top_hours * simulation_years)
             end

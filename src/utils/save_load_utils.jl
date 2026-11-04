@@ -1597,7 +1597,9 @@ function load_product(g::HDF5.Group)
             )
         else
             Dict(
-                scen => Dict(season => read(der_g[scen], season) for season in keys(der_g[scen]))
+                scen => Dict(
+                    season => read(der_g[scen], season) for season in keys(der_g[scen])
+                )
                 for scen in keys(der_g)
             )
         end
