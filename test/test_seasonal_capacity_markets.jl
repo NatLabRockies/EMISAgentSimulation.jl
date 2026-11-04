@@ -42,6 +42,9 @@ using HDF5
 import JuMP
 import GLPK
 import HiGHS
+import PRAS
+import TimeZones
+import Dates
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Shared fixtures
@@ -1184,10 +1187,7 @@ end
 # above). These tests instead cover the two new, cheap, pure units it is built
 # from: `season_hour_columns` (hour-column selection per season) and
 # `subset_pras_system` (the divide-approach column-subset SystemModel rebuild).
-
-import PRAS
-import TimeZones
-import Dates
+# (PRAS, TimeZones, Dates are imported at the top of the file.)
 
 @testset "Phase 2a PRAS — seasonal divide" begin
     @testset "annual output normalizes a prior seasonal template" begin
