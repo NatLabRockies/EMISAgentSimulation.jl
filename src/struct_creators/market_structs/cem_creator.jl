@@ -247,13 +247,29 @@ function create_cem_mkt_clr_problem(investor_dir::String,
         system_peak_load = peak_load[scenario_name][sim_year]
 
         capacity_mkt_active = Bool(capacity_market_bool * capacity_active_years[p])
+
+        # Each season's demand curve uses that season's own peak load (quantity axis)
+        # and its share of the year (price axis, see create_capacity_demand_curve).
+        # Annual mode: season_peaks == Dict("annual" => system_peak_load) with no file
+        # read, and season_share == 1.0, so the curve is unchanged.
+        # Peaks come from the chronological load.csv, not the rep_load.csv read above:
+        # representative days would understate the peak.
+        season_peaks = resolve_seasonal_peak_loads(
+            system_peak_load,
+            timeseries_data_dir,
+            scenario_name,
+            sim_year,
+            season_months,
+            seasons,
+        )
         capacity_markets[p] = Dict(
             season => create_capacity_demand_curve(
                 cap_params_by_season[season],
-                system_peak_load,
+                season_peaks[season],
                 irm_scalar,
                 delta_irm,
-                capacity_mkt_active,
+                capacity_mkt_active;
+                season_share = season_share(season_months_for(season_months, season)),
             ) for season in seasons)
             
         rec_markets[p] = RECMarket(

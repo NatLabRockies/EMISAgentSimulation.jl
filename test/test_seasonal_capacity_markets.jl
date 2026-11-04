@@ -952,6 +952,133 @@ end
 end
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Seasonal peak load and CONE scaling (seasonal_capacity_markets_peak_cone_changes.md)
+#   season_share / season_months_for / load_season_months coverage warning
+#   seasonal_peak_loads / resolve_seasonal_peak_loads
+#   create_capacity_demand_curve(...; season_share)
+#   realized clearing with demand and offers both scaled by season_share
+# ─────────────────────────────────────────────────────────────────────────────
+
+@testset "Seasonal peak load and CONE scaling" begin
+    summer_winter = Dict("summer" => collect(5:9), "winter" => vcat(collect(1:4), collect(10:12)))
+
+    @testset "season_share is the day-share of the year; annual is exactly 1.0" begin
+        @test EMISAgentSimulation.season_share(collect(1:12)) === 1.0
+        @test EMISAgentSimulation.season_share(collect(5:9)) ≈ 153 / 365
+        @test EMISAgentSimulation.season_share(vcat(1:4, 10:12)) ≈ 212 / 365
+        @test sum(EMISAgentSimulation.season_share(m) for m in values(summer_winter)) ≈ 1.0
+    end
+
+    @testset "season_months_for maps the synthetic annual season to 1:12" begin
+        # Toggle off with a summer/winter file on disk: seasons == ["annual"], but
+        # "annual" is not a key of season_months.
+        @test EMISAgentSimulation.season_months_for(summer_winter, "annual") == collect(1:12)
+        @test EMISAgentSimulation.season_months_for(summer_winter, "summer") == collect(5:9)
+    end
+
+    @testset "load_season_months warns only when seasons don't cover each month once" begin
+        mktempdir() do dir
+            full = joinpath(dir, "full.csv")
+            CSV.write(full, DataFrame("name" => ["summer", "winter"], "months" => ["May-Sep", "Oct-Apr"]))
+            @test_logs EMISAgentSimulation.load_season_months(full)
+            partial = joinpath(dir, "partial.csv")
+            CSV.write(partial, DataFrame("name" => ["summer"], "months" => ["Jun-Aug"]))
+            @test_logs (:warn, r"does not assign every month") EMISAgentSimulation.load_season_months(partial)
+        end
+    end
+
+    # Hourly load for a non-leap year, two zones (columns "1", "2" like load.csv).
+    # System peak: 900 MW on Jul 20 (summer), 700 MW on Jan 15 (winter), 300 MW otherwise.
+    function make_hourly_load()
+        ts = Dates.DateTime(2001, 1, 1):Dates.Hour(1):Dates.DateTime(2001, 12, 31, 23)
+        z1 = fill(200.0, length(ts)); z2 = fill(100.0, length(ts))
+        i_jan = findfirst(t -> Dates.month(t) == 1 && Dates.day(t) == 15 && Dates.hour(t) == 18, ts)
+        i_jul = findfirst(t -> Dates.month(t) == 7 && Dates.day(t) == 20 && Dates.hour(t) == 16, ts)
+        z1[i_jan] = 400.0; z2[i_jan] = 300.0
+        z1[i_jul] = 500.0; z2[i_jul] = 400.0
+        return DataFrame("Year" => Dates.year.(ts), "Month" => Dates.month.(ts),
+                         "Day" => Dates.day.(ts), "Period" => Dates.hour.(ts) .+ 1,
+                         "1" => z1, "2" => z2)
+    end
+
+    @testset "seasonal_peak_loads takes the zone-summed peak within each season" begin
+        load_data = make_hourly_load()
+        peaks = EMISAgentSimulation.seasonal_peak_loads(load_data, summer_winter, ["summer", "winter"])
+        @test peaks == Dict("summer" => 900.0, "winter" => 700.0)
+        @test EMISAgentSimulation.seasonal_peak_loads(load_data, summer_winter, ["annual"]) ==
+              Dict("annual" => 900.0)
+        # A season with no hours in the data is an error, not a silent zero.
+        @test_throws ErrorException EMISAgentSimulation.seasonal_peak_loads(
+            load_data[load_data.Month .== 1, :], summer_winter, ["summer"])
+    end
+
+    @testset "resolve_seasonal_peak_loads: no file read in annual mode, consistency check otherwise" begin
+        mktempdir() do dir
+            load_dir = joinpath(dir, "scenario_1", "sim_year_3", "Load")
+            mkpath(load_dir)
+            CSV.write(joinpath(load_dir, "load.csv"), make_hourly_load())
+
+            # Annual mode returns the stored annual peak and does not touch the disk.
+            @test EMISAgentSimulation.resolve_seasonal_peak_loads(
+                123.0, joinpath(dir, "does_not_exist"), "scenario_1", 3, summer_winter, ["annual"]) ==
+                Dict("annual" => 123.0)
+            # Seasonal mode reads load.csv.
+            @test EMISAgentSimulation.resolve_seasonal_peak_loads(
+                900.0, dir, "scenario_1", 3, summer_winter, ["summer", "winter"]) ==
+                Dict("summer" => 900.0, "winter" => 700.0)
+            # The largest seasonal peak must match the annual peak used elsewhere.
+            @test_throws ErrorException EMISAgentSimulation.resolve_seasonal_peak_loads(
+                950.0, dir, "scenario_1", 3, summer_winter, ["summer", "winter"])
+        end
+    end
+
+    cone_params = DataFrame(
+        "IRM" => [0.15], "EFORd" => [0.05], "IRM perc points" => ["-0.01;0.05"],
+        "Net CONE per day" => [300.0], "Net CONE perc points" => ["1.5;0.75"],
+        "Gross CONE per day" => [500.0], "Max Clear" => [1.5])[1, :]
+
+    @testset "create_capacity_demand_curve: season_share scales prices only; 1.0 is unchanged" begin
+        base = EMISAgentSimulation.create_capacity_demand_curve(cone_params, 1000.0, 1.0, 0.0, true)
+        same = EMISAgentSimulation.create_capacity_demand_curve(
+            cone_params, 1000.0, 1.0, 0.0, true; season_share = 1.0)
+        @test same.break_points == base.break_points
+        @test same.price_points == base.price_points
+        half = EMISAgentSimulation.create_capacity_demand_curve(
+            cone_params, 1000.0, 1.0, 0.0, true; season_share = 0.5)
+        @test half.break_points == base.break_points
+        @test half.price_points ≈ 0.5 .* base.price_points
+        @test_throws AssertionError EMISAgentSimulation.create_capacity_demand_curve(
+            cone_params, 1000.0, 1.0, 0.0, true; season_share = 0.0)
+    end
+
+    @testset "scaling demand and offers by the same share: same quantities, price x share" begin
+        # Mirrors the realized season loop in actual_market_simulation.jl.
+        solver = JuMP.optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false)
+        offers() = Vector{Union{String, Float64}}[
+            ["a", 600.0, 20000.0, 1.0], ["b", 500.0, 60000.0, 0.9], ["c", 400.0, 150000.0, 0.8]]
+
+        annual_demand = EMISAgentSimulation.create_capacity_demand_curve(cone_params, 1000.0, 1.0, 0.0, true)
+        annual_price, annual_bids =
+            EMISAgentSimulation.capacity_market_clearing(annual_demand, offers(), solver)
+
+        share = EMISAgentSimulation.season_share(collect(5:9))
+        season_offers = offers()
+        for offer in season_offers
+            offer[3] *= share
+        end
+        season_demand = EMISAgentSimulation.create_capacity_demand_curve(
+            cone_params, 1000.0, 1.0, 0.0, true; season_share = share)
+        season_price, season_bids =
+            EMISAgentSimulation.capacity_market_clearing(season_demand, season_offers, solver)
+
+        @test season_price[1] ≈ share * annual_price[1] rtol = 1e-5
+        for name in keys(annual_bids)
+            @test season_bids[name] ≈ annual_bids[name] atol = 1e-5
+        end
+    end
+end
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Phase 4d — realized_profits_calculator.jl: calculate_realized_profit sums over seasons
 # ─────────────────────────────────────────────────────────────────────────────
 

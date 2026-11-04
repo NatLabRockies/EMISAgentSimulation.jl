@@ -216,10 +216,27 @@ function create_realized_marketdata(simulation::AgentSimulation,
     if in(:Capacity, market_names) &&
        iteration_year + capacity_forward_years - 1 <= simulation_years
         #system_peak_load = (1 + average_load_growth) ^ (capacity_forward_years) * peak_load
-        system_peak_load = peak_load[iteration_year + capacity_forward_years - 1]
+        system_peak_load = peak_load[capacity_year]
         capacity_active_bool = Bool(capacity_active * capacity_market_bool)
 
+        # Peak load of each season in the delivery year (capacity_year), used for that
+        # season's reliability requirement. Annual mode returns
+        # Dict("annual" => system_peak_load) without reading any file.
+        season_peaks = resolve_seasonal_peak_loads(
+            system_peak_load,
+            joinpath(results_dir, "timeseries_data_files"),
+            pcm_scenario,
+            capacity_year,
+            season_months,
+            seasons,
+        )
+
         for season in seasons
+            # This season's share of the year in days (1.0 in annual mode). It scales
+            # both sides of the clearing so they are in the same $/MW-season units:
+            # the demand curve's CONE (create_capacity_demand_curve) and the offers below.
+            share = season_share(season_months_for(season_months, season))
+
             # Build the season-specific supply curve.
             seasonal_supply_curve = Vector{Union{String, Float64}}[]
             for project in capacity_market_projects
@@ -233,14 +250,27 @@ function create_realized_marketdata(simulation::AgentSimulation,
                     )
                 end
             end
+
+            # Offers ([3]) are annual $/MW-yr going-forward costs (total_profit.jl). Scale
+            # this season's copy to $/MW-season; otherwise every resource would offer a
+            # full year's cost into each season while demand is priced at the season's
+            # share of CONE. Scaling both curves by the same share leaves the cleared
+            # quantities unchanged and scales the clearing price by `share`. The bid
+            # stored on the Capacity product stays annual.
+            if share != 1.0
+                for offer in seasonal_supply_curve
+                    offer[3] *= share
+                end
+            end
             sort!(seasonal_supply_curve; by = x -> x[3])   # Sort by capacity bid
 
             seasonal_demand_curve = create_capacity_demand_curve(
                 cap_params_by_season[season],
-                system_peak_load,
+                season_peaks[season],
                 irm_scalar,
                 delta_irm,
-                capacity_active_bool,
+                capacity_active_bool;
+                season_share = share,
             )
 
             capacity_price_dict[season], capacity_accepted_bids_dict[season] =

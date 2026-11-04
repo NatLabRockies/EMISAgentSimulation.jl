@@ -113,14 +113,28 @@ end
 
 """
 Seasonal variant: builds the demand curve from an already-selected parameter row
-(one row of `Capacity.csv`, keyed by season). Used by the per-season realized
-clearing loop in `actual_market_simulation.jl`.
+(one row of `Capacity.csv`, keyed by season). Used by the per-season loops in
+`cem_creator.jl` (expected) and `actual_market_simulation.jl` (realized).
+
+Seasonal inputs:
+- `system_peak_load`: the peak load of this season (`resolve_seasonal_peak_loads`).
+  It sets the quantity axis (reliability requirement and breakpoints).
+- `season_share` (keyword, default 1.0): this season's share of the year in days
+  (`season_share(months)`). It scales the price axis: Net/Gross CONE are given per
+  day, so a season's CONE is per-day CONE x 365 x `season_share`, i.e. per-day CONE x
+  days in the season. Without it, each season would be priced at a full year of CONE,
+  and revenue summed over seasons would be about N times the annual case.
+
+With `season_share = 1.0` (annual mode) the curve is exactly the pre-seasonal one.
 """
 function create_capacity_demand_curve(capacity_demand_params::DataFrames.DataFrameRow,
                                       system_peak_load::Float64,
                                       irm_scalar::Float64,
                                       delta_irm::Float64,
-                                      capacity_mkt_bool::Bool)
+                                      capacity_mkt_bool::Bool;
+                                      season_share::Float64 = 1.0)
+
+   @assert 0.0 < season_share <= 1.0 "season_share must be in (0, 1], got $season_share"
 
    eford = capacity_demand_params["EFORd"] # Equivalent demand forced outage rate
    base_irm = capacity_demand_params["IRM"] # Installed Reserve Margin
@@ -128,12 +142,14 @@ function create_capacity_demand_curve(capacity_demand_params::DataFrames.DataFra
    fpr = (1 + adjusted_irm) * (1 - eford) #Forecast Pool Req
    rel_req = system_peak_load * fpr * capacity_mkt_bool # Reliability Requirement
    irm_perc_points = parse.(Float64, split(capacity_demand_params["IRM perc points"], ";")) #Installed Reserve Margin percentage points
-   net_CONE = capacity_demand_params["Net CONE per day"] * 365 * capacity_mkt_bool # Net CONE
+   # Net CONE for this season: per-day value x 365 x season share (= x days in season).
+   net_CONE = capacity_demand_params["Net CONE per day"] * 365 * season_share * capacity_mkt_bool # Net CONE
    net_CONE_perc_points = parse.(Float64, split(capacity_demand_params["Net CONE perc points"], ";")) #Net CONE percentage points
 
    @assert length(net_CONE_perc_points) == length(irm_perc_points)
 
-   gross_CONE_value = capacity_demand_params["Gross CONE per day"] * 365 * capacity_mkt_bool  # Gross CONE
+   # Gross CONE for this season, scaled the same way as Net CONE.
+   gross_CONE_value = capacity_demand_params["Gross CONE per day"] * 365 * season_share * capacity_mkt_bool  # Gross CONE
    gross_CONE_points = zeros(length(net_CONE_perc_points))
    gross_CONE_points[1] = gross_CONE_value
 
