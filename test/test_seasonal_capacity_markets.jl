@@ -46,6 +46,7 @@ import PRAS
 import TimeZones
 import Dates
 
+const EMIS = EMISAgentSimulation
 # ─────────────────────────────────────────────────────────────────────────────
 # Shared fixtures
 # ─────────────────────────────────────────────────────────────────────────────
@@ -274,12 +275,12 @@ end
 @testset "Phase 1a — CaseDefinition.seasonal_capacity_market" begin
     @testset "field defaults to false and is readable via getter" begin
         case = make_case()
-        @test EMISAgentSimulation.get_seasonal_capacity_market(case) == false
+        @test EMIS.get_seasonal_capacity_market(case) == false
     end
 
     @testset "toggling true is respected" begin
         case = make_case(; seasonal_capacity_market = true)
-        @test EMISAgentSimulation.get_seasonal_capacity_market(case) == true
+        @test EMIS.get_seasonal_capacity_market(case) == true
     end
 
     @testset "HDF5 round-trip preserves the field (both values)" begin
@@ -288,12 +289,12 @@ end
             try
                 case = make_case(; seasonal_capacity_market = flag)
                 h5open(tmpfile, "w") do f
-                    EMISAgentSimulation.save_case_definition!(HDF5.create_group(f, "case"), case)
+                    EMIS.save_case_definition!(HDF5.create_group(f, "case"), case)
                 end
                 loaded = h5open(tmpfile, "r") do f
-                    EMISAgentSimulation.load_case_definition(f["case"])
+                    EMIS.load_case_definition(f["case"])
                 end
-                @test EMISAgentSimulation.get_seasonal_capacity_market(loaded) == flag
+                @test EMIS.get_seasonal_capacity_market(loaded) == flag
             finally
                 isfile(tmpfile) && rm(tmpfile)
             end
@@ -310,8 +311,8 @@ end
 
     @testset "set_derating!/get_derating with an explicit season" begin
         prod = make_capacity_product()
-        EMISAgentSimulation.set_derating!(prod, scenario, "summer", 0.82)
-        EMISAgentSimulation.set_derating!(prod, scenario, "winter", 0.55)
+        EMIS.set_derating!(prod, scenario, "summer", 0.82)
+        EMIS.set_derating!(prod, scenario, "winter", 0.55)
 
         @test get_derating(prod, scenario, "summer") == 0.82
         @test get_derating(prod, scenario, "winter") == 0.55
@@ -319,13 +320,13 @@ end
 
     @testset "get_derating(prod, scenario) backward-compat wrapper reads the 'annual' key" begin
         prod = make_capacity_product()
-        EMISAgentSimulation.set_derating!(prod, scenario, "annual", 0.9)
+        EMIS.set_derating!(prod, scenario, "annual", 0.9)
         @test get_derating(prod, scenario) == 0.9
     end
 
     @testset "set_accepted_perc!/get_accepted_perc with an explicit season" begin
         prod = make_capacity_product()
-        EMISAgentSimulation.set_accepted_perc!(prod, scenario, "summer", [0.7, 0.8, 0.9])
+        EMIS.set_accepted_perc!(prod, scenario, "summer", [0.7, 0.8, 0.9])
         @test get_accepted_perc(prod, scenario, "summer") == [0.7, 0.8, 0.9]
     end
 
@@ -335,8 +336,8 @@ end
         # call sites (Phase 2/3/4) loop over ALL products on a project and call these
         # functions unconditionally, so the non-Capacity path must not error.
         energy_prod = make_energy_product()
-        @test_nowarn EMISAgentSimulation.set_derating!(energy_prod, scenario, "summer", 0.5)
-        @test_nowarn EMISAgentSimulation.set_accepted_perc!(energy_prod, scenario, "summer", [0.1])
+        @test_nowarn EMIS.set_derating!(energy_prod, scenario, "summer", 0.5)
+        @test_nowarn EMIS.set_accepted_perc!(energy_prod, scenario, "summer", [0.1])
 
         # get_derating(prod::Product) = nothing already exists as a 1-arg catch-all
         # today; confirm an equivalent (season-arg-accepting) catch-all exists once
@@ -391,7 +392,7 @@ end
         price_winter = AxisArrays.AxisArray(rand(3), AxisArrays.Axis{:year}(1:3))
         seasonal_prices = Dict("summer" => price_summer, "winter" => price_winter)
 
-        EMISAgentSimulation.set_capacity_price!(mp, "realized", seasonal_prices)
+        EMIS.set_capacity_price!(mp, "realized", seasonal_prices)
 
         stored = get_capacity_price(mp)["realized"]
         @test stored["summer"] == price_summer
@@ -407,7 +408,7 @@ end
             "summer" => AxisArrays.AxisArray(rand(3), AxisArrays.Axis{:year}(1:3)),
             "winter" => AxisArrays.AxisArray(rand(3), AxisArrays.Axis{:year}(1:3)),
         )
-        EMISAgentSimulation.set_capacity_price!(mp, "scenario_1", expected_prices)
+        EMIS.set_capacity_price!(mp, "scenario_1", expected_prices)
         @test Set(keys(get_capacity_price(mp)["scenario_1"])) == Set(["summer", "winter"])
     end
 end
@@ -424,7 +425,7 @@ end
 
         @testset "wrap-around season parsing (summer/winter)" begin
             CSV.write(seasons_file, DataFrame("name" => ["summer", "winter"], "months" => ["May-Sep", "Oct-Apr"]))
-            season_months = EMISAgentSimulation.load_season_months(seasons_file)
+            season_months = EMIS.load_season_months(seasons_file)
 
             @test Set(keys(season_months)) == Set(["summer", "winter"])
             @test season_months["summer"] == collect(5:9)
@@ -433,7 +434,7 @@ end
 
         @testset "seasons partition the year — no gaps, no overlaps" begin
             CSV.write(seasons_file, DataFrame("name" => ["summer", "winter"], "months" => ["May-Sep", "Oct-Apr"]))
-            season_months = EMISAgentSimulation.load_season_months(seasons_file)
+            season_months = EMIS.load_season_months(seasons_file)
             all_months = sort(vcat(values(season_months)...))
             @test all_months == collect(1:12)   # full coverage, no duplicate months
             @test length(all_months) == length(unique(all_months))  # no overlap
@@ -444,7 +445,7 @@ end
                 "name" => ["summer", "spring", "fall", "winter"],
                 "months" => ["Jun-Aug", "Mar-May", "Sep-Nov", "Dec-Feb"],
             ))
-            season_months = EMISAgentSimulation.load_season_months(seasons_file)
+            season_months = EMIS.load_season_months(seasons_file)
             all_months = sort(vcat(values(season_months)...))
             @test all_months == collect(1:12)
         end
@@ -452,7 +453,7 @@ end
         @testset "annual fallback when the file is absent" begin
             missing_file = joinpath(markets_dir, "does_not_exist.csv")
             @test !isfile(missing_file)
-            season_months = EMISAgentSimulation.load_season_months(missing_file)
+            season_months = EMIS.load_season_months(missing_file)
             @test season_months == Dict("annual" => collect(1:12))
         end
     end
@@ -557,7 +558,7 @@ end
 
                     prod = make_capacity_product()
                     project = tc.project([prod])
-                    EMISAgentSimulation.update_derating_factor!(project, dir, scenario, tc.marginal_cc)
+                    EMIS.update_derating_factor!(project, dir, scenario, tc.marginal_cc)
 
                     @test get_derating(prod, scenario, "summer") == tc.expected["summer"]
                     @test get_derating(prod, scenario, "winter") == tc.expected["winter"]
@@ -599,7 +600,7 @@ end
 
                     prod = make_capacity_product()
                     project = tc.project([prod])
-                    EMISAgentSimulation.update_derating_factor!(project, dir, scenario, tc.marginal_cc)
+                    EMIS.update_derating_factor!(project, dir, scenario, tc.marginal_cc)
 
                     @test get_derating(prod, scenario, "summer") ≈ tc.expected["summer"]
                     @test get_derating(prod, scenario, "winter") ≈ tc.expected["winter"]
@@ -637,7 +638,7 @@ end
 
                     prod = make_capacity_product()
                     project = tc.project([prod])
-                    EMISAgentSimulation.update_derating_factor!(project, dir, scenario, tc.marginal_cc)
+                    EMIS.update_derating_factor!(project, dir, scenario, tc.marginal_cc)
 
                     # In annual mode, only the annual season key should be assigned.
                     @test get_derating(prod, scenario, "annual") == tc.expected
@@ -654,7 +655,7 @@ end
 
                 prod = make_capacity_product()
                 project = make_renewable_option_project([prod])
-                @test_throws Exception EMISAgentSimulation.update_derating_factor!(project, dir, scenario, true)
+                @test_throws Exception EMIS.update_derating_factor!(project, dir, scenario, true)
             end
         end
 
@@ -664,7 +665,7 @@ end
 
                 prod = make_capacity_product()
                 project = make_battery_option_project([prod])
-                @test_throws Exception EMISAgentSimulation.update_derating_factor!(project, dir, scenario, true)
+                @test_throws Exception EMIS.update_derating_factor!(project, dir, scenario, true)
             end
         end
     end
@@ -679,11 +680,11 @@ end
 
     @testset "project with a Capacity product returns its full season Dict" begin
         prod = make_capacity_product()
-        EMISAgentSimulation.set_derating!(prod, scenario, "summer", 0.8)
-        EMISAgentSimulation.set_derating!(prod, scenario, "winter", 0.5)
+        EMIS.set_derating!(prod, scenario, "summer", 0.8)
+        EMIS.set_derating!(prod, scenario, "winter", 0.5)
         project = make_thermal_project([prod])
 
-        result = EMISAgentSimulation.get_project_derating(project, scenario)
+        result = EMIS.get_project_derating(project, scenario)
         @test result isa Dict{String, Float64}
         @test result["summer"] == 0.8
         @test result["winter"] == 0.5
@@ -698,7 +699,7 @@ end
         # is chosen instead.
         project = make_thermal_project([make_energy_product()])
 
-        result = EMISAgentSimulation.get_project_derating(project, scenario)
+        result = EMIS.get_project_derating(project, scenario)
         @test result isa Dict{String, Float64}
         @test isempty(result) || all(values(result) .== 0.0)
     end
@@ -715,7 +716,7 @@ end
     @testset "make_capacity_demand_vectors accepts Vector{Dict{String,CapacityMarket}}" begin
         capmarkets = [Dict("summer" => summer_market, "winter" => winter_market)]  # 1 investment period
 
-        segsize, seggrad, pricepoints, numsegs = EMISAgentSimulation.make_capacity_demand_vectors(capmarkets)
+        segsize, seggrad, pricepoints, numsegs = EMIS.make_capacity_demand_vectors(capmarkets)
 
         @test Set(keys(segsize)) == Set(["summer", "winter"])
         @test numsegs["summer"][1] == 2
@@ -727,7 +728,7 @@ end
     @testset "make_capacity_demand (single-market, actual clearing) is unchanged — regression" begin
         # Plan explicitly states this function is NOT touched; this is a
         # won't-break check, expected to pass both before and after the feature lands.
-        segsize, seggrad, pricepoints = EMISAgentSimulation.make_capacity_demand(summer_market)
+        segsize, seggrad, pricepoints = EMIS.make_capacity_demand(summer_market)
         @test segsize == [100.0, 100.0]
         @test pricepoints == [50.0, 30.0, 0.0]
         @test seggrad == [(30.0 - 50.0) / 100.0, (0.0 - 30.0) / 100.0]
@@ -744,10 +745,10 @@ end
     max_cap = 100.0
 
     prod = make_capacity_product()
-    EMISAgentSimulation.set_derating!(prod, scenario, "summer", 0.8)
-    EMISAgentSimulation.set_derating!(prod, scenario, "winter", 0.6)
-    EMISAgentSimulation.set_accepted_perc!(prod, scenario, "summer", [1.0, 1.0, 1.0])
-    EMISAgentSimulation.set_accepted_perc!(prod, scenario, "winter", [1.0, 1.0, 1.0])
+    EMIS.set_derating!(prod, scenario, "summer", 0.8)
+    EMIS.set_derating!(prod, scenario, "winter", 0.6)
+    EMIS.set_accepted_perc!(prod, scenario, "summer", [1.0, 1.0, 1.0])
+    EMIS.set_accepted_perc!(prod, scenario, "winter", [1.0, 1.0, 1.0])
 
     capacity_prices = Dict(scenario => Dict(
         "summer" => AxisArrays.AxisArray(fill(10.0, 3), AxisArrays.Axis{:year}(1:3)),
@@ -755,7 +756,7 @@ end
     ))
 
     @testset "revenue is the sum of each season's price x accepted_perc x derated capacity" begin
-        revenues = EMISAgentSimulation.update_capacity_revenues!(
+        revenues = EMIS.update_capacity_revenues!(
             prod, scenario, price_years, zeros(3), capacity_prices, max_cap,
         )
         # summer: 10 * 1.0 * 100 * 0.8 = 800/yr ; winter: 20 * 1.0 * 100 * 0.6 = 1200/yr
@@ -768,7 +769,7 @@ end
         # explicitly typed on the catch-all today (Dict{String,AxisArray}); it must
         # be updated to Dict{String,Dict{String,AxisArray}} in the same change.
         energy_prod = make_energy_product()
-        @test_nowarn EMISAgentSimulation.update_capacity_revenues!(
+        @test_nowarn EMIS.update_capacity_revenues!(
             energy_prod, scenario, price_years, zeros(3), capacity_prices, max_cap,
         )
     end
@@ -791,48 +792,48 @@ end
     @testset "existing/built project: keyed by project name" begin
         prod = make_capacity_product()
         project = make_thermal_project([make_energy_product(), prod])
-        accepted = Dict(get_name(project) => [0.25, 0.5, 1.0], "other_project" => [9.0, 9.0, 9.0])
+        accepted = Dict(EMIS.get_name(project) => [0.25, 0.5, 1.0], "other_project" => [9.0, 9.0, 9.0])
 
-        EMISAgentSimulation.update_capacity_accepted_perc!(project, scenario, accepted, seasons)
+        EMIS.update_capacity_accepted_perc!(project, scenario, accepted, seasons)
 
         @test Set(keys(prod.accepted_perc[scenario])) == Set(seasons)
         for season in seasons
-            @test EMISAgentSimulation.get_accepted_perc(prod, scenario, season) == [0.25, 0.5, 1.0]
+            @test EMIS.get_accepted_perc(prod, scenario, season) == [0.25, 0.5, 1.0]
         end
     end
 
     @testset "Option project: keyed by option_<type>_<zone>" begin
         prod = make_capacity_product()
         project = make_renewable_option_project([prod])
-        tech = EMISAgentSimulation.get_tech(project)
-        option_key = "option_$(EMISAgentSimulation.get_type(tech))_$(EMISAgentSimulation.get_zone(tech))"
-        accepted = Dict(option_key => [0.1, 0.2], get_name(project) => [9.0, 9.0])
+        tech = EMIS.get_tech(project)
+        option_key = "option_$(EMIS.get_type(tech))_$(EMIS.get_zone(tech))"
+        accepted = Dict(option_key => [0.1, 0.2], EMIS.get_name(project) => [9.0, 9.0])
 
-        EMISAgentSimulation.update_capacity_accepted_perc!(project, scenario, accepted, seasons)
+        EMIS.update_capacity_accepted_perc!(project, scenario, accepted, seasons)
 
         @test Set(keys(prod.accepted_perc[scenario])) == Set(seasons)
         for season in seasons
-            @test EMISAgentSimulation.get_accepted_perc(prod, scenario, season) == [0.1, 0.2]
+            @test EMIS.get_accepted_perc(prod, scenario, season) == [0.1, 0.2]
         end
     end
 
     @testset "annual mode stores a single \"annual\" entry (pre-seasonal shape)" begin
         prod = make_capacity_product()
         project = make_thermal_project([prod])
-        accepted = Dict(get_name(project) => [0.75])
+        accepted = Dict(EMIS.get_name(project) => [0.75])
 
-        EMISAgentSimulation.update_capacity_accepted_perc!(project, scenario, accepted, ["annual"])
+        EMIS.update_capacity_accepted_perc!(project, scenario, accepted, ["annual"])
 
         @test collect(keys(prod.accepted_perc[scenario])) == ["annual"]
-        @test EMISAgentSimulation.get_accepted_perc(prod, scenario) == [0.75]   # 2-arg annual accessor
+        @test EMIS.get_accepted_perc(prod, scenario) == [0.75]   # 2-arg annual accessor
     end
 
     @testset "feeds update_capacity_revenues!: one accepted vector per priced season" begin
         # End-to-end with the 3d consumer: seasons come from the price dict, exactly as
         # investor_iteration.jl does (capacity_seasons = keys(expected capacity_price)).
         prod = make_capacity_product()
-        EMISAgentSimulation.set_derating!(prod, scenario, "summer", 0.8)
-        EMISAgentSimulation.set_derating!(prod, scenario, "winter", 0.6)
+        EMIS.set_derating!(prod, scenario, "summer", 0.8)
+        EMIS.set_derating!(prod, scenario, "winter", 0.6)
         project = make_thermal_project([prod])
         capacity_prices = Dict(scenario => Dict(
             "summer" => AxisArrays.AxisArray(fill(10.0, 2), AxisArrays.Axis{:year}(1:2)),
@@ -840,9 +841,9 @@ end
         ))
         price_seasons = collect(keys(capacity_prices[scenario]))
 
-        EMISAgentSimulation.update_capacity_accepted_perc!(
-            project, scenario, Dict(get_name(project) => [0.5, 1.0]), price_seasons)
-        revenues = EMISAgentSimulation.update_capacity_revenues!(
+        EMIS.update_capacity_accepted_perc!(
+            project, scenario, Dict(EMIS.get_name(project) => [0.5, 1.0]), price_seasons)
+        revenues = EMIS.update_capacity_revenues!(
             prod, scenario, (start_year = 1, end_year = 2), zeros(2), capacity_prices, 100.0)
 
         # year y: (10 * 0.8 + 20 * 0.6) * 100 * accepted[y]
@@ -859,14 +860,14 @@ end
 
     @testset "update_capacity_supply_curve! takes a season arg and uses seasonal derating" begin
         prod = make_capacity_product()
-        EMISAgentSimulation.set_derating!(prod, scenario, "summer", 0.8)
+        EMIS.set_derating!(prod, scenario, "summer", 0.8)
         project = make_thermal_project([prod])
 
         curve = Vector{Union{String, Float64}}[]
-        curve = EMISAgentSimulation.update_capacity_supply_curve!(curve, prod, project, scenario, "summer")
+        curve = EMIS.update_capacity_supply_curve!(curve, prod, project, scenario, "summer")
 
         @test length(curve) == 1
-        @test curve[1][1] == get_name(project)
+        @test curve[1][1] == EMIS.get_name(project)
         @test curve[1][4] == 0.8  # seasonal derating value, not a bare scenario scalar
     end
 
@@ -876,7 +877,7 @@ end
         # product on every project, not just Capacity products.
         project = make_thermal_project([make_energy_product()])
         curve = Vector{Union{String, Float64}}[]
-        @test_nowarn EMISAgentSimulation.update_capacity_supply_curve!(
+        @test_nowarn EMIS.update_capacity_supply_curve!(
             curve, make_energy_product(), project, scenario, "summer",
         )
         @test isempty(curve)
@@ -898,7 +899,7 @@ end
         )
         row = first(params_df)
 
-        curve = EMISAgentSimulation.create_capacity_demand_curve(row, 1000.0, 1.0, 0.0, true)
+        curve = EMIS.create_capacity_demand_curve(row, 1000.0, 1.0, 0.0, true)
         @test curve isa CapacityMarket
     end
 end
@@ -937,9 +938,9 @@ end
     )
 
     @testset "create_capacity_demand_curve(::DataFrameRow) yields season-specific curves" begin
-        summer_curve = EMISAgentSimulation.create_capacity_demand_curve(
+        summer_curve = EMIS.create_capacity_demand_curve(
             cap_params_df[1, :], 1000.0, 1.0, 0.0, true)
-        winter_curve = EMISAgentSimulation.create_capacity_demand_curve(
+        winter_curve = EMIS.create_capacity_demand_curve(
             cap_params_df[2, :], 1000.0, 1.0, 0.0, true)
 
         @test summer_curve isa CapacityMarket
@@ -950,7 +951,7 @@ end
 
     @testset "index_capacity_params_by_season keys rows by the season column" begin
         cap_params_by_season =
-            EMISAgentSimulation.index_capacity_params_by_season(cap_params_df, ["summer", "winter"])
+            EMIS.index_capacity_params_by_season(cap_params_df, ["summer", "winter"])
         @test Set(keys(cap_params_by_season)) == Set(["summer", "winter"])
         @test cap_params_by_season["winter"]["Net CONE per day"] == 45.0
         @test cap_params_by_season["summer"]["Net CONE per day"] == 40.0
@@ -969,7 +970,7 @@ end
             "Max Clear"            => [1.2],
         )
         cap_params_by_season =
-            EMISAgentSimulation.index_capacity_params_by_season(annual_df, ["annual"])
+            EMIS.index_capacity_params_by_season(annual_df, ["annual"])
         @test collect(keys(cap_params_by_season)) == ["annual"]
         @test cap_params_by_season["annual"]["Net CONE per day"] == 40.0
     end
@@ -980,12 +981,12 @@ end
         annual_months = Dict("annual" => collect(1:12))
 
         # Toggle OFF -> always annual, regardless of file content.
-        @test EMISAgentSimulation.resolve_capacity_seasons(seasonal_months, false) == ["annual"]
+        @test EMIS.resolve_capacity_seasons(seasonal_months, false) == ["annual"]
         # Toggle ON with a real 2-season definition -> both seasons.
-        @test Set(EMISAgentSimulation.resolve_capacity_seasons(seasonal_months, true)) ==
+        @test Set(EMIS.resolve_capacity_seasons(seasonal_months, true)) ==
               Set(["summer", "winter"])
         # Toggle ON but only an annual row -> still annual.
-        @test EMISAgentSimulation.resolve_capacity_seasons(annual_months, true) == ["annual"]
+        @test EMIS.resolve_capacity_seasons(annual_months, true) == ["annual"]
     end
 
     @testset "per-season pipeline: supply build (Phase 4a) -> clear yields one price per season" begin
@@ -993,14 +994,14 @@ end
         # each season independently and produce a season-keyed price dict. Uses the
         # real caller helper to index params, so this exercises the production path.
         prod = make_capacity_product()
-        EMISAgentSimulation.set_derating!(prod, scenario, "summer", 0.9)
-        EMISAgentSimulation.set_derating!(prod, scenario, "winter", 0.5)
+        EMIS.set_derating!(prod, scenario, "summer", 0.9)
+        EMIS.set_derating!(prod, scenario, "winter", 0.5)
         project = make_thermal_project([prod])
 
-        seasons = EMISAgentSimulation.resolve_capacity_seasons(
+        seasons = EMIS.resolve_capacity_seasons(
             Dict("summer" => collect(5:9), "winter" => vcat(collect(1:4), collect(10:12))), true)
         cap_params_by_season =
-            EMISAgentSimulation.index_capacity_params_by_season(cap_params_df, seasons)
+            EMIS.index_capacity_params_by_season(cap_params_df, seasons)
 
         capacity_price_dict = Dict{String, AxisArrays.AxisArray{Float64, 1}}()
         capacity_accepted_bids_dict = Dict{String, Dict{String, Float64}}()
@@ -1008,22 +1009,22 @@ end
         for season in seasons
             supply_curve = Vector{Union{String, Float64}}[]
             for p in get_products(project)
-                supply_curve = EMISAgentSimulation.update_capacity_supply_curve!(
+                supply_curve = EMIS.update_capacity_supply_curve!(
                     supply_curve, p, project, scenario, season)
             end
             sort!(supply_curve; by = x -> x[3])
 
-            demand_curve = EMISAgentSimulation.create_capacity_demand_curve(
+            demand_curve = EMIS.create_capacity_demand_curve(
                 cap_params_by_season[season], 1000.0, 1.0, 0.0, true)
 
             capacity_price_dict[season], capacity_accepted_bids_dict[season] =
-                EMISAgentSimulation.capacity_market_clearing(demand_curve, supply_curve, solver)
+                EMIS.capacity_market_clearing(demand_curve, supply_curve, solver)
         end
 
         # One price per season, and the Phase 4a seasonal derating flowed into supply [4].
         @test Set(keys(capacity_price_dict)) == Set(["summer", "winter"])
         @test length(capacity_price_dict["summer"]) == 1
-        @test haskey(capacity_accepted_bids_dict["summer"], get_name(project))
+        @test haskey(capacity_accepted_bids_dict["summer"], EMIS.get_name(project))
     end
 end
 
@@ -1039,27 +1040,27 @@ end
     summer_winter = Dict("summer" => collect(5:9), "winter" => vcat(collect(1:4), collect(10:12)))
 
     @testset "season_share is the day-share of the year; annual is exactly 1.0" begin
-        @test EMISAgentSimulation.season_share(collect(1:12)) === 1.0
-        @test EMISAgentSimulation.season_share(collect(5:9)) ≈ 153 / 365
-        @test EMISAgentSimulation.season_share(vcat(1:4, 10:12)) ≈ 212 / 365
-        @test sum(EMISAgentSimulation.season_share(m) for m in values(summer_winter)) ≈ 1.0
+        @test EMIS.season_share(collect(1:12)) === 1.0
+        @test EMIS.season_share(collect(5:9)) ≈ 153 / 365
+        @test EMIS.season_share(vcat(1:4, 10:12)) ≈ 212 / 365
+        @test sum(EMIS.season_share(m) for m in values(summer_winter)) ≈ 1.0
     end
 
     @testset "season_months_for maps the synthetic annual season to 1:12" begin
         # Toggle off with a summer/winter file on disk: seasons == ["annual"], but
         # "annual" is not a key of season_months.
-        @test EMISAgentSimulation.season_months_for(summer_winter, "annual") == collect(1:12)
-        @test EMISAgentSimulation.season_months_for(summer_winter, "summer") == collect(5:9)
+        @test EMIS.season_months_for(summer_winter, "annual") == collect(1:12)
+        @test EMIS.season_months_for(summer_winter, "summer") == collect(5:9)
     end
 
     @testset "load_season_months warns only when seasons don't cover each month once" begin
         mktempdir() do dir
             full = joinpath(dir, "full.csv")
             CSV.write(full, DataFrame("name" => ["summer", "winter"], "months" => ["May-Sep", "Oct-Apr"]))
-            @test_logs EMISAgentSimulation.load_season_months(full)
+            @test_logs EMIS.load_season_months(full)
             partial = joinpath(dir, "partial.csv")
             CSV.write(partial, DataFrame("name" => ["summer"], "months" => ["Jun-Aug"]))
-            @test_logs (:warn, r"does not assign every month") EMISAgentSimulation.load_season_months(partial)
+            @test_logs (:warn, r"does not assign every month") EMIS.load_season_months(partial)
         end
     end
 
@@ -1079,12 +1080,12 @@ end
 
     @testset "seasonal_peak_loads takes the zone-summed peak within each season" begin
         load_data = make_hourly_load()
-        peaks = EMISAgentSimulation.seasonal_peak_loads(load_data, summer_winter, ["summer", "winter"])
+        peaks = EMIS.seasonal_peak_loads(load_data, summer_winter, ["summer", "winter"])
         @test peaks == Dict("summer" => 900.0, "winter" => 700.0)
-        @test EMISAgentSimulation.seasonal_peak_loads(load_data, summer_winter, ["annual"]) ==
+        @test EMIS.seasonal_peak_loads(load_data, summer_winter, ["annual"]) ==
               Dict("annual" => 900.0)
         # A season with no hours in the data is an error, not a silent zero.
-        @test_throws ErrorException EMISAgentSimulation.seasonal_peak_loads(
+        @test_throws ErrorException EMIS.seasonal_peak_loads(
             load_data[load_data.Month .== 1, :], summer_winter, ["summer"])
     end
 
@@ -1095,15 +1096,15 @@ end
             CSV.write(joinpath(load_dir, "load.csv"), make_hourly_load())
 
             # Annual mode returns the stored annual peak and does not touch the disk.
-            @test EMISAgentSimulation.resolve_seasonal_peak_loads(
+            @test EMIS.resolve_seasonal_peak_loads(
                 123.0, joinpath(dir, "does_not_exist"), "scenario_1", 3, summer_winter, ["annual"]) ==
                 Dict("annual" => 123.0)
             # Seasonal mode reads load.csv.
-            @test EMISAgentSimulation.resolve_seasonal_peak_loads(
+            @test EMIS.resolve_seasonal_peak_loads(
                 900.0, dir, "scenario_1", 3, summer_winter, ["summer", "winter"]) ==
                 Dict("summer" => 900.0, "winter" => 700.0)
             # The largest seasonal peak must match the annual peak used elsewhere.
-            @test_throws ErrorException EMISAgentSimulation.resolve_seasonal_peak_loads(
+            @test_throws ErrorException EMIS.resolve_seasonal_peak_loads(
                 950.0, dir, "scenario_1", 3, summer_winter, ["summer", "winter"])
         end
     end
@@ -1114,16 +1115,16 @@ end
         "Gross CONE per day" => [500.0], "Max Clear" => [1.5])[1, :]
 
     @testset "create_capacity_demand_curve: season_share scales prices only; 1.0 is unchanged" begin
-        base = EMISAgentSimulation.create_capacity_demand_curve(cone_params, 1000.0, 1.0, 0.0, true)
-        same = EMISAgentSimulation.create_capacity_demand_curve(
+        base = EMIS.create_capacity_demand_curve(cone_params, 1000.0, 1.0, 0.0, true)
+        same = EMIS.create_capacity_demand_curve(
             cone_params, 1000.0, 1.0, 0.0, true; season_share = 1.0)
         @test same.break_points == base.break_points
         @test same.price_points == base.price_points
-        half = EMISAgentSimulation.create_capacity_demand_curve(
+        half = EMIS.create_capacity_demand_curve(
             cone_params, 1000.0, 1.0, 0.0, true; season_share = 0.5)
         @test half.break_points == base.break_points
         @test half.price_points ≈ 0.5 .* base.price_points
-        @test_throws AssertionError EMISAgentSimulation.create_capacity_demand_curve(
+        @test_throws AssertionError EMIS.create_capacity_demand_curve(
             cone_params, 1000.0, 1.0, 0.0, true; season_share = 0.0)
     end
 
@@ -1133,19 +1134,19 @@ end
         offers() = Vector{Union{String, Float64}}[
             ["a", 600.0, 20000.0, 1.0], ["b", 500.0, 60000.0, 0.9], ["c", 400.0, 150000.0, 0.8]]
 
-        annual_demand = EMISAgentSimulation.create_capacity_demand_curve(cone_params, 1000.0, 1.0, 0.0, true)
+        annual_demand = EMIS.create_capacity_demand_curve(cone_params, 1000.0, 1.0, 0.0, true)
         annual_price, annual_bids =
-            EMISAgentSimulation.capacity_market_clearing(annual_demand, offers(), solver)
+            EMIS.capacity_market_clearing(annual_demand, offers(), solver)
 
-        share = EMISAgentSimulation.season_share(collect(5:9))
+        share = EMIS.season_share(collect(5:9))
         season_offers = offers()
         for offer in season_offers
             offer[3] *= share
         end
-        season_demand = EMISAgentSimulation.create_capacity_demand_curve(
+        season_demand = EMIS.create_capacity_demand_curve(
             cone_params, 1000.0, 1.0, 0.0, true; season_share = share)
         season_price, season_bids =
-            EMISAgentSimulation.capacity_market_clearing(season_demand, season_offers, solver)
+            EMIS.capacity_market_clearing(season_demand, season_offers, solver)
 
         @test season_price[1] ≈ share * annual_price[1] rtol = 1e-5
         for name in keys(annual_bids)
@@ -1173,7 +1174,7 @@ end
         mp = MarketPrices(nothing, nothing, nothing, nothing, nothing)
         season_prices = Dict(
             s => AxisArrays.AxisArray(reshape([v], 1), [1]) for (s, v) in price_by_season)
-        EMISAgentSimulation.set_capacity_price!(mp, "realized", season_prices)
+        EMIS.set_capacity_price!(mp, "realized", season_prices)
         return mp
     end
 
@@ -1181,7 +1182,7 @@ end
     # capacity_accepted_bids type (Dict{season => Dict{name => fraction}}).
     function realized_capacity_profit(project, product, mp, bids;
                                       iteration_year = 1, capacity_forward_years = 1)
-        return EMISAgentSimulation.calculate_realized_profit(
+        return EMIS.calculate_realized_profit(
             project, product, mp,
             empty_cf, empty_cf, empty_cf,
             empty_rp, empty_rp, empty_rp,
@@ -1193,10 +1194,10 @@ end
 
     @testset "profit is the sum of each season's derating x price x accepted fraction" begin
         prod = make_capacity_product()
-        EMISAgentSimulation.set_derating!(prod, scenario, "summer", 0.8)
-        EMISAgentSimulation.set_derating!(prod, scenario, "winter", 0.6)
+        EMIS.set_derating!(prod, scenario, "summer", 0.8)
+        EMIS.set_derating!(prod, scenario, "winter", 0.6)
         project = make_thermal_project([prod])
-        name = get_name(project)
+        name = EMIS.get_name(project)
         size = get_maxcap(project)
 
         mp = build_market_prices(Dict("summer" => 10.0, "winter" => 20.0))
@@ -1210,10 +1211,10 @@ end
 
     @testset "only seasons where the project cleared contribute" begin
         prod = make_capacity_product()
-        EMISAgentSimulation.set_derating!(prod, scenario, "summer", 0.8)
-        EMISAgentSimulation.set_derating!(prod, scenario, "winter", 0.6)
+        EMIS.set_derating!(prod, scenario, "summer", 0.8)
+        EMIS.set_derating!(prod, scenario, "winter", 0.6)
         project = make_thermal_project([prod])
-        name = get_name(project)
+        name = EMIS.get_name(project)
         size = get_maxcap(project)
 
         mp = build_market_prices(Dict("summer" => 10.0, "winter" => 20.0))
@@ -1226,8 +1227,8 @@ end
 
     @testset "returns nothing when the project cleared in no season" begin
         prod = make_capacity_product()
-        EMISAgentSimulation.set_derating!(prod, scenario, "summer", 0.8)
-        EMISAgentSimulation.set_derating!(prod, scenario, "winter", 0.6)
+        EMIS.set_derating!(prod, scenario, "summer", 0.8)
+        EMIS.set_derating!(prod, scenario, "winter", 0.6)
         project = make_thermal_project([prod])
 
         mp = build_market_prices(Dict("summer" => 10.0, "winter" => 20.0))
@@ -1240,9 +1241,9 @@ end
 
     @testset "annual-mode single season reproduces the pre-seasonal scalar profit" begin
         prod = make_capacity_product()
-        EMISAgentSimulation.set_derating!(prod, scenario, "annual", 0.75)
+        EMIS.set_derating!(prod, scenario, "annual", 0.75)
         project = make_thermal_project([prod])
-        name = get_name(project)
+        name = EMIS.get_name(project)
         size = get_maxcap(project)
 
         mp = build_market_prices(Dict("annual" => 40.0))
@@ -1280,13 +1281,13 @@ end
             h5open(tmpfile, "w") do f
                 cap_g = HDF5.create_group(f, "capacity_price")
                 for (season, prices) in capacity_price
-                    EMISAgentSimulation.save_axisarray!(HDF5.create_group(cap_g, season), prices)
+                    EMIS.save_axisarray!(HDF5.create_group(cap_g, season), prices)
                 end
             end
 
             loaded = h5open(tmpfile, "r") do f
                 cap_g = f["capacity_price"]
-                Dict(season => EMISAgentSimulation.load_axisarray(cap_g[season]) for season in keys(cap_g))
+                Dict(season => EMIS.load_axisarray(cap_g[season]) for season in keys(cap_g))
             end
 
             @test collect(loaded["summer"]) == collect(price_summer)
@@ -1313,11 +1314,11 @@ end
             capacity_price = Dict("summer" => price_summer, "winter" => price_winter)
 
             h5open(tmpfile, "w") do f
-                EMISAgentSimulation.save_capacity_price_seasonal!(
+                EMIS.save_capacity_price_seasonal!(
                     HDF5.create_group(f, "capacity_price"), capacity_price)
             end
             loaded = h5open(tmpfile, "r") do f
-                EMISAgentSimulation.load_capacity_price_seasonal(f["capacity_price"])
+                EMIS.load_capacity_price_seasonal(f["capacity_price"])
             end
 
             @test Set(keys(loaded)) == Set(["summer", "winter"])
@@ -1337,11 +1338,11 @@ end
             )
 
             h5open(tmpfile, "w") do f
-                EMISAgentSimulation.save_capacity_bids_seasonal!(
+                EMIS.save_capacity_bids_seasonal!(
                     HDF5.create_group(f, "capacity_accepted_bids"), bids)
             end
             loaded = h5open(tmpfile, "r") do f
-                EMISAgentSimulation.load_capacity_bids_seasonal(f["capacity_accepted_bids"])
+                EMIS.load_capacity_bids_seasonal(f["capacity_accepted_bids"])
             end
 
             @test Set(keys(loaded)) == Set(["summer", "winter"])
@@ -1361,14 +1362,14 @@ end
             bids = Dict("annual" => Dict("Gen1" => 0.8))
 
             h5open(tmpfile, "w") do f
-                EMISAgentSimulation.save_capacity_price_seasonal!(
+                EMIS.save_capacity_price_seasonal!(
                     HDF5.create_group(f, "capacity_price"), capacity_price)
-                EMISAgentSimulation.save_capacity_bids_seasonal!(
+                EMIS.save_capacity_bids_seasonal!(
                     HDF5.create_group(f, "capacity_accepted_bids"), bids)
             end
             price_loaded, bids_loaded = h5open(tmpfile, "r") do f
-                EMISAgentSimulation.load_capacity_price_seasonal(f["capacity_price"]),
-                EMISAgentSimulation.load_capacity_bids_seasonal(f["capacity_accepted_bids"])
+                EMIS.load_capacity_price_seasonal(f["capacity_price"]),
+                EMIS.load_capacity_bids_seasonal(f["capacity_accepted_bids"])
             end
 
             @test collect(keys(price_loaded)) == ["annual"]
@@ -1400,7 +1401,7 @@ end
             existing_Wind_Z1 = [0.41, 0.27],
         )
 
-        output = EMISAgentSimulation.initialize_derating_output(
+        output = EMIS.initialize_derating_output(
             template,
             ["annual"],
             false,
@@ -1415,7 +1416,7 @@ end
     @testset "season_hour_columns selects only the requested months, ascending, across years" begin
         simulation_years = 2
         months = [6, 7, 8]
-        cols = EMISAgentSimulation.season_hour_columns(months, simulation_years)
+        cols = EMIS.season_hour_columns(months, simulation_years)
 
         @test issorted(cols)
         @test allunique(cols)
@@ -1435,7 +1436,7 @@ end
     end
 
     @testset "season_hour_columns(1:12, 1) reproduces the full annual hour range" begin
-        cols = EMISAgentSimulation.season_hour_columns(collect(1:12), 1)
+        cols = EMIS.season_hour_columns(collect(1:12), 1)
         @test cols == collect(1:8760)
     end
 
@@ -1474,7 +1475,7 @@ end
 
         @testset "arbitrary column subset" begin
             cols = [3, 4, 5, 10, 11]
-            sub = EMISAgentSimulation.subset_pras_system(sys, cols)
+            sub = EMIS.subset_pras_system(sys, cols)
 
             @test length(sub.timestamps) == length(cols)
             @test step(sub.timestamps) == step(sys.timestamps)
@@ -1486,7 +1487,7 @@ end
         end
 
         @testset "annual-equivalence: subsetting by all columns reproduces the original" begin
-            full = EMISAgentSimulation.subset_pras_system(sys, collect(1:N))
+            full = EMIS.subset_pras_system(sys, collect(1:N))
             @test full.generators.capacity == sys.generators.capacity
             @test full.regions.load == sys.regions.load
             @test length(full.timestamps) == length(sys.timestamps)

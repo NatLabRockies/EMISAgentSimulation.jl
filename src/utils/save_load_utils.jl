@@ -573,6 +573,8 @@ function save_investor!(g::HDF5.Group, inv::Investor)
         # @info "      Saving project: $(proj.name) ($(typeof(proj)))"
         save_project!(create_group(proj_g, proj.name), proj)
     end
+    # Keep the investor's project order (decision loops iterate projects in order).
+    _save_order!(g, "projects", (proj.name for proj in inv.projects))
 end
 
 function load_investor(g::HDF5.Group)
@@ -600,7 +602,7 @@ function load_investor(g::HDF5.Group)
     market_prices = load_market_prices(g["market_prices"])
 
     projects = Vector{Project{<:BuildPhase}}()
-    proj_keys = keys(g["projects"])
+    proj_keys = _ordered_keys(g, "projects")
     @info "      Loading $(length(proj_keys)) project(s) for investor: $name"
     for k in proj_keys
         @info "      Loading project: $k"
@@ -707,12 +709,33 @@ end
 # Forecast  (Perfect / Imperfect)
 # ─────────────────────────────────────────────────────────────────────────────
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Element order for vectors saved as name-keyed groups
+#
+# Products, projects and scenarios are saved as one sub-group per element, named by
+# the element. HDF5 lists group keys sorted by name, not in insertion order, so
+# without extra information the loaded vector comes back alphabetical.
+# `_save_order!` writes the original names, in order, as a sibling dataset
+# "<child>_order"; `_ordered_keys` reads it back. Files written before this was added
+# have no "<child>_order", so they load in the previous (alphabetical) order.
+# ─────────────────────────────────────────────────────────────────────────────
+
+function _save_order!(parent::HDF5.Group, child::String, names)
+    write(parent, child * "_order", Vector{String}(collect(names)))
+end
+
+function _ordered_keys(parent::HDF5.Group, child::String)
+    order_name = child * "_order"
+    return haskey(parent, order_name) ? read(parent, order_name) : collect(keys(parent[child]))
+end
+
 function save_forecast!(g::HDF5.Group, f::Perfect)
     attributes(g)["type"] = "Perfect"
     sg = create_group(g, "scenarios")
     for s in f.scenario_data
         save_scenario!(create_group(sg, s.name), s)
     end
+    _save_order!(g, "scenarios", (s.name for s in f.scenario_data))
 end
 
 function save_forecast!(g::HDF5.Group, f::Imperfect)
@@ -727,12 +750,13 @@ function save_forecast!(g::HDF5.Group, f::Imperfect)
     for s in f.scenario_data
         save_scenario!(create_group(sg, s.name), s)
     end
+    _save_order!(g, "scenarios", (s.name for s in f.scenario_data))
 end
 
 function load_forecast(g::HDF5.Group)
     t = read_attribute(g, "type")
     sg = g["scenarios"]
-    scenarios = [load_scenario(sg[k]) for k in keys(sg)]
+    scenarios = [load_scenario(sg[k]) for k in _ordered_keys(g, "scenarios")]
     if t == "Perfect"
         return Perfect(scenarios)
     elseif t == "Imperfect"
@@ -978,6 +1002,7 @@ function _save_project_common!(g::HDF5.Group, p)
     for prod in p.products
         save_product!(create_group(prod_g, string(prod.name)), prod)
     end
+    _save_order!(g, "products", (string(prod.name) for prod in p.products))
 end
 
 function load_project(g::HDF5.Group)
@@ -993,7 +1018,7 @@ function load_project(g::HDF5.Group)
     retirement_year = read(g, "retirement_year")
     end_life_year = read(g, "end_life_year")
     finance_data = load_finance(g["finance_data"])
-    products = [load_product(g["products"][k]) for k in keys(g["products"])]
+    products = [load_product(g["products"][k]) for k in _ordered_keys(g, "products")]
     tech = load_tech(g["tech"])
 
     if pt == "ThermalGenEMIS"
@@ -1280,37 +1305,31 @@ function save_operation_cost!(g::HDF5.Group, oc::PSY.HydroGenerationCost)
     _save_psy_cost_curve!(create_group(g, "variable"), oc.variable)
 end
 
+"""
+Saves a PSY production cost curve (`CostCurve` or `FuelCurve`, or `nothing`).
+
+The curve is stored as InfrastructureSystems' own JSON serialization (the format PSY
+uses in system `.json` files), under `curve_kind = "IS_JSON"`. This keeps every
+value-curve type exactly (linear, quadratic, piecewise point, piecewise incremental /
+average with or without initial input), plus `power_units`, `vom_cost`, and the
+`FuelCurve` fuel fields.
+
+Previous versions saved only linear and piecewise-point curves and called
+`PSY.get_breakpoint_vars`, which does not exist in the PSY version in use. The error was
+caught, so every non-linear curve was written as a zero-cost `LinearCurve`, and
+checkpoint restores lost thermal/renewable/hydro variable costs.
+`_load_psy_cost_curve` still reads those older `"Linear"` / `"Piecewise"` layouts.
+"""
 function _save_psy_cost_curve!(g::HDF5.Group, curve)
     if isnothing(curve)
         attributes(g)["is_nothing"] = true
         return
     end
     attributes(g)["is_nothing"] = false
-    vc = PSY.get_value_curve(curve)
-    if vc isa PSY.LinearCurve
-        attributes(g)["curve_kind"] = "Linear"
-        write(g, "proportional_term", PSY.get_proportional_term(vc))
-        write(g, "constant_term", PSY.get_constant_term(vc))
-    else
-        # Try to extract piecewise breakpoints; if we can't get ≥2, fall back to
-        # zero-cost LinearCurve so the load path stays unambiguous.
-        pts = nothing
-        try
-            extracted = PSY.get_breakpoint_vars(curve)
-            length(extracted) >= 2 && (pts = extracted)
-        catch
-        end
-        if !isnothing(pts)
-            attributes(g)["curve_kind"] = "Piecewise"
-            write(g, "x", Float64[p[1] for p in pts])
-            write(g, "y", Float64[p[2] for p in pts])
-        else
-            attributes(g)["curve_kind"] = "Linear"
-            write(g, "proportional_term", 0.0)
-            write(g, "constant_term", 0.0)
-            @warn "Could not extract ≥2 breakpoints from PSY cost curve; saved as zero-cost LinearCurve"
-        end
-    end
+    attributes(g)["curve_kind"] = "IS_JSON"
+    # Concrete wrapper name ("CostCurve" / "FuelCurve") selects the type to deserialize.
+    attributes(g)["curve_type"] = string(nameof(typeof(curve)))
+    write(g, "json", IS.JSON3.write(IS.serialize(curve)))
 end
 
 function load_operation_cost(g::HDF5.Group)
@@ -1350,6 +1369,14 @@ function load_operation_cost(g::HDF5.Group)
     end
 end
 
+"""
+Loads a cost curve written by `_save_psy_cost_curve!`.
+
+- `"IS_JSON"` (current): exact InfrastructureSystems deserialization.
+- `"Linear"` / `"Piecewise"` / no `curve_kind` (older checkpoints): rebuilt from the stored
+  terms or points, as before. Older files cannot recover curves that were already saved
+  as zero-cost (see `_save_psy_cost_curve!`).
+"""
 function _load_psy_cost_curve(g::HDF5.Group)
     read_attribute(g, "is_nothing") && return nothing
     # curve_kind absent in files saved before this fix → assume Piecewise
@@ -1358,7 +1385,17 @@ function _load_psy_cost_curve(g::HDF5.Group)
     else
         "Piecewise"
     end
-    if curve_kind == "Linear"
+    if curve_kind == "IS_JSON"
+        curve_type = read_attribute(g, "curve_type")
+        T = if curve_type == "CostCurve"
+            PSY.CostCurve
+        elseif curve_type == "FuelCurve"
+            PSY.FuelCurve
+        else
+            error("Unknown cost curve type '$curve_type' in $(HDF5.name(g))")
+        end
+        return IS.deserialize(T, IS.JSON3.read(read(g, "json"), Dict{String, Any}))
+    elseif curve_kind == "Linear"
         prop = read(g, "proportional_term")
         const_term = read(g, "constant_term")
         return PSY.CostCurve(PSY.LinearCurve(prop, const_term))

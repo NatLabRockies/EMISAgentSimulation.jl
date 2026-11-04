@@ -14,22 +14,34 @@ import PowerSystems as PSY
 # ─────────────────────────────────────────────────────────────────────────────
 
 function vals_equal(a, b, path::String = "root")::Bool
-    if typeof(a) != typeof(b)
-        println("FAIL [$path]: type $(typeof(a)) ≠ $(typeof(b))")
-        return false
-    end
-    if a isa AxisArrays.AxisArray
+    # AxisArrays are compared by content, not concrete type: HDF5 stores axis values
+    # as plain vectors, so an `Axis{:year}(1:3)` range comes back as `Axis{:year}([1, 2, 3])`.
+    # That changes the type parameters but not the axis names, values, or data.
+    if a isa AxisArrays.AxisArray && b isa AxisArrays.AxisArray
+        if eltype(a) != eltype(b) || ndims(a) != ndims(b)
+            println("FAIL [$path]: AxisArray $(eltype(a))/$(ndims(a))D ≠ $(eltype(b))/$(ndims(b))D")
+            return false
+        end
+        if AxisArrays.axisnames(a) != AxisArrays.axisnames(b)
+            println("FAIL [$path]: AxisArray axis names $(AxisArrays.axisnames(a)) ≠ $(AxisArrays.axisnames(b))")
+            return false
+        end
         if collect(a) != collect(b)
             println("FAIL [$path]: AxisArray data differs")
             return false
         end
-        for (i, (ax_a, ax_b)) in enumerate(zip(AxisArrays.axes(a), AxisArrays.axes(b)))
-            if AxisArrays.axisvalues(ax_a) != AxisArrays.axisvalues(ax_b)
+        vals_a, vals_b = AxisArrays.axisvalues(a), AxisArrays.axisvalues(b)
+        for i in eachindex(vals_a)
+            if collect(vals_a[i]) != collect(vals_b[i])
                 println("FAIL [$path]: AxisArray axis $i values differ")
                 return false
             end
         end
         return true
+    end
+    if typeof(a) != typeof(b)
+        println("FAIL [$path]: type $(typeof(a)) ≠ $(typeof(b))")
+        return false
     end
     if a isa Dict
         if keys(a) != keys(b)
@@ -50,6 +62,13 @@ function vals_equal(a, b, path::String = "root")::Bool
             vals_equal(a[k], b[k], "$path.$k") || return false
         end
         return true
+    end
+    # PSY operation costs (Thermal/Renewable/HydroGenerationCost) don't define `==`,
+    # so two costs with identical contents compare unequal. Compare their fields;
+    # the cost curves inside (CostCurve / FuelCurve) do support `==`.
+    if a isa PSY.OperationalCost
+        return all(vals_equal(getfield(a, f), getfield(b, f), "$path.$f")
+                   for f in fieldnames(typeof(a)))
     end
     ok = (a == b)
     ok || println("FAIL [$path]: $a ≠ $b")
@@ -143,8 +162,10 @@ function make_thermal_tech()
         (up = 100.0, down = 100.0),
         (up = 2.0, down = 4.0),
         PSY.ThermalGenerationCost(;
+            # CostCurve takes a ValueCurve; piecewise (x, y) points are an
+            # InputOutputCurve over PiecewiseLinearData (a PiecewisePointCurve).
             variable = PSY.CostCurve(
-                PSY.PiecewiseLinearData([(0.0, 0.0), (400.0, 1200.0)]),
+                PSY.InputOutputCurve(PSY.PiecewiseLinearData([(0.0, 0.0), (400.0, 1200.0)])),
             ),
             fixed = 5000.0,
             start_up = (hot = 500.0, warm = 1000.0, cold = 2000.0),
@@ -165,9 +186,11 @@ function make_renewable_tech()
         (min = 0.0, max = 100.0),
         nothing,
         PSY.RenewableGenerationCost(;
-            variable = PSY.CostCurve(PSY.PiecewiseLinearData([(0.0, 0.0), (100.0, 0.0)])),
+            # Linear variable cost and a piecewise-point curtailment cost: two
+            # different value-curve types through the same save/load path.
+            variable = PSY.CostCurve(PSY.LinearCurve(0.0)),
             curtailment_cost = PSY.CostCurve(
-                PSY.PiecewiseLinearData([(0.0, 0.0), (100.0, 0.0)]),
+                PSY.InputOutputCurve(PSY.PiecewiseLinearData([(0.0, 0.0), (100.0, 5.0)])),
             ),
             fixed = 0.0,
         ),
@@ -185,7 +208,12 @@ function make_hydro_tech()
         (up = 50.0, down = 50.0),
         nothing,
         PSY.HydroGenerationCost(;
-            variable = PSY.CostCurve(PSY.PiecewiseLinearData([(0.0, 0.0), (200.0, 200.0)])),
+            # Piecewise incremental curve (PiecewiseStepData), the most common
+            # non-linear form in the RTS-based systems, in device-base units.
+            variable = PSY.CostCurve(;
+                value_curve = PSY.PiecewiseIncrementalCurve(10.0, [20.0, 100.0, 200.0], [15.0, 22.0]),
+                power_units = PSY.UnitSystem.DEVICE_BASE,
+            ),
             fixed = 1000.0,
         ),
         "BusC",
@@ -235,7 +263,8 @@ function make_market_prices()
         ) for s in SCENS
     )
     rp = Dict("reg_up" => Dict(s => rand(N_YRS, N_HRS) for s in SCENS))
-    cp = Dict(s => make_axis_1d() for s in SCENS)
+    # Capacity prices are scenario -> season -> AxisArray (MarketPrices.capacity_price).
+    cp = Dict(s => Dict("summer" => make_axis_1d(), "winter" => make_axis_1d()) for s in SCENS)
     rcp = Dict(s => make_axis_1d() for s in SCENS)
     inp = Dict(s => make_axis_2d() for s in SCENS)
     return MarketPrices(ep, rp, cp, rcp, inp)
@@ -322,8 +351,25 @@ function make_simulation()
         [Dict("eue" => rand(), "lolp" => rand()) for _ in 1:N_YRS],
     )
 
+    # CaseDefinition has no zero-argument constructor; use the keyword constructor.
+    # Its constructor calls make_case_data_dir, which creates {base_dir}/{name}
+    # (and copies nothing, since that directory then exists), so base_dir must be
+    # writable: use a fresh temp directory (removed when Julia exits). The other
+    # paths are only stored. The solver is not serialized to HDF5, so any
+    # optimizer works here.
+    case_root = mktempdir()
+    case = CaseDefinition(
+        "hdf5_roundtrip_test",
+        case_root,
+        joinpath(case_root, "sys"),
+        joinpath(case_root, "scratch"),
+        joinpath(case_root, "outages"),
+        joinpath(case_root, "timeseries"),
+        EMISAgentSimulation.JuMP.optimizer_with_attributes(EMISAgentSimulation.HiGHS.Optimizer),
+    )
+
     return AgentSimulation(
-        CaseDefinition(),
+        case,
         "/results/test",
         2,
         nothing, nothing, nothing,
@@ -349,6 +395,9 @@ end
 
 function compare_products(orig::Vector, loaded::Vector, path::String)
     @test length(orig) == length(loaded)
+    # Products are compared by position, so order must survive the round trip
+    # (the fixture's product order is not alphabetical).
+    @test [p.name for p in loaded] == [p.name for p in orig]
     for (i, (po, pl)) in enumerate(zip(orig, loaded))
         @test typeof(po) == typeof(pl)
         for f in fieldnames(typeof(po))
@@ -427,9 +476,10 @@ function compare_investor(orig::Investor, loaded::Investor, path::String)
     )
 
     @test length(orig.projects) == length(loaded.projects)
-    orig_sorted = sort(orig.projects; by = p -> p.name)
-    loaded_sorted = sort(loaded.projects; by = p -> p.name)
-    for (po, pl) in zip(orig_sorted, loaded_sorted)
+    # Projects must come back in their original order, not sorted: the fixture's
+    # order (CC_plant, wind_opt, hydro_pl, batt_q) is deliberately not alphabetical.
+    @test [p.name for p in loaded.projects] == [p.name for p in orig.projects]
+    for (po, pl) in zip(orig.projects, loaded.projects)
         compare_project(po, pl, path)
     end
 end
@@ -498,14 +548,21 @@ end
     try
         sim_orig = make_simulation()
 
-        @testset "save_simulation" begin
-            @test_nowarn save_simulation(tmpfile, sim_orig)
+        # Use the HDF5-level API (save_simulation! / load_simulation(f)). The
+        # directory-level save_simulation(sim, dir, year) also writes PSY systems,
+        # which this fixture doesn't have.
+        @testset "save_simulation!" begin
+            h5open(tmpfile, "w") do f
+                EMISAgentSimulation.save_simulation!(f, sim_orig)
+            end
             @test isfile(tmpfile)
         end
 
         sim_loaded = nothing
         @testset "load_simulation" begin
-            @test_nowarn (sim_loaded = load_simulation(tmpfile))
+            sim_loaded = h5open(tmpfile, "r") do f
+                EMISAgentSimulation.load_simulation(f)
+            end
             @test sim_loaded isa AgentSimulation
         end
 
