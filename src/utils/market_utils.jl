@@ -249,9 +249,11 @@ This function updates the expected accepted capacity percentage of projects whic
 """
 function update_capacity_accepted_perc!(project::P,
                                  scenario_name::String,
-                                 capacity_accepted_perc::Dict{String, Array{Float64, 1}}) where P <: Project{<: BuildPhase}
-            for product in get_products(project)
-                set_accepted_perc!(product, scenario_name, capacity_accepted_perc[get_name(project)])
+                                 capacity_accepted_perc::Dict{String, Array{Float64, 1}},
+                                 seasons::Vector{String}) where P <: Project{<: BuildPhase}
+
+            for product in get_products(project), season in seasons
+                set_accepted_perc!(product, scenario_name, season, capacity_accepted_perc[get_name(project)])
             end
     return
 end
@@ -261,11 +263,12 @@ This function updates the expected accepted capacity percentage of Option projec
 """
 function update_capacity_accepted_perc!(project::P,
                                  scenario_name::String,
-                                 capacity_accepted_perc::Dict{String, Array{Float64, 1}}) where P <: Project{Option}
+                                 capacity_accepted_perc::Dict{String, Array{Float64, 1}},
+                                 seasons::Vector{String}) where P <: Project{Option}
 
             tech = get_tech(project)
-            for product in get_products(project)
-                set_accepted_perc!(product, scenario_name, capacity_accepted_perc["option_$(get_type(tech))_$(get_zone(tech))"])
+            for product in get_products(project), season in seasons
+                set_accepted_perc!(product, scenario_name, season, capacity_accepted_perc["option_$(get_type(tech))_$(get_zone(tech))"])
             end
     return
 end
@@ -294,7 +297,10 @@ function update_initial_capacity_revenues!(project::P,
     
     for scenario_name in keys(get_scenario_profit(finance_data))
         
-        capacity_revenue = initial_capacity_prices[year] * get_maxcap(project) * get_project_derating(project, scenario_name)
+        # TODO: Define seasonal capacity prices instead of using an average value.
+        derating = get_project_derating(project, scenario_name)
+        avg_derating = isempty(derating) ? 0.0 : sum(values(derating)) / length(derating)
+        capacity_revenue = initial_capacity_prices[year] * get_maxcap(project) * avg_derating
 
         update_forward_profit!(product, finance_data, scenario_name, year, capacity_revenue)
 

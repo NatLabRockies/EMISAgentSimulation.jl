@@ -46,6 +46,7 @@ function run_investor_iteration(investor::Investor,
             "$(scenario_name)_year_$(iteration_year).h5",
         )
         expected_data = load_expected_market_data(output_file)
+        capacity_seasons = collect(keys(expected_data["capacity_price"]))
 
         set_energy_price!(market_prices, scenario_name, expected_data["energy_price"])
 
@@ -83,6 +84,7 @@ function run_investor_iteration(investor::Investor,
                     project,
                     scenario_name,
                     expected_data["capacity_accepted_perc"],
+                    capacity_seasons,
                 )
             end
         end

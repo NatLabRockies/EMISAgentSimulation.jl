@@ -2,7 +2,7 @@
 This struct holds the market price data for each product.
     energy_price: Dictionary of zonal energy prices with hourly resolution for each scenario.
     reserve_price: Dictionary of reserve prices with hourly resolution for each scenario.
-    capacity_price: Dictionary of annual capacity prices for each scenario.
+    capacity_price: Dictionary of capacity prices for each scenario, keyed by capacity season (a single "annual" key in non-seasonal mode).
     rec_price: Dictionary of annual REC prices for each scenario.
 """
 

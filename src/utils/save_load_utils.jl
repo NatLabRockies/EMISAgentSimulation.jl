@@ -2103,6 +2103,11 @@ end
 Write the outputs of one CEM solve to a standalone HDF5 file at `path`.
 The file is created (or overwritten) by this function; it is separate from
 simulation_data_year_N.h5.
+
+`capacity_price` is a `Dict{season => AxisArray{Float64,1}}` (a single `"annual"`
+key in non-seasonal mode) and is stored as one sub-group per season under
+`capacity_price/`. `load_expected_market_data` also reads legacy files where
+`capacity_price` was a single flat AxisArray, mapping it to `"annual"`.
 """
 function save_expected_market_data(path::String,
     capacity_price,
