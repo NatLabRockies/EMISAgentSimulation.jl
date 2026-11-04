@@ -53,14 +53,16 @@ const EMIS = EMISAgentSimulation
 
 """
 Builds a minimal, disk-safe CaseDefinition via the keyword-default outer
-constructor (src/structs/CaseDefinition.jl ~line 496). Pre-creates the case
-data directory so the constructor's `make_case_data_dir` call sees it already
-exists and skips its file-copy side effect.
+constructor (src/structs/CaseDefinition.jl). The constructor's
+`make_case_data_dir` copies {base_dir}/Homogeneous into {base_dir}/{name} when
+that case directory is missing or empty, so base_dir is a fresh temp directory
+with an empty Homogeneous/ source: the copy then only creates an empty case
+directory inside the temp dir.
 """
 function make_case(; seasonal_capacity_market::Bool = false)
     base_dir = mktempdir()
     name = "TestCase"
-    mkpath(joinpath(base_dir, name))
+    mkpath(joinpath(base_dir, "Homogeneous"))
     solver = JuMP.optimizer_with_attributes(GLPK.Optimizer)
     return CaseDefinition(
         name, base_dir, base_dir, base_dir, base_dir, base_dir, solver;
