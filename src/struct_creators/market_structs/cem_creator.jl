@@ -11,6 +11,7 @@ function create_cem_mkt_clr_problem(investor_dir::String,
     reserve_penalty::String,
     resource_adequacy::Dict{String, ResourceAdequacy},
     irm_scalar::Float64,
+    seasonal_capacity_market::Bool,
     expected_portfolio::Vector{<: Project{<: BuildPhase}},
     zones::Vector{String},
     lines::Vector{ZonalLine},
@@ -64,6 +65,7 @@ function create_cem_mkt_clr_problem(investor_dir::String,
                 "rep_load.csv",
             ),
         )
+        # Representative load periods
         num_hours = DataFrames.nrow(load_data)
 
         zonal_load =
@@ -74,12 +76,6 @@ function create_cem_mkt_clr_problem(investor_dir::String,
                 zonal_load[zone, h] = load_data[:, Symbol(zone_num)][h]
             end
         end
-        # for zone in zones
-        #     for h in 1:num_hours
-        #         zonal_load[zone, h] = load_data[:, Symbol(zone)][h]
-        #     end
-        # end
-        #energy_annual_increment = AxisArrays.AxisArray(ones(length(zones), num_invperiods), zones, collect(1:num_invperiods))
 
         energy_markets[p] = EnergyMarket(
             AxisArrays.AxisArray(zonal_load, zones, (1:num_hours)),
@@ -88,9 +84,6 @@ function create_cem_mkt_clr_problem(investor_dir::String,
     end
 
     ######################################### Create Reserve Markets ####################################################
-
-    #average_annual_increment = ones(num_invperiods)
-
     reserve_up_markets =
         Vector{Dict{String, ReserveUpMarket{num_hours}}}(undef, num_invperiods)
     reserve_down_markets =
@@ -132,10 +125,6 @@ function create_cem_mkt_clr_problem(investor_dir::String,
         reserve_up_market = Dict{String, ReserveUpMarket{num_hours}}()
         reserve_down_market = Dict{String, ReserveDownMarket{num_hours}}()
         reserve_ordc_market = Dict{String, ReserveORDCMarket{num_hours}}()
-
-        #= for i in 1:p
-            average_annual_increment[p] = average_annual_increment[p] * (1 + average_load_growth[i])
-        end =#
 
         for product in reserve_products
             if Symbol(product) in market_names
@@ -230,11 +219,18 @@ function create_cem_mkt_clr_problem(investor_dir::String,
     inertia_req_multiplier =
         inertia_mkt_params[1, "requirement_multiplier"] * inertia_market_bool
 
-    capacity_markets = Vector{CapacityMarket}(undef, num_invperiods)
+    capacity_markets = Vector{Dict{String, CapacityMarket}}(undef, num_invperiods)
+
     rec_markets = Vector{RECMarket}(undef, num_invperiods)
     inertia_markets = Vector{InertiaMarket}(undef, num_invperiods)
 
-    capacity_mkt_params = read_data(capacity_mkt_param_file)[1, :]
+    capacity_mkt_params_all = read_data(capacity_mkt_param_file)
+    capacity_mkt_params = capacity_mkt_params_all[1, :]
+
+    # Define seasons and months from the system definition; from Capacity.csv.
+    season_months = load_season_months(get_capacity_seasons_file(sys_data_dir))
+    seasons = resolve_capacity_seasons(season_months, seasonal_capacity_market)
+    cap_params_by_season = index_capacity_params_by_season(capacity_mkt_params_all, seasons)
 
     introduction_year = capacity_mkt_params["introduction_year"]
     discontinuation_year = capacity_mkt_params["discontinuation_year"]
@@ -252,13 +248,31 @@ function create_cem_mkt_clr_problem(investor_dir::String,
         system_peak_load = peak_load[scenario_name][sim_year]
 
         capacity_mkt_active = Bool(capacity_market_bool * capacity_active_years[p])
-        capacity_markets[p] = create_capacity_demand_curve(
-            capacity_mkt_param_file,
+
+        # Each season's demand curve uses that season's own peak load (quantity axis)
+        # and its share of the year (price axis, see create_capacity_demand_curve).
+        # Annual mode: season_peaks == Dict("annual" => system_peak_load) with no file
+        # read, and season_share == 1.0, so the curve is unchanged.
+        # Peaks come from the chronological load.csv, not the rep_load.csv read above:
+        # representative days would understate the peak.
+        season_peaks = resolve_seasonal_peak_loads(
             system_peak_load,
-            irm_scalar,
-            delta_irm,
-            capacity_mkt_active,
+            timeseries_data_dir,
+            scenario_name,
+            sim_year,
+            season_months,
+            seasons,
         )
+        capacity_markets[p] = Dict(
+            season => create_capacity_demand_curve(
+                cap_params_by_season[season],
+                season_peaks[season],
+                irm_scalar,
+                delta_irm,
+                capacity_mkt_active;
+                season_share = season_share(season_months_for(season_months, season)),
+            ) for season in seasons)
+
         rec_markets[p] = RECMarket(
             min(rec_req + rec_annual_increment * (p + iteration_year - 1), 1),
             price_cap_rec,

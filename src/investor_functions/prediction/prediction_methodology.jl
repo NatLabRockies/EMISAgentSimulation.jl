@@ -7,41 +7,19 @@ function gather_prediction_parameters(investor::Investor,
     investor_name = get_name(investor)
     investor_dir = get_data_dir(investor)
 
-    #With the changes in input timeseries structures, we will not be copying any timeseries files to investors' directories. 
-    #Therefore, the following copying commands have now been commented out/
-
-    #= load_dir = joinpath(investor_dir, "timeseries_data_files", "Load")
-    dir_exists(load_dir)
-    cp(joinpath(sys_data_dir, "timeseries_data_files", "Load", "rep_load_$(iteration_year - 1).csv"),
-    joinpath(load_dir, "load_$(iteration_year - 1).csv"), force = true) =#
-
     reserve_definition =
         read_data(joinpath(sys_data_dir, "markets_data", "reserve_products.csv"))
 
     reserve_products = String.(split(reserve_definition[1, "all_products"], "; "))
     ordc_products = String.(split(reserve_definition[1, "ordc_products"], "; "))
 
-    #= reserve_dir = joinpath(investor_dir, "timeseries_data_files", "Reserves")
-    dir_exists(reserve_dir)
-
-    for reserve in reserve_products
-        cp(joinpath(sys_data_dir, "timeseries_data_files", "Reserves", "rep_$(reserve)_$(iteration_year - 1).csv"),
-        joinpath(reserve_dir, "$(reserve)_$(iteration_year - 1).csv"), force = true)
-    end
-    =#
     market_names = get_markets(investor)
-
     carbon_tax = get_carbon_tax(investor)
-
     rep_period_interval = get_rep_period_interval(investor)
-
     rep_hour_weight = get_rep_hour_weight(investor)
-
     avg_block_size = get_avg_block_size(investor)
     fixed_block_size = get_fixed_block_size(investor)
-
     chron_weights = get_chron_weights(investor)
-
     scenarios = get_scenario_data(get_forecast(investor))
 
     return investor_name,
@@ -76,6 +54,7 @@ function create_investor_predictions(investors::Vector{Investor},
     reserve_penalty::String,
     resource_adequacy::Dict{String, ResourceAdequacy},
     irm_scalar::Float64,
+    seasonal_capacity_market::Bool,
     solver::JuMP.MOI.OptimizerWithAttributes,
     parallelize_investors::Bool,
     parallelize_scenarios::Bool)
@@ -93,6 +72,7 @@ function create_investor_predictions(investors::Vector{Investor},
             reserve_penalty_pmap = String[]
             resource_adequacy_pmap = Vector{Dict{String, ResourceAdequacy}}()
             irm_scalar_pmap = Float64[]
+            seasonal_capacity_market_pmap = Bool[]
             rep_period_interval_pmap = Int64[]
             rep_hour_weight_pmap = Vector{Dict{String, Dict{Int64, Vector{Float64}}}}()
             avg_block_size_pmap = Vector{Int64}()
@@ -128,6 +108,7 @@ function create_investor_predictions(investors::Vector{Investor},
                     push!(reserve_penalty_pmap, reserve_penalty)
                     push!(resource_adequacy_pmap, resource_adequacy)
                     push!(irm_scalar_pmap, irm_scalar)
+                    push!(seasonal_capacity_market_pmap, seasonal_capacity_market)
                     push!(rep_hour_weight_pmap, rep_hour_weight)
                     push!(rep_period_interval_pmap, rep_period_interval)
                     push!(avg_block_size_pmap, avg_block_size)
@@ -149,6 +130,7 @@ function create_investor_predictions(investors::Vector{Investor},
                 reserve_penalty_pmap,
                 resource_adequacy_pmap,
                 irm_scalar_pmap,
+                seasonal_capacity_market_pmap,
                 expected_portfolio_pmap,
                 repeat([zones], num_tasks),
                 repeat([lines], num_tasks),
@@ -177,6 +159,7 @@ function create_investor_predictions(investors::Vector{Investor},
                 repeat([reserve_penalty], num_tasks),
                 repeat([resource_adequacy], num_tasks),
                 repeat([irm_scalar], num_tasks),
+                repeat([seasonal_capacity_market], num_tasks),
                 repeat([zones], num_tasks),
                 repeat([lines], num_tasks),
                 repeat([peak_load], num_tasks),
@@ -218,6 +201,7 @@ function create_investor_predictions(investors::Vector{Investor},
                     repeat([reserve_penalty], num_scenarios),
                     repeat([resource_adequacy], num_scenarios),
                     repeat([irm_scalar], num_scenarios),
+                    repeat([seasonal_capacity_market], num_scenarios),
                     repeat([active_projects], num_scenarios),
                     repeat([zones], num_scenarios),
                     repeat([lines], num_scenarios),
@@ -248,6 +232,7 @@ function create_investor_predictions(investors::Vector{Investor},
                         reserve_penalty,
                         resource_adequacy,
                         irm_scalar,
+                        seasonal_capacity_market,
                         active_projects,
                         zones,
                         lines,

@@ -55,6 +55,35 @@ function make_capacity_demand_vectors(capmarkets::Vector{CapacityMarket})
 end
 
 """
+This function returns capacity market demand curve parameters, keyed by season,
+included in CEM for price projection and endogeneous Economic Dispatch. Each
+investment period's Dict{String, CapacityMarket} (one market per season) is
+unpacked into a per-season Vector{CapacityMarket} across investment periods and
+delegated to the single-season method above. In annual mode every period's dict
+has a single "annual" key, so this degrades to the single-season behavior with
+one season in the output dicts.
+"""
+function make_capacity_demand_vectors(capmarkets::Vector{Dict{String, CapacityMarket}})
+    seasons = collect(keys(capmarkets[1]))
+
+    segment_size = Dict{String, Vector{Vector{Float64}}}()
+    segment_grad = Dict{String, Vector{Vector{Float64}}}()
+    price_points = Dict{String, Vector{Vector{Float64}}}()
+    num_segments = Dict{String, Vector{Int64}}()
+
+    for season in seasons
+        season_markets = [capmarkets[p][season] for p in 1:length(capmarkets)]
+        segment_size[season],
+        segment_grad[season],
+        price_points[season],
+        num_segments[season] =
+            make_capacity_demand_vectors(season_markets)
+    end
+
+    return segment_size, segment_grad, price_points, num_segments
+end
+
+"""
 This functions returns operating reserve demand curve parameters
 included in CEM for price projection and endogeneous Economic Dispatch.
 """
@@ -276,11 +305,12 @@ This function updates the expected accepted capacity percentage of projects whic
 function update_capacity_accepted_perc!(project::P,
     scenario_name::String,
     capacity_accepted_perc::Dict{String, Array{Float64, 1}},
-) where {P <: Project{<: BuildPhase}}
-    for product in get_products(project)
+    seasons::Vector{String}) where {P <: Project{<: BuildPhase}}
+    for product in get_products(project), season in seasons
         set_accepted_perc!(
             product,
             scenario_name,
+            season,
             capacity_accepted_perc[get_name(project)],
         )
     end
@@ -292,12 +322,14 @@ This function updates the expected accepted capacity percentage of Option projec
 """
 function update_capacity_accepted_perc!(project::P,
     scenario_name::String,
-    capacity_accepted_perc::Dict{String, Array{Float64, 1}}) where {P <: Project{Option}}
+    capacity_accepted_perc::Dict{String, Array{Float64, 1}},
+    seasons::Vector{String}) where {P <: Project{Option}}
     tech = get_tech(project)
-    for product in get_products(project)
+    for product in get_products(project), season in seasons
         set_accepted_perc!(
             product,
             scenario_name,
+            season,
             capacity_accepted_perc["option_$(get_type(tech))_$(get_zone(tech))"],
         )
     end
@@ -326,9 +358,12 @@ function update_initial_capacity_revenues!(project::P,
     finance_data = get_finance_data(project)
 
     for scenario_name in keys(get_scenario_profit(finance_data))
+
+        # TODO: Define seasonal capacity prices instead of using an average value.
+        derating = get_project_derating(project, scenario_name)
+        avg_derating = isempty(derating) ? 0.0 : sum(values(derating)) / length(derating)
         capacity_revenue =
-            initial_capacity_prices[year] * get_maxcap(project) *
-            get_project_derating(project, scenario_name)
+            initial_capacity_prices[year] * get_maxcap(project) * avg_derating
 
         update_forward_profit!(product, finance_data, scenario_name, year, capacity_revenue)
 

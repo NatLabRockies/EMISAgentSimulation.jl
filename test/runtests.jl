@@ -16,6 +16,7 @@ const SELF_CONTAINED_TESTS = [
     "test_project_init.jl",
     "test_constructed_systems_generator.jl",
     "test_zone_consistency.jl",
+    "test_seasonal_capacity_markets.jl"
 ]
 
 # `julia --project=test test/runtests.jl test_project_init.jl ...` runs only the named files.

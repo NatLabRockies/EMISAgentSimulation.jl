@@ -66,6 +66,9 @@ function cem(system::MarketClearingProblem{Z, T},
     decided_projects = String[]
     option_projects_by_type = Dict(t => Vector{String}() for t in tech_types)
 
+    # Seasonal capacity markets
+    seasons = sort!(collect(keys(first(system.inv_periods).capacity)))
+
     for g in projects
         if sum(units_in_queue[g]) <= 0
             push!(option_projects, g)
@@ -283,6 +286,10 @@ function cem(system::MarketClearingProblem{Z, T},
         end
     end
 
+    for g in capacity_mkt_projects, season in seasons
+        @assert haskey(derating_factor[g], season) "Project $g has no derating for capacity season '$season' (has $(collect(keys(derating_factor[g]))))"
+    end
+
     total_reserve_capacity = Dict(product => 0.0 for product in all_reserves)
 
     for g in projects
@@ -319,6 +326,7 @@ function cem(system::MarketClearingProblem{Z, T},
             start_index = 0
         end
         block_size = avg_block_size
+
         @assert start_index <= avg_block_size
 
         TB, opperiods,
@@ -415,8 +423,12 @@ function cem(system::MarketClearingProblem{Z, T},
         ] >= 0
     )
 
-    # CAPACITY MARKET ELASTIC DEMAND
-    JuMP.@variable(m, d_cap[p in invperiods, s in 1:cap_numsegments[p]] >= 0)
+    # Capacity market elastic demand, indexed by season
+    JuMP.@variable(
+        m,
+        d_cap[p in invperiods, season in seasons,
+            s in 1:cap_numsegments[season][p]] >= 0
+    )
 
     # OPERATION DECISION VARIABLES
     JuMP.@variable(m, p_e[g in projects, p in invperiods, t in opperiods] >= 0) # Unit energy production [MW]
@@ -657,12 +669,18 @@ function cem(system::MarketClearingProblem{Z, T},
 
         # Capacity market welfare
         sum(
-            sum(d_cap[p, s] * cap_price_points[p][s] for s in 1:cap_numsegments[p]) *
+            sum(
+                d_cap[p, season, s] * cap_price_points[season][p][s]
+                for season in seasons, s in 1:cap_numsegments[season][p]
+            ) *
             social_npv_array[p] for p in invperiods
         )
         +
         1/2 * sum(
-            sum(cap_segmentgrad[p][s] * d_cap[p, s]^2 for s in 1:cap_numsegments[p]) *
+            sum(
+                cap_segmentgrad[season][p][s] * d_cap[p, season, s]^2
+                for season in seasons, s in 1:cap_numsegments[season][p]
+            ) *
             social_npv_array[p] for p in invperiods
         )
 
@@ -776,8 +794,8 @@ function cem(system::MarketClearingProblem{Z, T},
         end
 
         # Capacity Demand constraints
-        for s in 1:cap_numsegments[p]
-            JuMP.@constraint(m, d_cap[p, s] <= cap_segmentsize[p][s]) # Capacity market demand curve segment limit
+        for season in seasons, s in 1:cap_numsegments[season][p]
+            JuMP.@constraint(m, d_cap[p, season, s] <= cap_segmentsize[season][p][s]) # Capacity market demand curve segment limit
         end
 
         for t in opperiods
@@ -939,7 +957,7 @@ function cem(system::MarketClearingProblem{Z, T},
                     JuMP.@constraint(
                         m,
                         d_ordc[rp, p, t, s] <= ordc_segmentsize_agg[rp][p, t][s]
-                    ) #ORDC segment limit
+                    ) # ORDC segment limit
                 end
             end
         end
@@ -1026,9 +1044,11 @@ function cem(system::MarketClearingProblem{Z, T},
         sum(d_ordc[rp, p, t, s] for s in 1:ordc_numsegments_agg[rp][p, t]))
 
     # Capacity market
-    JuMP.@constraint(m, capacity_market[p in invperiods],
-        sum(c[g, p] * max_gen[g] * derating_factor[g] for g in capacity_mkt_projects) ==
-        sum(d_cap[p, s] for s in 1:cap_numsegments[p]))
+    JuMP.@constraint(m, capacity_market[p in invperiods, season in seasons],
+        sum(
+            c[g, p] * max_gen[g] * derating_factor[g][season] for g in capacity_mkt_projects
+        ) ==
+        sum(d_cap[p, season, s] for s in 1:cap_numsegments[season][p]))
 
     # REC market
     JuMP.@constraint(m, rps_compliance[p in invperiods],
@@ -1147,7 +1167,10 @@ function cem(system::MarketClearingProblem{Z, T},
 
     new_options_by_type = Dict(key => ceil(value) for (key, value) in new_options_by_type)
 
-    nominal_capacity_price = AxisArrays.AxisArray(zeros(length(capacity_price)), invperiods)
+    nominal_capacity_price = Dict(
+        season => AxisArrays.AxisArray(zeros(length(invperiods)), invperiods)
+        for season in seasons)
+
     nominal_REC_price = AxisArrays.AxisArray(zeros(length(REC_price)), invperiods)
     nominal_energy_price = AxisArrays.AxisArray(
         zeros(length(zones), length(invperiods), T),
@@ -1262,7 +1285,11 @@ function cem(system::MarketClearingProblem{Z, T},
     )
 
     for p in invperiods
-        nominal_capacity_price[p] = capacity_price[p] / social_npv_array[p]
+        for season in seasons
+            nominal_capacity_price[season][p] =
+                capacity_price[p, season] / social_npv_array[p]
+        end
+
         nominal_REC_price[p] = REC_price[p] / social_npv_array[p]
         REC_slack[p] = value.(v_rec[p])
         REC_supply[p] =
