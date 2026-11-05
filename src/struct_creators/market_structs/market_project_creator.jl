@@ -486,7 +486,7 @@ function create_market_project(project::P,
        all(values(market_project.derating_factor) .== 0.0)
         derating = 0.5                              # Dummy derating for maximum capacity if capacity product doesn't exist
     else
-        derating = maximum(values(market_project.derating_factor))
+        derating = mean(values(market_project.derating_factor))
     end
 
     modified_max_gen = max_peak_loads[market_project.zone] / derating
