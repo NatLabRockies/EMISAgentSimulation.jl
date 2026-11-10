@@ -373,6 +373,7 @@ function update_delta_irm!(initial_system::PSY.System,
         delta_irm = 0.0
         all_capacity_market_projects = get_all_techs(capacity_market_system)
         removeable_projects = PSY.Generator[]
+        system_config = load_system_config(simulation_dir)
 
         CT_generators = get_generators("CT", all_capacity_market_projects)
         append!(removeable_projects, CT_generators)
@@ -427,7 +428,9 @@ function update_delta_irm!(initial_system::PSY.System,
                                 get_buses_in_area(capacity_market_system, target_area_name),
                             )
                         target_bus_id = string(PSY.get_number(target_bus))
-                        target_zone = get_zone_for_area(target_area_name)
+                        target_zone = get_zone_name(
+                            system_config, target_area_name,
+                        )
                         @info "Targeting area $(target_area_name) (bus $(PSY.get_name(target_bus))) for incremental CTs"
                         @info "RA metrics: $(ra_metrics)"
                         @info "Updating delta IRM for scenario: $(scenario) - Year: $(iteration_year)"
