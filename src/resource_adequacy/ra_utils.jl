@@ -373,6 +373,7 @@ function update_delta_irm!(initial_system::PSY.System,
         delta_irm = 0.0
         all_capacity_market_projects = get_all_techs(capacity_market_system)
         removeable_projects = PSY.Generator[]
+        system_config = load_system_config(simulation_dir)
 
         CT_generators = get_generators("CT", all_capacity_market_projects)
         append!(removeable_projects, CT_generators)
@@ -412,12 +413,25 @@ function update_delta_irm!(initial_system::PSY.System,
                     if !isempty(ct_bus_match)
                         @info "CT template bus=$(ct_bus_id) → area=$(PSY.get_name(PSY.get_area(first(ct_bus_match))))"
                     end
-                    for area in PSY.get_components(PSY.Area, capacity_market_system)
-                        area_lole =
-                            val(PRAS.LOLE(shortfall, PSY.get_name(area))) / simulation_years
-                        @info "  Area $(PSY.get_name(area)) LOLE: $(area_lole) hrs/yr"
-                    end
                     while !(adequacy_conditions_met)
+                        area_lole = Dict{String, Float64}()
+                        for area in PSY.get_components(PSY.Area, capacity_market_system)
+                            area_name = PSY.get_name(area)
+                            area_lole[area_name] =
+                                val(PRAS.LOLE(shortfall, area_name)) / simulation_years
+                            @info "  Area $(area_name) LOLE: $(area_lole[area_name]) hrs/yr"
+                        end
+                        # Place incremental CTs in the area with the highest LOLE — it is the binding constraint
+                        target_area_name = argmax(last, area_lole).first
+                        target_bus =
+                            first(
+                                get_buses_in_area(capacity_market_system, target_area_name),
+                            )
+                        target_bus_id = string(PSY.get_number(target_bus))
+                        target_zone = get_zone_name(
+                            system_config, target_area_name,
+                        )
+                        @info "Targeting area $(target_area_name) (bus $(PSY.get_name(target_bus))) for incremental CTs"
                         @info "RA metrics: $(ra_metrics)"
                         @info "Updating delta IRM for scenario: $(scenario) - Year: $(iteration_year)"
                         scalar = 2
@@ -434,6 +448,11 @@ function update_delta_irm!(initial_system::PSY.System,
                             @info "Updating delta IRM for scenario: $(scenario) - Year: $(iteration_year)"
                             incremental_project = deepcopy(ct_project_template)
                             set_name!(incremental_project, "addition_CT_project_$(count)")
+                            set_project_bus!(
+                                incremental_project,
+                                target_bus_id,
+                                target_zone,
+                            )
                             total_added_capacity += get_maxcap(incremental_project)
                             add_capacity_market_project!(
                                 capacity_market_system,
