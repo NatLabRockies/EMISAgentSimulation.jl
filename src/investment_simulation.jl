@@ -49,10 +49,15 @@ function run_agent_simulation(
             capacity_mkt_params = read_data(capacity_mkt_param_file)[1, :]
             introduction_year = capacity_mkt_params["introduction_year"]
 
+            num_initial_years = max(capacity_forward_years - 1, 0)
             if introduction_year >= 3
-                initial_capacity_prices = [0.0, 0.0]              # initial capacity prices - arbitrarily selected here - #TODO: need some meachanism to generate these
+                initial_capacity_prices = zeros(Float64, max(num_initial_years, 2))   # initial capacity prices - arbitrarily selected here - #TODO: need some meachanism to generate these
             else
                 initial_capacity_prices = [70000.0, 80000.0]
+                # Placeholder: prices beyond year 2 rise by 2000 per year.
+                while length(initial_capacity_prices) < num_initial_years
+                    push!(initial_capacity_prices, initial_capacity_prices[end] + 2000.0)
+                end
             end
 
             for y in 1:(capacity_forward_years - 1)
@@ -270,7 +275,9 @@ function run_agent_simulation(
             # @info "Year $(iteration_year): Updating operation costs for project $(get_name(project))"
             end_life_year = get_end_life_year(project)
             construction_year = get_construction_year(project)
-            if end_life_year >= capacity_market_year &&
+            # Options are uncommitted templates; exclude them, consistent with create_capacity_mkt_system.
+            if !isa(project, Project{Option}) &&
+               end_life_year >= capacity_market_year &&
                construction_year <= capacity_market_year
                 push!(capacity_market_projects, project)
             end
