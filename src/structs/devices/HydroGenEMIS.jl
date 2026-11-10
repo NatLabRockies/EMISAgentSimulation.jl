@@ -10,7 +10,7 @@ This struct contains the technical data of a hydropower generator.
 """
 struct HydroTech <: Tech
     type::String
-    active_power_limits::NamedTuple{(:min, :max),Tuple{Float64,Float64}}
+    active_power_limits::NamedTuple{(:min, :max), Tuple{Float64, Float64}}
     ramp_limits::Union{Nothing, NamedTuple{(:up, :down), Tuple{Float64, Float64}}}
     time_limits::Union{Nothing, NamedTuple{(:up, :down), Tuple{Float64, Float64}}}
     operation_cost::Union{Nothing, PSY.HydroGenerationCost}

@@ -9,7 +9,7 @@ This struct contains the technical data of a renewable generator.
 """
 struct RenewableTech <: Tech
     type::String
-    active_power_limits::NamedTuple{(:min, :max),Tuple{Float64,Float64}}
+    active_power_limits::NamedTuple{(:min, :max), Tuple{Float64, Float64}}
     ramp_limits::Union{Nothing, NamedTuple{(:up, :down), Tuple{Float64, Float64}}}
     operation_cost::Union{Nothing, PSY.RenewableGenerationCost}
     bus::String

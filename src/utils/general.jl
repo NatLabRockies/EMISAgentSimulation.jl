@@ -92,7 +92,7 @@ function find_price_years(construction_year::Int64,
     yearly_horizon::Int64)
     price_years = (start_year = max((construction_year -
                        iteration_year + 1),
-            1),
+        1),
         end_year = min((end_life_year -
                         iteration_year + 1),
             (yearly_horizon)))
@@ -109,7 +109,7 @@ function find_update_years(construction_year::Int64,
     iteration_year::Int64,
     yearly_horizon::Int64)
     update_years = (start_year = max(construction_year,
-            iteration_year),
+        iteration_year),
         end_year = min(end_life_year,
             yearly_horizon + iteration_year - 1))
 
@@ -318,7 +318,7 @@ function month_lookup(str::Union{String, SubString{String}})
 end
 
 function find_rt_periods(hours::Vector{Int64}, num_rt_intervals::Int64)
-    rt_periods = [];
+    rt_periods = []
     for hour in hours
         append!(
             rt_periods,

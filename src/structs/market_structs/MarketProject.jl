@@ -4,7 +4,6 @@ This struct contains all the data for creating a market project
 """
 
 mutable struct MarketProject
-
     name::String                         # name of project
     project_type::String                 # is the project of storage type
     tech_type::String                    # technology type
@@ -85,7 +84,6 @@ mutable struct MarketProject
         synchronous_inertia::Bool,
         zone::String,
         ownedby::Vector{String})
-
         @assert fixed_cost >= 0
         @assert marginal_energy_cost >= 0
         @assert all(values(marginal_reserve_cost) .>= 0)
@@ -111,7 +109,7 @@ mutable struct MarketProject
         @assert remaining_build_time >= 0
         @assert base_cost_units >= 0
         @assert max_new_options >= base_cost_units
-        @assert capex_years >- 0
+        @assert capex_years > - 0
         @assert life_time >= 0
         @assert remaining_life >= 0
         @assert rec_correction >= 0
@@ -154,9 +152,7 @@ mutable struct MarketProject
             inertia_constant,
             synchronous_inertia,
             zone,
-            ownedby
-            )
-
+            ownedby,
+        )
     end
-
 end

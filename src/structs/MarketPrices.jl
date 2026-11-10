@@ -24,12 +24,15 @@ get_capacity_price(prices::MarketPrices) = prices.capacity_price
 get_rec_price(prices::MarketPrices) = prices.rec_price
 get_inertia_price(prices::MarketPrices) = prices.inertia_price
 
-get_prices(prices::MarketPrices, prod::T) where T<: Product = nothing
+get_prices(prices::MarketPrices, prod::T) where {T <: Product} = nothing
 get_prices(prices::MarketPrices, prod::Energy) = get_energy_price(prices)
 
-function get_prices(prices::MarketPrices, prod::Union{OperatingReserve{ReserveUpEMIS}, OperatingReserve{ReserveDownEMIS}})
+function get_prices(
+    prices::MarketPrices,
+    prod::Union{OperatingReserve{ReserveUpEMIS}, OperatingReserve{ReserveDownEMIS}},
+)
     product_name = get_name(prod)
-        price_data = get_reserve_price(prices)[String(product_name)]
+    price_data = get_reserve_price(prices)[String(product_name)]
     return price_data
 end
 
@@ -37,8 +40,11 @@ get_prices(prices::MarketPrices, prod::Capacity) = get_capacity_price(prices)
 get_prices(prices::MarketPrices, prod::REC) = get_rec_price(prices)
 get_prices(prices::MarketPrices, prod::Inertia) = get_inertia_price(prices)
 
-
-function set_energy_price!(prices::MarketPrices, scenario_name::String, energy_price::AxisArrays.AxisArray{Float64, 3})
+function set_energy_price!(
+    prices::MarketPrices,
+    scenario_name::String,
+    energy_price::AxisArrays.AxisArray{Float64, 3},
+)
     if !isnothing(prices.energy_price)
         prices.energy_price[scenario_name] = energy_price
     else
@@ -47,10 +53,16 @@ function set_energy_price!(prices::MarketPrices, scenario_name::String, energy_p
     return
 end
 
-function set_reserve_price!(prices::MarketPrices, scenario_name::String, reserve_price::Dict{String, Array{Float64, 2}})
-
+function set_reserve_price!(
+    prices::MarketPrices,
+    scenario_name::String,
+    reserve_price::Dict{String, Array{Float64, 2}},
+)
     if isnothing(prices.reserve_price)
-        reserve_price_dict = Dict(product => Dict(scenario_name => reserve_price[product]) for product in keys(reserve_price))
+        reserve_price_dict = Dict(
+            product => Dict(scenario_name => reserve_price[product]) for
+            product in keys(reserve_price)
+        )
         prices.reserve_price = reserve_price_dict
     else
         for product in keys(reserve_price)
@@ -61,7 +73,11 @@ function set_reserve_price!(prices::MarketPrices, scenario_name::String, reserve
     return
 end
 
-function set_capacity_price!(prices::MarketPrices, scenario_name::String, capacity_price::AxisArrays.AxisArray{Float64, 1})
+function set_capacity_price!(
+    prices::MarketPrices,
+    scenario_name::String,
+    capacity_price::AxisArrays.AxisArray{Float64, 1},
+)
     if !isnothing(prices.capacity_price)
         prices.capacity_price[scenario_name] = capacity_price
     else
@@ -70,7 +86,11 @@ function set_capacity_price!(prices::MarketPrices, scenario_name::String, capaci
     return
 end
 
-function set_rec_price!(prices::MarketPrices, scenario_name::String, rec_price::AxisArrays.AxisArray{Float64, 1})
+function set_rec_price!(
+    prices::MarketPrices,
+    scenario_name::String,
+    rec_price::AxisArrays.AxisArray{Float64, 1},
+)
     if !isnothing(prices.rec_price)
         prices.rec_price[scenario_name] = rec_price
     else
@@ -79,7 +99,11 @@ function set_rec_price!(prices::MarketPrices, scenario_name::String, rec_price::
     return
 end
 
-function set_inertia_price!(prices::MarketPrices, scenario_name::String, inertia_price::AxisArrays.AxisArray{Float64, 2})
+function set_inertia_price!(
+    prices::MarketPrices,
+    scenario_name::String,
+    inertia_price::AxisArrays.AxisArray{Float64, 2},
+)
     if !isnothing(prices.inertia_price)
         prices.inertia_price[scenario_name] = inertia_price
     else

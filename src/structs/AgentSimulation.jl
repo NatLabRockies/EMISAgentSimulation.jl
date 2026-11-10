@@ -31,7 +31,13 @@ mutable struct AgentSimulation
     system_PRAS::Dict{String, PSY.System}
     zones::Vector{String}
     lines::Vector{ZonalLine}
-    rep_periods::Dict{String, Dict{Int64, Union{Dict{Int64,Int64}, OrderedCollections.OrderedDict{Int64, Int64}}}}
+    rep_periods::Dict{
+        String,
+        Dict{
+            Int64,
+            Union{Dict{Int64, Int64}, OrderedCollections.OrderedDict{Int64, Int64}},
+        },
+    }
     rep_period_interval::Int64
     hour_weight::Dict{String, Dict{Int64, Vector{Float64}}}
     peak_load::Dict{String, Dict{Int64, Float64}}
@@ -63,7 +69,6 @@ get_investors(sim::AgentSimulation) = sim.investors
 get_derating_data(sim::AgentSimulation) = sim.derating_data
 get_resource_adequacy(sim::AgentSimulation) = sim.resource_adequacy
 
-
 function set_iteration_year!(simulation::AgentSimulation, iteration_year::Int64)
     simulation.iteration_year = iteration_year
 end
@@ -71,7 +76,6 @@ end
 function set_peak_load!(simulation::AgentSimulation, peak_load::Float64)
     simulation.peak_load = peak_load
 end
-
 
 """
 This struct temporarily holds the data for creating a simulation.
@@ -86,7 +90,13 @@ mutable struct AgentSimulationData
     system_PRAS::Dict{String, PSY.System}
     zones::Vector{String}
     lines::Vector{ZonalLine}
-    rep_periods::Dict{String, Dict{Int64, Union{Dict{Int64,Int64}, OrderedCollections.OrderedDict{Int64, Int64}}}}
+    rep_periods::Dict{
+        String,
+        Dict{
+            Int64,
+            Union{Dict{Int64, Int64}, OrderedCollections.OrderedDict{Int64, Int64}},
+        },
+    }
     rep_period_interval::Int64
     hour_weight::Dict{String, Dict{Int64, Vector{Float64}}}
     rep_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}}
@@ -102,47 +112,53 @@ mutable struct AgentSimulationData
 end
 
 function AgentSimulationData(case::CaseDefinition,
-                        results_dir::String,
-                        system_MDs::Union{Nothing, Vector{PSY.System}},
-                        system_UCs::Union{Nothing, Vector{PSY.System}},
-                        system_EDs::Union{Nothing, Vector{PSY.System}},
-                        system_PRAS::Dict{String, PSY.System},
-                        zones::Vector{String},
-                        lines::Vector{ZonalLine},
-                        rep_periods::Dict{String, Dict{Int64, Union{Dict{Int64,Int64}, OrderedCollections.OrderedDict{Int64, Int64}}}},
-                        rep_period_interval::Int64,
-                        hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
-                        rep_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},                     
-                        chron_weights::Dict{String, Dict{Int64, Matrix{Int64}}},
-                        peak_load::Dict{String, Dict{Int64, Float64}},
-                        markets::Dict{Symbol, Bool},
-                        carbon_tax::Vector{Float64},
-                        rec_requirement::Vector{Float64},
-                        queue_cost_data::DataFrames.DataFrame,
-                        derating_data::Dict{String, DataFrames.DataFrame},
-                        resource_adequacy::Dict{String, ResourceAdequacy})
+    results_dir::String,
+    system_MDs::Union{Nothing, Vector{PSY.System}},
+    system_UCs::Union{Nothing, Vector{PSY.System}},
+    system_EDs::Union{Nothing, Vector{PSY.System}},
+    system_PRAS::Dict{String, PSY.System},
+    zones::Vector{String},
+    lines::Vector{ZonalLine},
+    rep_periods::Dict{
+        String,
+        Dict{
+            Int64,
+            Union{Dict{Int64, Int64}, OrderedCollections.OrderedDict{Int64, Int64}},
+        },
+    },
+    rep_period_interval::Int64,
+    hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
+    rep_hour_weight::Dict{String, Dict{Int64, Vector{Float64}}},
+    chron_weights::Dict{String, Dict{Int64, Matrix{Int64}}},
+    peak_load::Dict{String, Dict{Int64, Float64}},
+    markets::Dict{Symbol, Bool},
+    carbon_tax::Vector{Float64},
+    rec_requirement::Vector{Float64},
+    queue_cost_data::DataFrames.DataFrame,
+    derating_data::Dict{String, DataFrames.DataFrame},
+    resource_adequacy::Dict{String, ResourceAdequacy})
     return AgentSimulationData(case,
-                          results_dir,
-                          1,
-                          system_MDs,
-                          system_UCs,
-                          system_EDs,
-                          system_PRAS,
-                          zones,
-                          lines,
-                          rep_periods,
-                          rep_period_interval,
-                          hour_weight,
-                          rep_hour_weight,
-                          chron_weights,
-                          peak_load,
-                          markets,
-                          carbon_tax,
-                          rec_requirement,
-                          nothing,
-                          queue_cost_data,
-                          derating_data,
-                          resource_adequacy)
+        results_dir,
+        1,
+        system_MDs,
+        system_UCs,
+        system_EDs,
+        system_PRAS,
+        zones,
+        lines,
+        rep_periods,
+        rep_period_interval,
+        hour_weight,
+        rep_hour_weight,
+        chron_weights,
+        peak_load,
+        markets,
+        carbon_tax,
+        rec_requirement,
+        nothing,
+        queue_cost_data,
+        derating_data,
+        resource_adequacy)
 end
 
 get_case(sim::AgentSimulationData) = sim.case
@@ -169,7 +185,7 @@ get_derating_data(sim::AgentSimulationData) = sim.derating_data
 get_resource_adequacy(sim::AgentSimulationData) = sim.resource_adequacy
 
 function set_investors!(simulation_data::AgentSimulationData,
-                        investors::Vector{Investor})
+    investors::Vector{Investor})
     simulation_data.investors = investors
     return
 end
@@ -183,17 +199,20 @@ end
 # Get all investors' projects except those which have been retired.
 function get_activeprojects(simulation::Union{AgentSimulation, AgentSimulationData})
     projects = get_allprojects(simulation)
-    active_projects = filter(x -> !isa(x, Project{Retired}) , projects)
+    active_projects = filter(x -> !isa(x, Project{Retired}), projects)
     return active_projects
 end
 
 # Get all investors' projects except options.
 function get_decidedprojects(simulation::Union{AgentSimulation, AgentSimulationData})
     projects = get_allprojects(simulation)
-    decided_projects = filter(x -> !isa(x, Project{Option}) , projects)
+    decided_projects = filter(x -> !isa(x, Project{Option}), projects)
     return decided_projects
 end
 
-function set_resource_adequacy!(simulation::Union{AgentSimulation, AgentSimulationData}, ra::Dict{String, ResourceAdequacy})
+function set_resource_adequacy!(
+    simulation::Union{AgentSimulation, AgentSimulationData},
+    ra::Dict{String, ResourceAdequacy},
+)
     simulation.resource_adequacy = ra
 end

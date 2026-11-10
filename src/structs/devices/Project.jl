@@ -37,9 +37,9 @@ get_output_active_power_limits(project::P) where {P <: StorageEMIS{<: BuildPhase
 get_storage_capacity(project::P) where {P <: StorageEMIS{<: BuildPhase}} =
     get_storage_capacity(get_tech(project))
 get_initial_storage_capacity_level(project::P) where {P <: StorageEMIS{<: BuildPhase}} =
-    get_initial_storage_capacity_level(get_tech(project))   
+    get_initial_storage_capacity_level(get_tech(project))
 get_efficiency(project::P) where {P <: StorageEMIS{<: BuildPhase}} =
-    get_efficiency(get_tech(project))       
+    get_efficiency(get_tech(project))
 
 get_operation_cost(tech::Tech) = nothing
 get_heat_rate_curve(tech::Tech) = nothing

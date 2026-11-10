@@ -58,7 +58,7 @@ function calculate_RA_metrics(sys::PSY.System,
     seed::Int64 = 42,
     simulation_years::Int64 = 15,
     overwrite_outage_with_ext::Bool = false)
-    system_period_of_interest = range(1; length = DEFAULT_HOURS_PER_YEAR * simulation_years);
+    system_period_of_interest = range(1; length = DEFAULT_HOURS_PER_YEAR * simulation_years)
     # correlated_outage_csv_location = joinpath(outage_dir, "ThermalFOR_scenario_1_new.csv")
 
     @info "Calculating RA metrics for iteration year: $(iteration_year) with system_period_of_interest: $(system_period_of_interest)"
@@ -162,7 +162,7 @@ function add_capacity_market_device_forecast!(sys_PRAS::PSY.System,
             forecast_count * sys_interval/sys_resolution +
             (sys_horizon - sys_interval/sys_resolution) - 1
         ))
-    time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
+    time_stamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime)
     additional_timestep = length(time_stamps) - DEFAULT_HOURS_PER_YEAR
 
     append!(
@@ -204,8 +204,6 @@ function add_capacity_market_project!(capacity_market_system::PSY.System,
     simulation_years::Int64,
     timeseries_data_dir::String,
     availability_df_rt::DataFrame)
-
-    # @info "Adding project $(get_name(project)) to capacity market system - scenario $(scenario) for year $(target_year)"
 
     # Must check against ALL stored components (including unavailable ones), since PSY
     # enforces name uniqueness on the full component store, not just available techs.
@@ -289,7 +287,6 @@ function create_capacity_mkt_system(initial_system::PSY.System,
         filter(project -> !in(typeof(project), option_leaftypes), active_projects)
 
     for project in non_option_projects
-        # @info "Evaluating project $(get_name(project)) for inclusion in capacity market system for year $(capacity_market_year)"
         end_life_year = get_end_life_year(project)
         construction_year = get_construction_year(project)
 
@@ -313,15 +310,6 @@ function create_capacity_mkt_system(initial_system::PSY.System,
         end
     end
 
-    #=
-    nodal_loads = PSY.get_components(PSY.StandardLoad, capacity_market_system)
-    for load in nodal_loads
-        zone = "zone_$(PSY.get_name(PSY.get_area(PSY.get_bus(load))))"
-        scaled_active_power = deepcopy(PSY.get_max_active_power(load)) * (1 + load_growth["load_$(zone)"]) ^ (capacity_forward_years)
-        PSY.set_max_active_power!(load, scaled_active_power)
-
-    end
-    =#
     return capacity_market_system
 end
 
@@ -454,7 +442,6 @@ function update_delta_irm!(initial_system::PSY.System,
                         ratio = max(1, scalar * ratio / length(keys(ra_targets)))
 
                         for i in 1:ceil(ratio)
-                            # @info i
                             @info "Updating delta IRM for scenario: $(scenario) - Year: $(iteration_year)"
                             incremental_project = deepcopy(ct_project_template)
                             set_name!(incremental_project, "addition_CT_project_$(count)")
@@ -510,7 +497,7 @@ function update_delta_irm!(initial_system::PSY.System,
                                 samples = PRAS_N_SAMPLES,
                                 simulation_years = simulation_years,
                             )
-                            #println(ra_metrics)
+                            @info "RA Metrics: $(ra_metrics)"
                             adequacy_conditions_met, scarcity_conditions_met =
                                 check_ra_conditions(ra_targets, ra_metrics)
                             count += 1
@@ -608,6 +595,7 @@ function create_base_system(initial_system::PSY.System,
                     @info "CT template bus=$(ct_bus_id) → area=$(PSY.get_name(PSY.get_area(first(ct_bus_match))))"
                 end
 
+                system_config = load_system_config(simulation_dir)
                 while !(adequacy_conditions_met)
                     area_lole = Dict{String, Float64}()
                     for area in PSY.get_components(PSY.Area, capacity_market_system)
@@ -621,7 +609,7 @@ function create_base_system(initial_system::PSY.System,
                     target_bus =
                         first(get_buses_in_area(capacity_market_system, target_area_name))
                     target_bus_id = string(PSY.get_number(target_bus))
-                    target_zone = get_zone_for_area(target_area_name)
+                    target_zone = get_zone_name(system_config, target_area_name)
                     @info "Targeting area $(target_area_name) (bus $(PSY.get_name(target_bus))) for incremental CTs"
                     scalar = 2
                     ratio = 0

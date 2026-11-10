@@ -50,7 +50,7 @@ function calculate_derating_data(simulation::Union{AgentSimulation, AgentSimulat
         ]...,
     )
     availability_data =
-        read_availability_df(timeseries_data_dir, scenario, simulation_years, "REAL_TIME")
+        get_availability_df(timeseries_data_dir, scenario, simulation_years, "REAL_TIME")
 
     num_hours = DataFrames.nrow(load_n_vg_data)
     num_top_hours = cap_mkt_params.num_top_hours[1] * simulation_years
@@ -158,7 +158,6 @@ function calculate_derating_data(simulation::Union{AgentSimulation, AgentSimulat
     for battery in all_battery_existing
         stor_duration =
             Int(round(get_storage_capacity(get_tech(battery))[:max] / get_maxcap(battery)))
-        # @info "Existing Battery $(get_name(battery)) has storage duration of $(stor_duration) hours: storage capacity $(get_storage_capacity(get_tech(battery))[:max]) MWh, max cap $(get_maxcap(battery)) MW"
         if haskey(existing_storage_duration_dict, stor_duration)
             push!(existing_storage_duration_dict[stor_duration], battery)
         else
@@ -170,7 +169,6 @@ function calculate_derating_data(simulation::Union{AgentSimulation, AgentSimulat
     for battery in all_battery_options
         stor_duration =
             Int(round(get_storage_capacity(get_tech(battery))[:max] / get_maxcap(battery)))
-        # @info "Option Battery $(get_name(battery)) has storage duration of $(stor_duration) hours: storage capacity $(get_storage_capacity(get_tech(battery))[:max]) MWh, max cap $(get_maxcap(battery)) MW"
         if haskey(option_storage_duration_dict, stor_duration)
             push!(option_storage_duration_dict[stor_duration], battery)
         else
@@ -186,8 +184,6 @@ function calculate_derating_data(simulation::Union{AgentSimulation, AgentSimulat
         sd => derating_factors[1, "STOR_$sd"] for
         sd in keys(existing_storage_duration_dict)
     )
-    # @info "initial CC is $(init_CC)"
-    # @info "peak reductions is $(peak_reductions_existing)"
 
     function calculate_average_storage_cc(
         stor_duration::Int64,
@@ -895,8 +891,6 @@ function update_derating_factor!(project::BatteryEMIS{Existing},
     duration = Int(round(get_storage_capacity(tech)[:max] / get_maxcap(project)))
     project_type = "existing_STOR_$(duration)"
 
-    # @info "Existing battery derating factor update: $(get_name(project)), storage_capacity $(get_storage_capacity(tech)[:max]), max_cap $(get_maxcap(project)), duration of $(duration) hours"
-
     derating_data = read_data(
         joinpath(
             simulation_dir,
@@ -928,8 +922,6 @@ function update_derating_factor!(project::BatteryEMIS{<:BuildPhase},
 )
     tech = get_tech(project)
     duration = Int(round(get_storage_capacity(tech)[:max] / get_maxcap(project)))
-
-    # @info "BuildPhase battery derating factor update: $(get_name(project)), storage_capacity $(get_storage_capacity(tech)[:max]), max_cap $(get_maxcap(project)), duration of $(duration) hours"
 
     if marginal_cc
         project_type = "new_STOR_$(duration)"
@@ -996,4 +988,3 @@ function update_simulation_derating_data!(
 
     return
 end
-

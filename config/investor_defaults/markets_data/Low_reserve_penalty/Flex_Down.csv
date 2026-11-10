@@ -1,0 +1,2 @@
+direction,eligible_zones,price_cap,timescale (min),eligible categories
+Down,1;2;3;4;5;6;7;8,998,20,"(Gas CT,Gas CC,Oil CT,Oil ST,Coal,Solar PV,Wind,CSP,Battery,Long Duration Energy Storage,Hydro,RE CT)"
