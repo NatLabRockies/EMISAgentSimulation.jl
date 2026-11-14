@@ -637,10 +637,15 @@ function update_realized_reserve_perc!(device::PSY.Device,
         end
     end
 
+    # Realized variables are in long format (columns DateTime, name, value), as in the
+    # VariableReserve methods above. Storage is included here too: its
+    # ActivePowerReserveVariable equals the sum of its AncillaryServiceVariableDischarge and
+    # AncillaryServiceVariableCharge for the same service.
     key_uc = "ActivePowerReserveVariable__ReserveDemandCurve__ReserveUp__$(service_name)"
     if haskey(results_uc, key_uc) &&
-       Symbol(PSY.get_name(device)) in DataFrames.propertynames(results_uc[key_uc])
-        reserve_provision_uc = results_uc[key_uc][:, Symbol(PSY.get_name(device))]
+       any(==(PSY.get_name(device)), results_uc[key_uc].name)
+        reserve_provision_uc =
+            results_uc[key_uc][results_uc[key_uc].name .== PSY.get_name(device), :value]
         reserve_perc_value_uc = reserve_provision_uc / get_device_size(device) / base_power
         reserve_perc_uc[PSY.get_name(device)][service_name][1, :] = reserve_perc_value_uc
     else
@@ -715,87 +720,6 @@ function update_realized_reserve_perc!(device::PSY.Device,
         if haskey(results_md, key_md)
             reserve_provision_md =
                 results_md[key_md][results_md[key_md].name .== PSY.get_name(device), :value]
-            reserve_perc_value_md =
-                reserve_provision_md / get_device_size(device) / base_power
-            reserve_perc_md[PSY.get_name(device)][service_name][1, :] =
-                reserve_perc_value_md
-        else
-            @warn "No MD reserve variable found for $(PSY.get_name(device)) - $(service_name), skipping"
-        end
-    end
-
-    return
-end
-
-"""
-This function returns realized ordc provision percentages from PSI Simulation.
-"""
-function update_realized_reserve_perc!(device::PSY.EnergyReservoirStorage,
-    service::PSY.ReserveDemandCurve{PSY.ReserveUp},
-    results_ed::Union{Nothing, Dict{String, DataFrames.DataFrame}},
-    results_uc::Union{Nothing, Dict{String, DataFrames.DataFrame}},
-    results_md::Union{Nothing, Dict{String, DataFrames.DataFrame}},
-    reserve_perc_md::Dict{String, Dict{String, Array{Float64, 2}}},
-    reserve_perc_uc::Dict{String, Dict{String, Array{Float64, 2}}},
-    reserve_perc_ed::Dict{String, Dict{String, Array{Float64, 2}}},
-    inertia_perc::Dict{String, Array{Float64, 2}},
-    rt_products::Vector{SubString{String}},
-    da_products::Vector{SubString{String}},
-    md_products::Vector{SubString{String}},
-    base_power::Float64,
-    md_market_bool::Bool,
-    single_stage_bool::Bool)
-    service_name = PSY.get_name(service)
-
-    if single_stage_bool == false
-        @info "Updating reserve provision for $(PSY.get_name(device)) - $(service_name) from ED results"
-        key_ed_discharge = "AncillaryServiceVariableDischarge__EnergyReservoirStorage__ReserveDemandCurve{ReserveUp}_$(service_name)"
-        key_ed_charge = "AncillaryServiceVariableCharge__EnergyReservoirStorage__ReserveDemandCurve{ReserveUp}_$(service_name)"
-        if haskey(results_ed, key_ed_discharge) && haskey(results_ed, key_ed_charge)
-            reserve_provision_ed =
-                results_ed[key_ed_discharge][
-                    results_ed[key_ed_discharge].name .== PSY.get_name(device),
-                    :value,
-                ] +
-                results_ed[key_ed_charge][
-                    results_ed[key_ed_charge].name .== PSY.get_name(device),
-                    :value,
-                ]
-            reserve_perc_value_ed =
-                reserve_provision_ed / get_device_size(device) / base_power
-            reserve_perc_ed[PSY.get_name(device)][service_name][1, :] =
-                reserve_perc_value_ed
-        else
-            @warn "No ED reserve variable found for $(PSY.get_name(device)) - $(service_name), skipping"
-        end
-    end
-
-    key_uc_discharge = "AncillaryServiceVariableDischarge__EnergyReservoirStorage__ReserveDemandCurve{ReserveUp}_$(service_name)"
-    key_uc_charge = "AncillaryServiceVariableCharge__EnergyReservoirStorage__ReserveDemandCurve{ReserveUp}_$(service_name)"
-    if haskey(results_uc, key_uc_discharge) && haskey(results_uc, key_uc_charge) &&
-       Symbol(get_name(device)) in DataFrames.propertynames(results_uc[key_uc_discharge]) &&
-       Symbol(get_name(device)) in DataFrames.propertynames(results_uc[key_uc_charge])
-        reserve_provision_uc = (
-            results_uc[key_uc_discharge][:, Symbol(get_name(device))] .+
-            results_uc[key_uc_charge][:, Symbol(get_name(device))]
-        )
-        reserve_perc_value_uc = reserve_provision_uc / get_device_size(device) / base_power
-        reserve_perc_uc[get_name(device)][service_name][1, :] = reserve_perc_value_uc
-    else
-        @warn "No UC reserve variable found for $(get_name(device)) - $(service_name), skipping"
-    end
-
-    if md_market_bool == true
-        @info "Updating reserve provision for $(PSY.get_name(device)) - $(service_name) from MD results"
-        key_md_discharge = "AncillaryServiceVariableDischarge__EnergyReservoirStorage__ReserveDemandCurve{ReserveUp}_$(service_name)"
-        key_md_charge = "AncillaryServiceVariableCharge__EnergyReservoirStorage__ReserveDemandCurve{ReserveUp}_$(service_name)"
-        if haskey(results_md, key_md_discharge) && haskey(results_md, key_md_charge) &&
-           Symbol(PSY.get_name(device)) in DataFrames.propertynames(results_md[key_md_discharge]) &&
-           Symbol(PSY.get_name(device)) in DataFrames.propertynames(results_md[key_md_charge])
-            reserve_provision_md = (
-                results_md[key_md_discharge][:, Symbol(PSY.get_name(device))] .+
-                results_md[key_md_charge][:, Symbol(PSY.get_name(device))]
-            )
             reserve_perc_value_md =
                 reserve_provision_md / get_device_size(device) / base_power
             reserve_perc_md[PSY.get_name(device)][service_name][1, :] =

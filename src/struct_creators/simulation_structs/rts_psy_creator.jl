@@ -935,7 +935,8 @@ function create_sys_w_updated_ts(
     # Regulation/reserve time series update
     #-----------------------------------------------------------------
     # Only the raw-data source differs between canonical and legacy mode; both build a
-    # product-name -> normalized (already divided by requirement) series map, then share
+    # product-name -> scaling-factor series map (MW / (requirement * base power), see
+    # reserve_requirement_scaling_factors), then share
     # the same forecast-window wraparound/attachment loop below.
     reserve_data = Dict{String, Vector{Float64}}()
     if canonical_reserves_dir !== nothing
@@ -948,8 +949,8 @@ function create_sys_w_updated_ts(
                 @warn "No canonical reserve time series file for service \"$(product)\" in $(canonical_reserves_dir); skipping time series attachment"
                 continue
             end
-            reserve_data[product] =
-                _canonical_daily_hourly_series(reserve_file) ./ get_requirement(d)
+            reserve_data[product] = reserve_requirement_scaling_factors(
+                _canonical_daily_hourly_series(reserve_file), d, sys_MD)
         end
     else
         if market_stage == "dayahead"
@@ -1005,7 +1006,7 @@ function create_sys_w_updated_ts(
             get_components(x -> PSY.get_name(x) in ["REG_DN", "REG_UP"], Service, sys_MD)
             product = PSY.get_name(d)
             raw = product == "REG_DN" ? regdown_ts[!, "RegDown"] : regup_ts[!, "RegUp"]
-            reserve_data[product] = raw ./ get_requirement(d) / 100
+            reserve_data[product] = reserve_requirement_scaling_factors(raw, d, sys_MD)
         end
     end
 
