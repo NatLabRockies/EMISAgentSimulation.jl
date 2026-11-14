@@ -28,7 +28,6 @@ function update_forward_profit!(product::Capacity,
     return
 end
 
-
 """
 This function updates the annual realized profit for active projects.
 Returns nothing.
