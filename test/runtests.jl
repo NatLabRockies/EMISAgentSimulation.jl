@@ -5,6 +5,7 @@ const LOG_FILE = "emis-agent-simulation-test.log"
 # Can generate with: ls -1 test | grep "test_.*\.jl"
 const DISABLED_TEST_FILES = [
     "test_PSI_build_solve.jl",  # slow: real Xpress MIP solve against full-scale test systems
+    "test_ordc_simulation.jl",  # slow: multi-step PSI Simulations with ORDC (Xpress, full-scale systems)
     # test_hdf5_serialization.jl is not disabled here: on master the broken
     # make_simulation()/CaseDefinition() roundtrip testset is already commented out
     # inside the file (TODO there), and its other testsets run.
@@ -18,6 +19,8 @@ const DISABLED_TEST_FILES = [
 const SELF_CONTAINED_TEST_FILES = [
     "test_PSI.jl",
     "test_PSI_build_solve.jl",
+    "test_ordc.jl",
+    "test_ordc_simulation.jl",
     "test_hdf5_serialization.jl",
     "test_read_cc_scalar.jl",
     "test_update_derating_factor.jl",
@@ -25,6 +28,7 @@ const SELF_CONTAINED_TEST_FILES = [
     "test_project_input_validation.jl",
     "test_project_init.jl",
     "test_constructed_systems_generator.jl",
+    "test_reserve_requirement_units.jl",
     "test_zone_consistency.jl",
 ]
 

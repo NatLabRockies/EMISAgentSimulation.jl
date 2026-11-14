@@ -215,12 +215,24 @@ end
 # type EMIS uses, and that PSI's general methods are still there.
 @testset "EMIS PSI fixes dispatch as more specific methods" begin
     EMIS = EMISAgentSimulation
-    # Every service type EMIS builds a ServiceModel for must hit the EMIS dual fix.
-    source = read(joinpath(@__DIR__, "..", "src", "markets_simulation", "siip_simulation_definition.jl"), String)
-    used_types = unique(m.captures[1] for m in eachmatch(r"PSI\.ServiceModel\(\s*(PSY\.\w+\{PSY\.\w+\})", source))
+    # Every service type EMIS builds a ServiceModel for must hit the EMIS dual fix. The service
+    # models live in PSI_definitions.jl (NamedTuples applied by apply_service_models!), so read
+    # them from there instead of scanning source text.
+    service_models = vcat(
+        EMIS.UC_SERVICE_MODELS,
+        EMIS.MD_SERVICE_MODELS,
+        EMIS.ED_SERVICE_MODELS_BASE,
+        EMIS.ED_SERVICE_MODELS_ORDC,
+    )
+    used_types = unique(svc.component for svc in service_models)
     @test !isempty(used_types)
-    for type_text in used_types, formulation in (PSI.RangeReserve, PSI.StepwiseCostReserve)
-        service_type = Core.eval(EMIS, Meta.parse(type_text))
+    # ORDC must be among them, with the formulation the realized-price extraction expects.
+    @test any(
+        svc -> svc.component == PSY.ReserveDemandCurve{PSY.ReserveUp} &&
+                   svc.formulation == PSI.StepwiseCostReserve,
+        service_models,
+    )
+    for service_type in used_types, formulation in (PSI.RangeReserve, PSI.StepwiseCostReserve)
         @test service_type <: EMIS.EMIS_DUAL_SERVICE_TYPES
         method = which(
             PSI.add_constraint_dual!,
