@@ -1,13 +1,26 @@
-using Test
-using Logging
-using EMISAgentSimulation
-using DataFrames
-using CSV
-using AxisArrays
+include("includes.jl")
 
-# Self-contained tests — run without any external setup.
-const SELF_CONTAINED_TESTS = [
+const LOG_FILE = "emis-agent-simulation-test.log"
+
+# Can generate with: ls -1 test | grep "test_.*\.jl"
+const DISABLED_TEST_FILES = [
+    "test_PSI_build_solve.jl",  # slow: real Xpress MIP solve against full-scale test systems
+    "test_ordc_simulation.jl",  # slow: multi-step PSI Simulations with ORDC (Xpress, full-scale systems)
+    # test_hdf5_serialization.jl is not disabled here: on master the broken
+    # make_simulation()/CaseDefinition() roundtrip testset is already commented out
+    # inside the file (TODO there), and its other testsets run.
+]
+
+# Self-contained: run without any external setup. `@includetests` defaults to
+# this list when called with no ARGS (see below) — it does NOT scan the
+# directory, unlike the analogous macro in PowerSimulations.jl, because this
+# directory also has context-dependent files (see CONTEXT_DEPENDENT_TEST_FILES)
+# that error without caller-provided variables and must never be auto-discovered.
+const SELF_CONTAINED_TEST_FILES = [
     "test_PSI.jl",
+    "test_PSI_build_solve.jl",
+    "test_ordc.jl",
+    "test_ordc_simulation.jl",
     "test_hdf5_serialization.jl",
     "test_read_cc_scalar.jl",
     "test_update_derating_factor.jl",
@@ -15,26 +28,133 @@ const SELF_CONTAINED_TESTS = [
     "test_project_input_validation.jl",
     "test_project_init.jl",
     "test_constructed_systems_generator.jl",
+    "test_reserve_requirement_units.jl",
     "test_zone_consistency.jl",
 ]
 
-# `julia --project=test test/runtests.jl test_project_init.jl ...` runs only the named files.
-for file in (isempty(ARGS) ? SELF_CONTAINED_TESTS : ARGS)
-    include(file)
-end
-
-# Context-dependent tests — require the caller to have defined:
+# Require the caller to have defined, before including this file:
 #   case, simulation_years, test_system_dir  (for test_base_checks.jl)
 #   projectdata, investor_dir                (for test_system_inputs.jl)
-if isempty(ARGS)
-    if isdefined(Main, :case)
-        include("test_base_checks.jl")
-    else
-        @info "Skipping test_base_checks.jl: `case` is not defined"
+# Always run (not affected by ARGS filtering) to preserve the existing driver-
+# script workflow: define those variables, then `include("test/runtests.jl")`.
+const CONTEXT_DEPENDENT_TEST_FILES = [
+    "test_base_checks.jl",
+    "test_system_inputs.jl",
+]
+
+const LOG_LEVELS = Dict(
+    "Debug" => Logging.Debug,
+    "Info" => Logging.Info,
+    "Warn" => Logging.Warn,
+    "Error" => Logging.Error,
+)
+
+function get_logging_level(env_name::String, default)
+    level = get(ENV, env_name, default)
+    log_level = get(LOG_LEVELS, level, nothing)
+    if isnothing(log_level)
+        error("Invalid log level $level: Supported levels: $(values(LOG_LEVELS))")
     end
-    if isdefined(Main, :projectdata)
-        include("test_system_inputs.jl")
+
+    return log_level
+end
+
+"""
+Includes the given test files, given as a list without their ".jl" extensions
+(e.g. `julia test/runtests.jl test_PSI test_hdf5_serialization` to run just
+those two; a trailing ".jl" is also accepted). If none are given, includes all of SELF_CONTAINED_TEST_FILES.
+Entries in DISABLED_TEST_FILES are skipped either way.
+"""
+macro includetests(testarg...)
+    if length(testarg) == 0
+        tests = []
+    elseif length(testarg) == 1
+        tests = testarg[1]
     else
-        @info "Skipping test_system_inputs.jl: `projectdata` is not defined"
+        error("@includetests takes zero or one argument")
     end
+
+    quote
+        tests = $tests
+        if length(tests) == 0
+            tests = copy(SELF_CONTAINED_TEST_FILES)
+        else
+            tests = map(f -> endswith(string(f), ".jl") ? string(f) : string(f, ".jl"), tests)
+        end
+        println()
+        if !isempty(DISABLED_TEST_FILES)
+            @warn("Some tests are disabled $DISABLED_TEST_FILES")
+        end
+        for test in tests
+            test ∈ DISABLED_TEST_FILES && continue
+            print(splitext(test)[1], ": ")
+            include(test)
+            println()
+        end
+    end
+end
+
+function get_logging_level_from_env(env_name::String, default)
+    level = get(ENV, env_name, default)
+    return IS.get_logging_level(level)
+end
+
+function run_tests()
+    logging_config_filename = get(ENV, "EMIS_LOGGING_CONFIG", nothing)
+    if !isnothing(logging_config_filename)
+        config = IS.LoggingConfiguration(logging_config_filename)
+    else
+        config = IS.LoggingConfiguration(;
+            filename = LOG_FILE,
+            file_level = Logging.Info,
+            console_level = Logging.Error,
+        )
+    end
+    console_logger = ConsoleLogger(config.console_stream, config.console_level)
+
+    IS.open_file_logger(LOG_FILE, config.file_level) do file_logger
+        levels = (Logging.Info, Logging.Warn, Logging.Error)
+        multi_logger =
+            IS.MultiLogger([console_logger, file_logger], IS.LogEventTracker(levels))
+        global_logger(multi_logger)
+
+        if !isempty(config.group_levels)
+            IS.set_group_levels!(multi_logger, config.group_levels)
+        end
+
+        @time @testset "Begin EMISAgentSimulation tests" begin
+            @includetests ARGS
+
+            for test in CONTEXT_DEPENDENT_TEST_FILES
+                test ∈ DISABLED_TEST_FILES && continue
+                if test == "test_base_checks.jl" &&
+                   !(@isdefined(case) && @isdefined(simulation_years) && @isdefined(test_system_dir))
+                    @info "Skipping $test: requires `case`, `simulation_years`, `test_system_dir` to be defined by the caller before include(\"test/runtests.jl\")"
+                    continue
+                end
+                if test == "test_system_inputs.jl" &&
+                   !(@isdefined(projectdata) && @isdefined(investor_dir))
+                    @info "Skipping $test: requires `projectdata`, `investor_dir` to be defined by the caller before include(\"test/runtests.jl\")"
+                    continue
+                end
+                print(splitext(test)[1], ": ")
+                include(test)
+                println()
+            end
+        end
+
+        @test length(IS.get_log_events(multi_logger.tracker, Logging.Error)) == 0
+
+        @info IS.report_log_summary(multi_logger)
+    end
+end
+
+logger = global_logger()
+
+try
+    run_tests()
+finally
+    # Guarantee that the global logger is reset.
+    global_logger(logger)
+    nothing
 end

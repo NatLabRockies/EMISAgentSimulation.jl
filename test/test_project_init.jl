@@ -225,6 +225,32 @@ end
     original_wind = read(wind_file, String)
     _replace_header!(wind_file, "309_WIND_1", "BOGUS_WIND")
     @test_throws r"no column for WIND generator\(s\): 309_WIND_1" validate_emis_project(init_dir)
+
+    # A generator listed in devices_to_remove.csv is pruned before the check, as in the simulation.
+    remove_file = joinpath(EMISAgentSimulation._base_project_paths(init_dir)[1], "devices_to_remove.csv")
+    original_remove = read(remove_file, String)
+    write(remove_file, "device_type,device_name\nRenewableDispatch,309_WIND_1\n")
+    @test validate_emis_project(init_dir) == init_dir
+    write(remove_file, "device_type,device_name\nBogusType,309_WIND_1\n")
+    @test_throws r"Unsupported device_type in devices_to_remove.csv: BogusType" validate_emis_project(init_dir)
+    write(remove_file, original_remove)
+    @test_throws r"no column for WIND generator\(s\): 309_WIND_1" validate_emis_project(init_dir)
     write(wind_file, original_wind)
+    @test validate_emis_project(init_dir) == init_dir
+end
+
+@testset "Project init leaves devices_to_remove units out of gen.csv" begin
+    spec_dir = joinpath(mktempdir(), "project_spec")
+    cp(RTS_SPEC_DIR, spec_dir)
+    ownership = CSV.read(joinpath(spec_dir, "projectexisting.csv"), DataFrame; stringtype = String)
+    CSV.write(joinpath(spec_dir, "projectexisting.csv"), filter(r -> r.GEN_UID != "309_WIND_1", ownership))
+    write(joinpath(spec_dir, "devices_to_remove.csv"), "device_type,device_name\nRenewableDispatch,309_WIND_1\n")
+
+    init_dir = joinpath(mktempdir(), "rts_gmlc_pruned")
+    result = initialize_emis_project(spec_dir; output_dir=init_dir, reference_case_dir=nothing)
+    gen = CSV.read(joinpath(result[:test_system_dir], "RTS_Data", "SourceData", "gen.csv"), DataFrame; stringtype = String)
+    @test !("309_WIND_1" in gen[!, "GEN UID"])
+    @test nrow(gen) == nrow(ownership) - 1
+    # The WIND files keep the 309_WIND_1 column; extra columns are allowed.
     @test validate_emis_project(init_dir) == init_dir
 end

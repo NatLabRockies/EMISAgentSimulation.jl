@@ -100,7 +100,15 @@ function _zone_of_area(zone_by_area::Dict, area_name::AbstractString)
     return zone_by_area[area_name]
 end
 
+"""
+Maximum output in MW, matching the `Size` that `extract_existing_projects` writes. Getters return
+values in the system's unit setting (system base by default), so every branch multiplies by the
+system base power. RenewableGen (wind/PV) has no `active_power_limits`; its maximum is
+`rating * power_factor` (`get_max_active_power`).
+"""
 function _component_capacity_mw(component, sys::PSY.System)
+    component isa PSY.RenewableGen &&
+        return PSY.get_max_active_power(component) * PSY.get_base_power(sys)
     try
         limits = if component isa PSY.Storage
             PSY.get_output_active_power_limits(component)
@@ -110,7 +118,7 @@ function _component_capacity_mw(component, sys::PSY.System)
         return limits.max * PSY.get_base_power(sys)
     catch exception
         if exception isa MethodError || exception isa ArgumentError
-            return PSY.get_rating(component)
+            return PSY.get_rating(component) * PSY.get_base_power(sys)
         end
         rethrow()
     end
@@ -561,9 +569,13 @@ function _project_row_value(defaults, unit_type, field, fallback)
     end
 end
 
-"""Value of an optional per-generator override column (e.g. `Online Year`) in an
+"""Optional per-unit columns in the ownership input (`projectexisting.csv`) that override the
+technology-wide defaults in `extract_fleet`. Blank/NA cells fall back to the default."""
+const PER_UNIT_OVERRIDE_COLUMNS = ("Online Year", "Lifetime")
+
+"""Value of an optional per-generator override column (see `PER_UNIT_OVERRIDE_COLUMNS`) in an
 ownership input row, if the column is present and the row's value isn't blank/NA.
-Unlike most PROJECT_EXISTING_COLUMNS fields, some (Online Year) are true per-unit data
+Unlike most PROJECT_EXISTING_COLUMNS fields, these are true per-unit data
 rather than technology constants, so they can't be reasonably filled from a single
 technology-wide default."""
 function _ownership_override(owner_row, column::AbstractString)
@@ -574,6 +586,10 @@ function _ownership_override(owner_row, column::AbstractString)
     text = strip(string(value))
     (isempty(text) || lowercase(text) in ("na", "n/a")) && return nothing
     lowercase(text) in ("true", "false") && return lowercase(text) == "true"
+    # Whole numbers stay Int64: the simulation dispatches on an integer `Online Year`
+    # (calculate_capcost_and_wacc), and a Float64 is written back to the CSV as e.g. "1996.0".
+    integer = tryparse(Int64, text)
+    integer === nothing || return integer
     parsed = tryparse(Float64, text)
     return parsed === nothing ? text : parsed
 end
@@ -675,10 +691,12 @@ function extract_fleet(
             row["Min Up Time Hr"] = PSY.get_time_limits(device)
             operation_cost === nothing && push!(report, "$(name): heat-rate fallback used")
         end
-        # Genuinely per-unit fields (e.g. commissioning year) vary too widely across real
+        # Genuinely per-unit fields (commissioning year, lifetime) vary too widely across real
         # fleets to fill from a technology-wide default; honor a user-supplied value first.
-        online_year = _ownership_override(owner_row, "Online Year")
-        online_year !== nothing && (row["Online Year"] = online_year)
+        for column in PER_UNIT_OVERRIDE_COLUMNS
+            value = _ownership_override(owner_row, column)
+            value !== nothing && (row[column] = value)
+        end
         for column in PROJECT_EXISTING_COLUMNS
             row[column] == "NA" &&
                 (row[column] = _project_row_value(default_lookup, unit_type, column, "NA"))

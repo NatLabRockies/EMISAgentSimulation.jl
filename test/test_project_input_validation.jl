@@ -189,3 +189,71 @@ end
     not_thermal = DataFrame(unit_type=["MY_GAS"], class=["renewable"])
     @test EMISAgentSimulation.validate_project_option_cost_curve(options, path, not_thermal) === nothing
 end
+
+@testset "gen.csv PMax equals projectexisting Size for wind/PV (system-base units)" begin
+    # Regression: _component_capacity_mw returned get_rating in system per unit for RenewableGen
+    # (no active_power_limits), so gen.csv "PMax MW" was 100x smaller than Size and the
+    # investor availability (profile / PMax) about 100x too high.
+    sys = PowerSystems.System(100.0; runchecks=false)
+    area = PowerSystems.Area(; name="FarWest")
+    PowerSystems.add_component!(sys, area)
+    bus = PowerSystems.ACBus(; number=1, name="bus1", available=true, bustype=PowerSystems.ACBusTypes.REF,
+        angle=0.0, magnitude=1.0, voltage_limits=(min=0.9, max=1.1), base_voltage=230.0, area=area)
+    PowerSystems.add_component!(sys, bus)
+    for (name, pm) in (("wind_1", PowerSystems.PrimeMovers.WT), ("pv_1", PowerSystems.PrimeMovers.PVe))
+        gen = PowerSystems.RenewableDispatch(; name=name, available=true, bus=bus, active_power=0.0,
+            reactive_power=0.0, rating=0.5, prime_mover_type=pm, reactive_power_limits=nothing,
+            power_factor=1.0, operation_cost=PowerSystems.RenewableGenerationCost(nothing), base_power=120.0)
+        PowerSystems.add_component!(sys, gen)   # 0.5 pu on a 120 MW device base = 60 MW
+    end
+    mapping = load_psy_classification_mapping(MAPPING_FILE)
+    technologies = DataFrame(CSV.File(TECHNOLOGIES_FILE))
+    gen = extract_gen_table(sys, mapping; technologies=technologies)
+    ownership = DataFrame(Investor=["investor1", "investor1"], GEN_UID=["wind_1", "pv_1"])
+    fleet = extract_fleet(sys, mapping, technologies, ownership;
+        defaults=load_project_defaults(DEFAULTS_FILE)).projects
+    for name in ("wind_1", "pv_1")
+        pmax = only(gen[gen[!, "GEN UID"] .== name, "PMax MW"])
+        size = only(fleet[fleet.GEN_UID .== name, "Size"])
+        @test pmax ≈ 60.0
+        @test size ≈ 60.0
+        @test pmax ≈ size
+    end
+end
+
+@testset "per-unit Lifetime and Online Year overrides in projectexisting ownership" begin
+    # extract_fleet takes Lifetime from project_defaults.csv per unit type unless the ownership input
+    # supplies a per-unit value (PER_UNIT_OVERRIDE_COLUMNS); blank cells fall back to the default.
+    sys = PowerSystems.System(100.0; runchecks=false)
+    area = PowerSystems.Area(; name="FarWest")
+    PowerSystems.add_component!(sys, area)
+    bus = PowerSystems.ACBus(; number=1, name="bus1", available=true, bustype=PowerSystems.ACBusTypes.REF,
+        angle=0.0, magnitude=1.0, voltage_limits=(min=0.9, max=1.1), base_voltage=230.0, area=area)
+    PowerSystems.add_component!(sys, bus)
+    for name in ("wind_a", "wind_b")
+        PowerSystems.add_component!(sys, PowerSystems.RenewableDispatch(; name=name, available=true, bus=bus,
+            active_power=0.0, reactive_power=0.0, rating=1.0, prime_mover_type=PowerSystems.PrimeMovers.WT,
+            reactive_power_limits=nothing, power_factor=1.0,
+            operation_cost=PowerSystems.RenewableGenerationCost(nothing), base_power=50.0))
+    end
+    num(x) = x isa Number ? Float64(x) : parse(Float64, strip(string(x)))
+    mapping = load_psy_classification_mapping(MAPPING_FILE)
+    technologies = DataFrame(CSV.File(TECHNOLOGIES_FILE))
+    defaults = load_project_defaults(DEFAULTS_FILE)
+    default_lifetime = num(only(defaults[(defaults.unit_type .== "WT") .& (defaults.field .== "Lifetime"), :value]))
+    ownership = DataFrame(Investor=["investor1", "investor1"], GEN_UID=["wind_a", "wind_b"],
+        var"Online Year"=["2005", ""], Lifetime=["31", ""])
+    fleet = extract_fleet(sys, mapping, technologies, ownership; defaults=defaults).projects
+    row(n) = fleet[only(findall(==(n), fleet.GEN_UID)), :]
+    @test num(row("wind_a").Lifetime) == 31.0
+    @test num(row("wind_a")[Symbol("Online Year")]) == 2005.0
+    # whole numbers stay integers (an Int64 Online Year is required by calculate_capcost_and_wacc,
+    # and a Float64 would be written to projectexisting.csv as "2005.0")
+    @test row("wind_a")[Symbol("Online Year")] === 2005
+    @test row("wind_a").Lifetime === 31
+    @test EMISAgentSimulation._ownership_override((var"Online Year"="2005.5",), "Online Year") === 2005.5
+    @test num(row("wind_b").Lifetime) == default_lifetime
+    # without the column the default applies to every unit
+    fleet2 = extract_fleet(sys, mapping, technologies, ownership[:, [:Investor, :GEN_UID]]; defaults=defaults).projects
+    @test all(num.(fleet2.Lifetime) .== default_lifetime)
+end

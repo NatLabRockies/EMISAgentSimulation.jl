@@ -382,7 +382,8 @@ function _attach_user_timeseries!(sys::PSY.System, ts_root::AbstractString,
         for (service_name, profile_file) in pairs(reserve_files)
             service = PSY.get_component(PSY.Service, sys, string(service_name))
             column = _profile_column(reserve_columns, string(service_name), nothing)
-            values = _profile_values(profile_file, column)
+            values = reserve_requirement_scaling_factors(
+                _profile_values(profile_file, column), service, sys)
             data = _forecast_data(sys, values, horizon, interval)
             forecast = PSY.Deterministic(;
                 name = "requirement",
@@ -401,9 +402,13 @@ function _attach_user_timeseries!(sys::PSY.System, ts_root::AbstractString,
                 defaults_file = timeseries_defaults_file,
             )
             isfile(profile_file) || continue
-            values = _profile_values(
-                profile_file,
-                _profile_column(reserve_columns, service_name, nothing),
+            values = reserve_requirement_scaling_factors(
+                _profile_values(
+                    profile_file,
+                    _profile_column(reserve_columns, service_name, nothing),
+                ),
+                service,
+                sys,
             )
             data = _forecast_data(sys, values, horizon, interval)
             forecast = PSY.Deterministic(;

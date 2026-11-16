@@ -99,6 +99,19 @@ end
                 name = "max_active_power", data = windows, resolution = Hour(1),
                 scaling_factor_multiplier = PSY.get_max_active_power))
         end
+        # Regulation requirement given in MW in the canonical Reserves files. The system stores
+        # requirement = 0.72 pu (72 MW); the time series must make PSI enforce exactly the MW input.
+        reg_up = PSY.VariableReserve{PSY.ReserveUp}(; name = "Reg_Up", available = true,
+            time_frame = 300.0, requirement = 0.72)
+        PSY.add_component!(source, reg_up)
+        reg_mw = repeat(collect(range(40.0, 90.0; length = 24)), 365)
+        reg_table = DataFrame(Year = fill(2021, 365), Month = ones(Int, 365), Day = collect(1:365))
+        for h in 1:24
+            reg_table[!, string(h)] = reg_mw[h:24:end]
+        end
+        for prefix in ("DAY_AHEAD", "REAL_TIME")
+            CSV.write(joinpath(root, "$(prefix)_regional_Reg_Up.csv"), reg_table)
+        end
         # Reference peak is 200 MW; configured baseline is 100 MW (loadscaler = 2).
         profile = repeat(collect(range(100.0, 200.0; length = 24)), 365)
         reference = joinpath(root, "sim_year_1", "Load")
@@ -138,6 +151,12 @@ end
                 @test hourly ≈ profile .* growth ./ 2
                 @test maximum(hourly) ≈ 100 * growth
             end
+            # PSI enforces stored value x get_requirement in system pu (services_models/reserves.jl).
+            reg = PSY.get_component(PSY.VariableReserve{PSY.ReserveUp}, rebuilt, "Reg_Up")
+            enforced_mw = reduce(vcat, (PSY.get_time_series_values(PSY.Deterministic, reg,
+                "requirement"; start_time = t, len = 24)
+                for t in PSY.get_forecast_initial_times(rebuilt))) .* PSY.get_base_power(rebuilt)
+            @test enforced_mw ≈ reg_mw
         end
     end
 end

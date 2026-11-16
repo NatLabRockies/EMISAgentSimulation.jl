@@ -1,3 +1,29 @@
+"""
+    reserve_requirement_scaling_factors(values_mw, service, sys)
+
+Convert an hourly reserve requirement in MW into the values stored in the service's
+`"requirement"` time series.
+
+The series is attached with `scaling_factor_multiplier = get_requirement`, and PowerSimulations
+enforces `provision + slack >= value * get_requirement(service)` in system per-unit
+(`services_models/reserves.jl`). So the stored value must be `MW / (get_requirement * base_power)`,
+which makes the enforced requirement `MW / base_power` pu, i.e. the input MW.
+"""
+function reserve_requirement_scaling_factors(
+    values_mw::AbstractVector{<:Real},
+    service::PSY.Service,
+    sys::PSY.System,
+)
+    requirement = PSY.get_requirement(service)
+    requirement > 0 || throw(
+        ArgumentError(
+            "Reserve $(PSY.get_name(service)) has requirement $(requirement); it must be > 0 " *
+            "to scale a requirement time series given in MW",
+        ),
+    )
+    return Float64.(values_mw) ./ (requirement * PSY.get_base_power(sys))
+end
+
 function get_name(device::D) where {D <: PSY.Device}
     return device.name
 end

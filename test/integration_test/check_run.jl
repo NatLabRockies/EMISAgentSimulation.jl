@@ -261,6 +261,114 @@ function check_market(ctx)
     end
 end
 
+"""Parse an ORDC curve cell such as "[(0.0, 4000.0), (300.0, 4000.0)]" into (MW, \$/MWh) tuples."""
+parse_ordc_curve(cell::AbstractString) =
+    [(parse(Float64, m.captures[1]), parse(Float64, m.captures[2]))
+     for m in eachmatch(r"\(\s*([-0-9.eE+]+)\s*,\s*([-0-9.eE+]+)\s*\)", cell)]
+
+"""ORDC products included in the case, with their penalty (top) price, read from the case's markets_data."""
+function ordc_products(ctx)
+    case = EAS.get_case(ctx.sim)
+    markets_data = joinpath(EAS.get_data_dir(case), "markets_data")
+    products_file = joinpath(markets_data, "reserve_products.csv")
+    isfile(products_file) || return nothing
+    cell = DataFrame(CSV.File(products_file; stringtype = String))[1, "ordc_products"]
+    names = ismissing(cell) ? String[] : String.(strip.(split(cell, ";")))
+    filter!(p -> !isempty(p) && get(EAS.get_markets(case), Symbol(p), false), names)
+    penalty_dir = joinpath(markets_data, "$(EAS.get_reserve_penalty(case))_reserve_penalty")
+    return [(; name = p, penalty = Float64(DataFrame(CSV.File(joinpath(penalty_dir, "$(p).csv")))[1, "penalty"]))
+            for p in names]
+end
+
+"""
+ORDC checks: curve files (shape, point count, top price), realized ORDC prices per stage
+(finite, >= 0, <= the penalty price; hard), whether UC cleared ORDC at all (warn), and the
+investors' expected (CEM) ORDC prices next to the realized ones (info).
+"""
+function check_ordc(ctx)
+    products = ordc_products(ctx)
+    if products === nothing
+        note!("ORDC", "no markets_data/reserve_products.csv in the case data directory; skipped")
+        return
+    end
+    if isempty(products)
+        note!("ORDC", "no ORDC product included in this case")
+        return
+    end
+    curved = EAS.get_ordc_curved(EAS.get_case(ctx.sim))
+    expected_points = curved ? 12 : 2   # construct_ordc: (0, penalty), (MRR, penalty) [+ 10 tail points]
+    stages = (("UC", "reserve_price_uc"), ("MD", "reserve_price_md"), ("ED", "reserve_price_ed"))
+    realized = Dict{Tuple{String, String}, Vector{Float64}}()
+
+    for product in products, y in 1:ctx.simulation_years
+        name = "ORDC $(product.name) curves year $(y)"
+        guarded(name) do
+            path = joinpath(ctx.results_dir, "timeseries_data_files", ctx.pcm_scenario, "sim_year_$(y)",
+                "Reserves", "$(product.name).csv")
+            if !isfile(path)
+                hard!(name, false, "missing $(relpath(path, ctx.results_dir))")
+                return
+            end
+            curves = parse_ordc_curve.(DataFrame(CSV.File(path; stringtype = String))[!, product.name])
+            counts = sort(unique(length.(curves)))
+            shape_ok = all(c -> length(c) >= 2 && all(diff(first.(c)) .> 0) && all(diff(last.(c)) .<= 1e-9) &&
+                                c[1][2] == product.penalty && all(p -> 0 <= p <= product.penalty, last.(c)), curves)
+            hard!(name, shape_ok && counts == [expected_points],
+                "$(length(curves)) hours; points per hour $(counts) (expected $(expected_points), ordc_curved=$(curved)); " *
+                "MW increasing, price non-increasing, top price $(fmt(product.penalty)): $(shape_ok)")
+        end
+
+        guarded("ORDC $(product.name) realized prices year $(y)") do
+            data = load_market(ctx.results_dir, y)
+            for (stage, key) in stages
+                label = "ORDC $(product.name) price $(stage) year $(y)"
+                if !haskey(data[key], product.name)
+                    note!(label, "no realized price stored")
+                    continue
+                end
+                prices = vec(data[key][product.name])
+                append!(get!(realized, (product.name, stage), Float64[]), prices)
+                nonzero = count(>(0), prices)
+                hard!(label * " valid",
+                    all(isfinite, prices) && minimum(prices) >= 0 && maximum(prices) <= product.penalty * (1 + 1e-6),
+                    "min $(fmt(minimum(prices))) max $(fmt(maximum(prices))) (penalty $(fmt(product.penalty)))")
+                if stage == "UC"
+                    soft!("ORDC $(product.name) cleared in UC year $(y)", nonzero > 0,
+                        "non-zero in $(nonzero) of $(length(prices)) intervals" *
+                        (nonzero == 0 ? "; all zero: ORDC not cleared in Sienna (StepwiseCostReserve not in the UC " *
+                                        "template?) or the dual was not found (see the run log)" : ""))
+                else
+                    note!("ORDC $(product.name) non-zero $(stage) year $(y)",
+                        "$(nonzero) of $(length(prices)) intervals" *
+                        (stage == "ED" && nonzero == 0 ? " (ED models ORDC only with an Inertia service)" : ""))
+                end
+            end
+        end
+    end
+
+    # Investors' expected (CEM) ORDC prices next to the realized UC prices. Expected and realized
+    # are not supposed to match exactly: the CEM interpolates the curve linearly when the
+    # product's `stepped` is false, while Sienna clears it as a step curve.
+    guarded("ORDC expected vs realized") do
+        for product in products
+            expected = Float64[]
+            for investor in EAS.get_investors(ctx.sim)
+                dir = joinpath(ctx.results_dir, EAS.get_name(investor), "expected_market_data")
+                isdir(dir) || continue
+                for file in filter(endswith(".h5"), readdir(dir))
+                    prices = quiet(() -> EAS.load_expected_market_data(joinpath(dir, file)))["reserve_price"]
+                    haskey(prices, product.name) && append!(expected, vec(prices[product.name]))
+                end
+            end
+            uc = get(realized, (product.name, "UC"), Float64[])
+            describe(x) = isempty(x) ? "none" :
+                "mean $(fmt(Statistics.mean(x))) max $(fmt(maximum(x))) non-zero $(fmt(100 * count(>(0), x) / length(x); digits = 1))%"
+            note!("ORDC $(product.name) expected vs realized",
+                "expected (CEM, all investors and files): $(describe(expected)); realized UC: $(describe(uc))")
+        end
+    end
+end
+
 function pras_totals(path)
     h5open(path, "r") do f
         g = f["shortfall"]
@@ -397,6 +505,9 @@ function main()
     end
     peaks = check_load(ctx)
     check_market(ctx)
+    guarded("ORDC checks") do
+        check_ordc(ctx)
+    end
     check_resource_adequacy(ctx)
     check_capacity(ctx)
 

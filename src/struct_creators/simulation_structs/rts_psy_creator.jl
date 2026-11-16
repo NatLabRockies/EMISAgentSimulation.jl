@@ -16,11 +16,29 @@ function prune_system_devices!(
 end
 
 """
+    prune_configured_devices!(sys, config_dir)
+
+Remove the devices listed in `config_dir/devices_to_remove.csv` from `sys` (nothing to do if the
+file is missing or has no rows). Project init and `validate_emis_project` call this so they see
+the same devices as the simulation, which prunes the same list when it builds its systems.
+"""
+function prune_configured_devices!(sys::PSY.System, config_dir::AbstractString)
+    devices = _build_devices_to_remove(
+        _safe_read_config_csv(joinpath(config_dir, "devices_to_remove.csv")),
+    )
+    prune_system_devices!(sys, specify_pruned_units(devices))
+    return sys
+end
+
+"""
     specify_pruned_units(system_config)
 
 Build the PSY component-to-device removal map from `devices_to_remove.csv`.
 """
-function specify_pruned_units(system_config::SystemConfig)
+specify_pruned_units(system_config::SystemConfig) =
+    specify_pruned_units(system_config.devices_to_remove)
+
+function specify_pruned_units(devices_to_remove::Dict{String, Vector{String}})
     component_types = Dict(
         "ThermalStandard" => PSY.ThermalStandard,
         "RenewableNonDispatch" => PSY.RenewableNonDispatch,
@@ -29,7 +47,7 @@ function specify_pruned_units(system_config::SystemConfig)
         "EnergyReservoirStorage" => PSY.EnergyReservoirStorage,
     )
     pruned_units = Dict{Type{<:PSY.Component}, Array{AbstractString}}()
-    for (component_name, device_names) in system_config.devices_to_remove
+    for (component_name, device_names) in devices_to_remove
         component_type = get(component_types, component_name, nothing)
         isnothing(component_type) &&
             error("Unsupported device_type in devices_to_remove.csv: $(component_name)")
@@ -935,7 +953,8 @@ function create_sys_w_updated_ts(
     # Regulation/reserve time series update
     #-----------------------------------------------------------------
     # Only the raw-data source differs between canonical and legacy mode; both build a
-    # product-name -> normalized (already divided by requirement) series map, then share
+    # product-name -> scaling-factor series map (MW / (requirement * base power), see
+    # reserve_requirement_scaling_factors), then share
     # the same forecast-window wraparound/attachment loop below.
     reserve_data = Dict{String, Vector{Float64}}()
     if canonical_reserves_dir !== nothing
@@ -948,8 +967,8 @@ function create_sys_w_updated_ts(
                 @warn "No canonical reserve time series file for service \"$(product)\" in $(canonical_reserves_dir); skipping time series attachment"
                 continue
             end
-            reserve_data[product] =
-                _canonical_daily_hourly_series(reserve_file) ./ get_requirement(d)
+            reserve_data[product] = reserve_requirement_scaling_factors(
+                _canonical_daily_hourly_series(reserve_file), d, sys_MD)
         end
     else
         if market_stage == "dayahead"
@@ -1005,7 +1024,7 @@ function create_sys_w_updated_ts(
             get_components(x -> PSY.get_name(x) in ["REG_DN", "REG_UP"], Service, sys_MD)
             product = PSY.get_name(d)
             raw = product == "REG_DN" ? regdown_ts[!, "RegDown"] : regup_ts[!, "RegUp"]
-            reserve_data[product] = raw ./ get_requirement(d) / 100
+            reserve_data[product] = reserve_requirement_scaling_factors(raw, d, sys_MD)
         end
     end
 

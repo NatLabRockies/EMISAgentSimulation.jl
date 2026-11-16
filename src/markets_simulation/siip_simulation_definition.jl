@@ -51,6 +51,7 @@ end
 # EnergyTargetFeedforward.
 
 PSI.should_write_resulting_value(::Type{SSI.StorageEnergyShortageVariable}) = false
+PSY.get_max_output_fraction(value::PSY.ReserveDemandCurve{PSY.ReserveUp}) = 1.0
 
 # PSI's InitialEnergyLevel IC update propagates the raw solver value with no clamping, unlike
 # DevicePower which has isapprox bounds checks. When Xpress returns EnergyVariable = soc_max + ε
@@ -555,17 +556,6 @@ function update_realized_reserve_perc!(device::PSY.Device,
             @warn "No ED inertia variable found for $(PSY.get_name(device)), skipping"
         end
     else
-        # if service_name in rt_products
-        #     reserve_provision = results_ed["ActivePowerReserveVariable__VariableReserve__ReserveUp__$(service_name)"][:, Symbol(get_name(device))]
-        #     reserve_perc_value = reserve_provision / get_device_size(device) / base_power
-        #     reserve_perc[get_name(device)][service_name][1, :] = reserve_perc_value
-
-        # elseif service_name in only_da_products
-        #     reserve_provision = results_uc["ActivePowerReserveVariable__VariableReserve__ReserveUp__$(service_name)"][:, Symbol(get_name(device))]
-        #     reserve_perc_value = reserve_provision / get_device_size(device) / base_power
-        #     reserve_perc[get_name(device)][service_name][1, :] = reserve_perc_value
-
-        # end
         ed_key = "ActivePowerReserveVariable__VariableReserve__ReserveUp__$(service_name)"
         uc_key = "ActivePowerReserveVariable__VariableReserve__ReserveUp__$(service_name)"
         if single_stage_bool == false
@@ -647,10 +637,20 @@ function update_realized_reserve_perc!(device::PSY.Device,
         end
     end
 
-    ### NY_change: need to comment this back once ORDC is enabled again
-    # reserve_provision_uc = results_uc["ActivePowerReserveVariable__ReserveDemandCurve__ReserveUp__$(service_name)"][:, Symbol(PSY.get_name(device))]
-    # reserve_perc_value_uc = reserve_provision_uc / get_device_size(device) / base_power
-    # reserve_perc_uc[PSY.get_name(device)][service_name][1, :] = reserve_perc_value_uc
+    # Realized variables are in long format (columns DateTime, name, value), as in the
+    # VariableReserve methods above. Storage is included here too: its
+    # ActivePowerReserveVariable equals the sum of its AncillaryServiceVariableDischarge and
+    # AncillaryServiceVariableCharge for the same service.
+    key_uc = "ActivePowerReserveVariable__ReserveDemandCurve__ReserveUp__$(service_name)"
+    if haskey(results_uc, key_uc) &&
+       any(==(PSY.get_name(device)), results_uc[key_uc].name)
+        reserve_provision_uc =
+            results_uc[key_uc][results_uc[key_uc].name .== PSY.get_name(device), :value]
+        reserve_perc_value_uc = reserve_provision_uc / get_device_size(device) / base_power
+        reserve_perc_uc[PSY.get_name(device)][service_name][1, :] = reserve_perc_value_uc
+    else
+        @warn "No UC reserve variable found for $(PSY.get_name(device)) - $(service_name), skipping"
+    end
 
     if md_market_bool == true
         @info "Updating reserve provision for $(PSY.get_name(device)) - $(service_name) from MD results"
@@ -667,17 +667,6 @@ function update_realized_reserve_perc!(device::PSY.Device,
         end
     end
 
-    # if service_name in rt_products
-    #     reserve_provision = results_ed["ActivePowerReserveVariable__ReserveDemandCurve__ReserveUp__$(service_name)"][:, Symbol(PSY.get_name(device))]
-    #     reserve_perc_value = reserve_provision / get_device_size(device) / base_power
-    #     reserve_perc[PSY.get_name(device)][service_name][1, :] = reserve_perc_value
-
-    # elseif service_name in only_da_products
-    #     reserve_provision = results_uc["ActivePowerReserveVariable__ReserveDemandCurve__ReserveUp__$(service_name)"][:, Symbol(PSY.get_name(device))]
-    #     reserve_perc_value = reserve_provision / get_device_size(device) / base_power
-    #     reserve_perc[PSY.get_name(device)][service_name][1, :] = reserve_perc_value
-
-    # end
     return
 end
 
@@ -740,106 +729,6 @@ function update_realized_reserve_perc!(device::PSY.Device,
         end
     end
 
-    # if service_name in rt_products
-    #     reserve_provision = results_ed["ActivePowerReserveVariable__VariableReserve__ReserveDown__$(service_name)"][:, Symbol(get_name(device))]
-    #     reserve_perc_value = reserve_provision / get_device_size(device) / base_power
-    #     reserve_perc[get_name(device)][service_name][1, :] = reserve_perc_value
-
-    # elseif service_name in only_da_products
-    #     reserve_provision = results_uc["ActivePowerReserveVariable__VariableReserve__ReserveDown__$(service_name)"][:, Symbol(get_name(device))]
-    #     reserve_perc_value = reserve_provision / get_device_size(device) / base_power
-    #     reserve_perc[get_name(device)][service_name][1, :] = reserve_perc_value
-
-    # end
-    return
-end
-
-"""
-This function returns realized ordc provision percentages from PSI Simulation.
-"""
-function update_realized_reserve_perc!(device::PSY.EnergyReservoirStorage,
-    service::PSY.ReserveDemandCurve{PSY.ReserveUp},
-    results_ed::Union{Nothing, Dict{String, DataFrames.DataFrame}},
-    results_uc::Union{Nothing, Dict{String, DataFrames.DataFrame}},
-    results_md::Union{Nothing, Dict{String, DataFrames.DataFrame}},
-    reserve_perc_md::Dict{String, Dict{String, Array{Float64, 2}}},
-    reserve_perc_uc::Dict{String, Dict{String, Array{Float64, 2}}},
-    reserve_perc_ed::Dict{String, Dict{String, Array{Float64, 2}}},
-    inertia_perc::Dict{String, Array{Float64, 2}},
-    rt_products::Vector{SubString{String}},
-    da_products::Vector{SubString{String}},
-    md_products::Vector{SubString{String}},
-    base_power::Float64,
-    md_market_bool::Bool,
-    single_stage_bool::Bool)
-    service_name = PSY.get_name(service)
-
-    if single_stage_bool == false
-        @info "Updating reserve provision for $(PSY.get_name(device)) - $(service_name) from ED results"
-        key_ed_discharge = "AncillaryServiceVariableDischarge__EnergyReservoirStorage__ReserveDemandCurve{ReserveUp}_$(service_name)"
-        key_ed_charge = "AncillaryServiceVariableCharge__EnergyReservoirStorage__ReserveDemandCurve{ReserveUp}_$(service_name)"
-        if haskey(results_ed, key_ed_discharge) && haskey(results_ed, key_ed_charge)
-            reserve_provision_ed =
-                results_ed[key_ed_discharge][
-                    results_ed[key_ed_discharge].name .== PSY.get_name(device),
-                    :value,
-                ] +
-                results_ed[key_ed_charge][
-                    results_ed[key_ed_charge].name .== PSY.get_name(device),
-                    :value,
-                ]
-            reserve_perc_value_ed =
-                reserve_provision_ed / get_device_size(device) / base_power
-            reserve_perc_ed[PSY.get_name(device)][service_name][1, :] =
-                reserve_perc_value_ed
-        else
-            @warn "No ED reserve variable found for $(PSY.get_name(device)) - $(service_name), skipping"
-        end
-    end
-    ### NY_change: need to comment this back once ORDC is enabled again
-    # reserve_provision_uc = (results_uc["AncillaryServiceVariableDischarge__EnergyReservoirStorage__ReserveDemandCurve{ReserveUp}_$(service_name)"][:, Symbol(get_name(device))] .+
-    #     results_uc["AncillaryServiceVariableCharge__EnergyReservoirStorage__ReserveDemandCurve{ReserveUp}_$(service_name)"][:, Symbol(get_name(device))])
-    # reserve_perc_value_uc = reserve_provision_uc / get_device_size(device) / base_power
-    # reserve_perc_uc[get_name(device)][service_name][1, :] = reserve_perc_value_uc
-
-    if md_market_bool == true
-        @info "Updating reserve provision for $(PSY.get_name(device)) - $(service_name) from MD results"
-        key_md_discharge = "AncillaryServiceVariableDischarge__EnergyReservoirStorage__ReserveDemandCurve{ReserveUp}_$(service_name)"
-        key_md_charge = "AncillaryServiceVariableCharge__EnergyReservoirStorage__ReserveDemandCurve{ReserveUp}_$(service_name)"
-        if haskey(results_md, key_md_discharge) && haskey(results_md, key_md_charge)
-            reserve_provision_md =
-                results_md[key_md_discharge][
-                    results_md[key_md_discharge].name .== PSY.get_name(device),
-                    :value,
-                ] +
-                results_md[key_md_charge][
-                    results_md[key_md_charge].name .== PSY.get_name(device),
-                    :value,
-                ]
-            reserve_provision_md = (
-                results_md[key_md_discharge][:, Symbol(PSY.get_name(device))] .+
-                results_md[key_md_charge][:, Symbol(PSY.get_name(device))]
-            )
-            reserve_perc_value_md =
-                reserve_provision_md / get_device_size(device) / base_power
-            reserve_perc_md[PSY.get_name(device)][service_name][1, :] =
-                reserve_perc_value_md
-        else
-            @warn "No MD reserve variable found for $(PSY.get_name(device)) - $(service_name), skipping"
-        end
-    end
-
-    # if service_name in rt_products
-    #     reserve_provision = results_ed["ActivePowerReserveVariable__ReserveDemandCurve__ReserveUp__$(service_name)"][:, Symbol(get_name(device))]
-    #     reserve_perc_value = reserve_provision / get_device_size(device) / base_power
-    #     reserve_perc[get_name(device)][service_name][1, :] = reserve_perc_value
-
-    # elseif service_name in only_da_products
-    #     reserve_provision = results_uc["ActivePowerReserveVariable__ReserveDemandCurve__ReserveUp__$(service_name)"][:, Symbol(get_name(device))]
-    #     reserve_perc_value = reserve_provision / get_device_size(device) / base_power
-    #     reserve_perc[get_name(device)][service_name][1, :] = reserve_perc_value
-
-    # end
     return
 end
 
@@ -847,335 +736,32 @@ end
 This function creates the Unit Commitment template for PSI Simulation.
 """
 #TODO: Update needed
-function create_md_template(inertia_product)
-    if !(isempty(inertia_product))
-        template = PSI.ProblemTemplate(
-            PSI.NetworkModel(
-                PSI.AreaBalancePowerModel;
-                duals = [PSI.CopperPlateBalanceConstraint],
-                use_slacks = true,
-            ),
-        )
-        # PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalStandardUnitCommitment)
-        # PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalStandardUnitCommitment)
-        PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalBasicUnitCommitment)
-        PSI.set_device_model!(
-            template,
-            ThermalFastStartSIIP,
-            PSI.ThermalBasicUnitCommitment,
-        )
-        # PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalBasicDispatch)
-        # PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalBasicDispatch)
-        PSI.set_device_model!(template, PSY.RenewableDispatch, PSI.RenewableFullDispatch)
-        PSI.set_device_model!(template, PSY.RenewableNonDispatch, PSI.FixedOutput)
-        PSI.set_device_model!(template, PSY.StandardLoad, PSI.StaticPowerLoad)
-        PSI.set_device_model!(template, PSY.HydroTurbine, HSI.HydroCommitmentRunOfRiver)
-        PSI.set_device_model!(template, PSY.HydroDispatch, HSI.HydroCommitmentRunOfRiver) # TODO: check which hydro device we have
-        # PSI.set_device_model!(template, PSY.HydroEnergyReservoir, HSI.HydroDispatchRunOfRiver)
-        # PSI.set_device_model!(template, PSY.HydroDispatch, HSI.HydroDispatchRunOfRiver) # TODO: check which hydro device we have
-        PSI.set_device_model!(
-            template,
-            PSY.EnergyReservoirStorage,
-            SSI.StorageDispatchWithReserves,
-        )
-        PSI.set_device_model!(template, PSY.Line, PSI.StaticBranch)
-        PSI.set_device_model!(template, PSY.Transformer2W, PSI.StaticBranch)
-        PSI.set_device_model!(template, PSY.TapTransformer, PSI.StaticBranch)
-        PSI.set_device_model!(
-            template,
-            PSY.TwoTerminalGenericHVDCLine,
-            PSI.HVDCTwoTerminalLossless,
-        )
-        PSI.set_service_model!(
-            template,
-            PSI.ServiceModel(
-                PSY.VariableReserve{PSY.ReserveUp},
-                PSI.RangeReserve,
-                "Reg_Up";
-                use_slacks = true,
-                duals = [PSI.RequirementConstraint],
-            ),
-        )
-        PSI.set_service_model!(
-            template,
-            PSI.ServiceModel(
-                PSY.VariableReserve{PSY.ReserveDown},
-                PSI.RangeReserve,
-                "Reg_Down";
-                use_slacks = true,
-                duals = [PSI.RequirementConstraint],
-            ),
-        )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Synchronous";
-        #         use_slacks = true,
-        #         duals = [PSI.RequirementConstraint],
-        #     ),
-        # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Primary";
-        #         use_slacks = true,
-        #         duals = [PSI.RequirementConstraint],
-        #     ),
-        # )
+function create_md_template()
+    template = PSI.ProblemTemplate(
+        PSI.NetworkModel(
+            PSI.AreaBalancePowerModel;
+            duals = [PSI.CopperPlateBalanceConstraint],
+            use_slacks = true,
+        ),
+    )
 
-        # )
-        # )
-    else
-        template = PSI.ProblemTemplate(
-            PSI.NetworkModel(
-                PSI.AreaBalancePowerModel;
-                duals = [PSI.CopperPlateBalanceConstraint],
-                use_slacks = true,
-            ),
-        )
-        # PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalStandardUnitCommitment)
-        # PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalStandardUnitCommitment)
-        PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalBasicUnitCommitment)
-        PSI.set_device_model!(
-            template,
-            ThermalFastStartSIIP,
-            PSI.ThermalBasicUnitCommitment,
-        )
-        # PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalBasicDispatch)
-        # PSI.set_device_model!(template, ThermalFastStartSIIP, PSI.ThermalBasicDispatch)
-        PSI.set_device_model!(template, PSY.RenewableDispatch, PSI.RenewableFullDispatch)
-        PSI.set_device_model!(template, PSY.RenewableNonDispatch, PSI.FixedOutput)
-        PSI.set_device_model!(template, PSY.StandardLoad, PSI.StaticPowerLoad)
-        PSI.set_device_model!(template, PSY.HydroTurbine, HSI.HydroCommitmentRunOfRiver)
-        PSI.set_device_model!(template, PSY.HydroDispatch, HSI.HydroCommitmentRunOfRiver) # TODO: check which hydro device we have
-        # PSI.set_device_model!(template, PSY.HydroEnergyReservoir, HSI.HydroDispatchRunOfRiver)
-        # PSI.set_device_model!(template, PSY.HydroDispatch, HSI.HydroDispatchRunOfRiver) # TODO: check which hydro device we have
-        PSI.set_device_model!(
-            template,
-            PSY.EnergyReservoirStorage,
-            SSI.StorageDispatchWithReserves,
-        )
-        PSI.set_device_model!(template, PSY.Line, PSI.StaticBranch)
-        PSI.set_device_model!(template, PSY.Transformer2W, PSI.StaticBranch)
-        PSI.set_device_model!(template, PSY.TapTransformer, PSI.StaticBranch)
-        PSI.set_device_model!(
-            template,
-            PSY.TwoTerminalGenericHVDCLine,
-            PSI.HVDCTwoTerminalLossless,
-        )
-        PSI.set_service_model!(
-            template,
-            PSI.ServiceModel(
-                PSY.VariableReserve{PSY.ReserveUp},
-                PSI.RangeReserve,
-                "Reg_Up";
-                use_slacks = true,
-                duals = [PSI.RequirementConstraint],
-            ),
-        )
-        PSI.set_service_model!(
-            template,
-            PSI.ServiceModel(
-                PSY.VariableReserve{PSY.ReserveDown},
-                PSI.RangeReserve,
-                "Reg_Down";
-                use_slacks = true,
-                duals = [PSI.RequirementConstraint],
-            ),
-        )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Synchronous";
-        #         use_slacks = true,
-        #         duals = [PSI.RequirementConstraint],
-        #     ),
-        # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Primary";
-        #         use_slacks = true,
-        #         duals = [PSI.RequirementConstraint],
-        #     ),
-        # )
-
-        # )
-    end
+    apply_device_models!(template, MD_DEVICE_MODELS)
+    apply_service_models!(template, MD_SERVICE_MODELS)
 
     return template
 end
 
-function create_uc_template(inertia_product)
-    if !(isempty(inertia_product))
-        template = PSI.ProblemTemplate(
-            PSI.NetworkModel(
-                PSI.AreaBalancePowerModel;
-                duals = [PSI.CopperPlateBalanceConstraint],
-                use_slacks = true,
-            ),
-        )
-        PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalBasicUnitCommitment)
-        PSI.set_device_model!(
-            template,
-            ThermalFastStartSIIP,
-            PSI.ThermalBasicUnitCommitment,
-        )
-        PSI.set_device_model!(
-            template,
-            PSY.ThermalMultiStart,
-            PSI.ThermalBasicUnitCommitment,
-        )
-        PSI.set_device_model!(template, PSY.RenewableDispatch, PSI.RenewableFullDispatch)
-        PSI.set_device_model!(template, PSY.RenewableNonDispatch, PSI.FixedOutput)
-        PSI.set_device_model!(template, PSY.StandardLoad, PSI.StaticPowerLoad)
-        PSI.set_device_model!(template, PSY.HydroTurbine, HSI.HydroCommitmentRunOfRiver)
-        PSI.set_device_model!(template, PSY.HydroDispatch, HSI.HydroCommitmentRunOfRiver) # TODO: check which hydro device we have
-        PSI.set_device_model!(
-            template,
-            PSY.EnergyReservoirStorage,
-            SSI.StorageDispatchWithReserves,
-        )
-        PSI.set_device_model!(template, PSY.Line, PSI.StaticBranch)
-        PSI.set_device_model!(template, PSY.Transformer2W, PSI.StaticBranch)
-        PSI.set_device_model!(template, PSY.TapTransformer, PSI.StaticBranch)
-        PSI.set_device_model!(
-            template,
-            PSY.TwoTerminalGenericHVDCLine,
-            PSI.HVDCTwoTerminalLossless,
-        )
-        PSI.set_service_model!(
-            template,
-            PSI.ServiceModel(
-                PSY.VariableReserve{PSY.ReserveUp},
-                PSI.RangeReserve,
-                "Reg_Up";
-                use_slacks = true,
-                duals = [PSI.RequirementConstraint],
-            ),
-        )
-        PSI.set_service_model!(
-            template,
-            PSI.ServiceModel(
-                PSY.VariableReserve{PSY.ReserveDown},
-                PSI.RangeReserve,
-                "Reg_Down";
-                use_slacks = true,
-                duals = [PSI.RequirementConstraint],
-            ),
-        )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Synchronous";
-        #         use_slacks = true,
-        #         duals = [PSI.RequirementConstraint],
-        #     ),
-        # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Primary";
-        #         use_slacks = true,
-        #         duals = [PSI.RequirementConstraint],
-        #     ),
-        # )
-        # )
-        # )
-    else
-        template = PSI.ProblemTemplate(
-            PSI.NetworkModel(
-                PSI.AreaBalancePowerModel;
-                duals = [PSI.CopperPlateBalanceConstraint],
-                use_slacks = true,
-            ),
-        )
-        PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalBasicUnitCommitment)
-        PSI.set_device_model!(
-            template,
-            ThermalFastStartSIIP,
-            PSI.ThermalBasicUnitCommitment,
-        )
-        PSI.set_device_model!(
-            template,
-            PSY.ThermalMultiStart,
-            PSI.ThermalBasicUnitCommitment,
-        )
-        PSI.set_device_model!(template, PSY.RenewableDispatch, PSI.RenewableFullDispatch)
-        PSI.set_device_model!(template, PSY.RenewableNonDispatch, PSI.FixedOutput)
-        PSI.set_device_model!(template, PSY.StandardLoad, PSI.StaticPowerLoad)
-        PSI.set_device_model!(template, PSY.HydroTurbine, HSI.HydroCommitmentRunOfRiver)
-        PSI.set_device_model!(template, PSY.HydroDispatch, HSI.HydroCommitmentRunOfRiver) # TODO: check which hydro device we have
-        PSI.set_device_model!(
-            template,
-            PSY.EnergyReservoirStorage,
-            SSI.StorageDispatchWithReserves,
-        )
-        PSI.set_device_model!(template, PSY.Line, PSI.StaticBranch)
-        PSI.set_device_model!(template, PSY.Transformer2W, PSI.StaticBranch)
-        PSI.set_device_model!(template, PSY.TapTransformer, PSI.StaticBranch)
-        PSI.set_device_model!(
-            template,
-            PSY.TwoTerminalGenericHVDCLine,
-            PSI.HVDCTwoTerminalLossless,
-        )
-        PSI.set_service_model!(
-            template,
-            PSI.ServiceModel(
-                PSY.VariableReserve{PSY.ReserveUp},
-                PSI.RangeReserve,
-                "Reg_Up";
-                use_slacks = true,
-                duals = [PSI.RequirementConstraint],
-            ),
-        )
-        PSI.set_service_model!(
-            template,
-            PSI.ServiceModel(
-                PSY.VariableReserve{PSY.ReserveDown},
-                PSI.RangeReserve,
-                "Reg_Down";
-                use_slacks = true,
-                duals = [PSI.RequirementConstraint],
-            ),
-        )
+function create_uc_template()
+    template = PSI.ProblemTemplate(
+        PSI.NetworkModel(
+            PSI.AreaBalancePowerModel;
+            duals = [PSI.CopperPlateBalanceConstraint],
+            use_slacks = true,
+        ),
+    )
 
-        # ## NY_change: need to re-enable these
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Synchronous";
-        #         use_slacks = true,
-        #         duals = [PSI.RequirementConstraint],
-        #     ),
-        # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Primary";
-        #         use_slacks = true,
-        #         duals = [PSI.RequirementConstraint],
-        #     ),
-        # )
-
-        # )
-    end
+    apply_device_models!(template, UC_DEVICE_MODELS)
+    apply_service_models!(template, UC_SERVICE_MODELS)
 
     return template
 end
@@ -1183,170 +769,26 @@ end
 """
 This function creates the Economic Dispatch template for PSI Simulation.
 """
-#TODO: Update needed
 function create_ed_template(inertia_product)
+    template = PSI.ProblemTemplate(
+        PSI.NetworkModel(
+            PSI.AreaBalancePowerModel;
+            duals = [PSI.CopperPlateBalanceConstraint],
+            use_slacks = true,
+        ),
+    )
+
+    apply_device_models!(template, ED_DEVICE_MODELS)
+    apply_service_models!(template, ED_SERVICE_MODELS_BASE)
+
     if !(isempty(inertia_product))
-        template = PSI.ProblemTemplate(
-            PSI.NetworkModel(
-                PSI.AreaBalancePowerModel;
-                duals = [PSI.CopperPlateBalanceConstraint],
-                use_slacks = true,
-            ),
-        )
-        PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalBasicDispatch)
-        PSI.set_device_model!(
-            template,
-            ThermalFastStartSIIP,
-            PSI.ThermalBasicUnitCommitment,
-        )
-        PSI.set_device_model!(
-            template,
-            PSY.ThermalMultiStart,
-            PSI.ThermalBasicUnitCommitment,
-        )
-        PSI.set_device_model!(template, PSY.RenewableDispatch, PSI.RenewableFullDispatch)
-        PSI.set_device_model!(template, PSY.RenewableNonDispatch, PSI.FixedOutput)
-        PSI.set_device_model!(template, PSY.StandardLoad, PSI.StaticPowerLoad)
-        PSI.set_device_model!(template, PSY.HydroTurbine, HSI.HydroDispatchRunOfRiver)
-        PSI.set_device_model!(template, PSY.HydroDispatch, HSI.HydroDispatchRunOfRiver) # TODO: check which hydro device we have
-        PSI.set_device_model!(
-            template,
-            PSY.EnergyReservoirStorage,
-            SSI.StorageDispatchWithReserves,
-        )
-        PSI.set_device_model!(template, PSY.Line, PSI.StaticBranch)
-        PSI.set_device_model!(template, PSY.Transformer2W, PSI.StaticBranch)
-        PSI.set_device_model!(template, PSY.TapTransformer, PSI.StaticBranch)
-        PSI.set_device_model!(
-            template,
-            PSY.TwoTerminalGenericHVDCLine,
-            PSI.HVDCTwoTerminalLossless,
-        )
-        PSI.set_service_model!(
-            template,
-            PSI.ServiceModel(
-                PSY.VariableReserve{PSY.ReserveUp},
-                PSI.RangeReserve,
-                "Reg_Up";
-                use_slacks = true,
-                duals = [PSI.RequirementConstraint],
-            ),
-        )
-        PSI.set_service_model!(
-            template,
-            PSI.ServiceModel(
-                PSY.VariableReserve{PSY.ReserveDown},
-                PSI.RangeReserve,
-                "Reg_Down";
-                use_slacks = true,
-                duals = [PSI.RequirementConstraint],
-            ),
-        )
         # NOTE: StepwiseCostReserve (ORDC) is intentionally disabled in the ED inertia branch.
         # Including ReserveDemandCurve in ED triggers a PSI HDF5 dimension bug:
         # DecrementalPiecewiseLinearSlopeParameter is initialized as a 1D dataset but
         # written as 2D at runtime → "Number of indices does not match dimension of Dataspace".
         # ORDC clears in UC; ED dispatches committed units via feedforward — ORDC not needed in ED.
         # Re-enable only when the upstream PSI bug is fixed.
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Synchronous";
-        #         use_slacks = true,
-        #         duals = [PSI.RequirementConstraint],
-        #     ),
-        # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Primary";
-        #         use_slacks = true,
-        #         duals = [PSI.RequirementConstraint],
-        #     ),
-        # )
-        # )
-    else
-        template = PSI.ProblemTemplate(
-            PSI.NetworkModel(
-                PSI.AreaBalancePowerModel;
-                duals = [PSI.CopperPlateBalanceConstraint],
-                use_slacks = true,
-            ),
-        )
-        PSI.set_device_model!(template, PSY.ThermalStandard, PSI.ThermalBasicDispatch)
-        PSI.set_device_model!(
-            template,
-            ThermalFastStartSIIP,
-            PSI.ThermalBasicUnitCommitment,
-        )
-        PSI.set_device_model!(
-            template,
-            PSY.ThermalMultiStart,
-            PSI.ThermalBasicUnitCommitment,
-        )
-        PSI.set_device_model!(template, PSY.RenewableDispatch, PSI.RenewableFullDispatch)
-        PSI.set_device_model!(template, PSY.RenewableNonDispatch, PSI.FixedOutput)
-        PSI.set_device_model!(template, PSY.StandardLoad, PSI.StaticPowerLoad)
-        PSI.set_device_model!(template, PSY.HydroTurbine, HSI.HydroDispatchRunOfRiver)
-        PSI.set_device_model!(template, PSY.HydroDispatch, HSI.HydroDispatchRunOfRiver) # TODO: check which hydro device we have
-        PSI.set_device_model!(
-            template,
-            PSY.EnergyReservoirStorage,
-            SSI.StorageDispatchWithReserves,
-        )
-        PSI.set_device_model!(template, PSY.Line, PSI.StaticBranch)
-        PSI.set_device_model!(template, PSY.Transformer2W, PSI.StaticBranch)
-        PSI.set_device_model!(template, PSY.TapTransformer, PSI.StaticBranch)
-        PSI.set_device_model!(
-            template,
-            PSY.TwoTerminalGenericHVDCLine,
-            PSI.HVDCTwoTerminalLossless,
-        )
-        PSI.set_service_model!(
-            template,
-            PSI.ServiceModel(
-                PSY.VariableReserve{PSY.ReserveUp},
-                PSI.RangeReserve,
-                "Reg_Up";
-                use_slacks = true,
-                duals = [PSI.RequirementConstraint],
-            ),
-        )
-        PSI.set_service_model!(
-            template,
-            PSI.ServiceModel(
-                PSY.VariableReserve{PSY.ReserveDown},
-                PSI.RangeReserve,
-                "Reg_Down";
-                use_slacks = true,
-                duals = [PSI.RequirementConstraint],
-            ),
-        )
-        # NOTE: StepwiseCostReserve (ORDC) intentionally disabled in ED — see note in inertia branch above.
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Synchronous";
-        #         use_slacks = true,
-        #         duals = [PSI.RequirementConstraint],
-        #     ),
-        # )
-        # PSI.set_service_model!(
-        #     template,
-        #     PSI.ServiceModel(
-        #         PSY.ReserveDemandCurve{PSY.ReserveUp},
-        #         PSI.StepwiseCostReserve,
-        #         "Primary";
-        #         use_slacks = true,
-        #         duals = [PSI.RequirementConstraint],
-        #     ),
-        # )
+        apply_service_models!(template, ED_SERVICE_MODELS_ORDC)
     end
 
     return template
@@ -1450,8 +892,6 @@ function create_sequence(
     return sequence
 end
 
-PSY.get_max_output_fraction(value::PSY.ReserveDemandCurve{PSY.ReserveUp}) = 1.0
-
 """
 This function creates the PSI Simulation and post-processes the results.
 """
@@ -1508,7 +948,7 @@ function create_simulation(sys_MD::PSY.System,
         end
     end
 
-    template_uc = create_uc_template(inertia_product)
+    template_uc = create_uc_template()
     uc_problem = create_problem(template_uc, sys_UC, "UC", solver, inertia_product)
 
     if !single_stage_bool
@@ -1517,7 +957,7 @@ function create_simulation(sys_MD::PSY.System,
     end
 
     if md_market_bool == true && single_stage_bool == false
-        template_md = create_md_template(inertia_product)
+        template_md = create_md_template()
         md_problem = create_problem(template_md, sys_MD, "MD", solver, inertia_product)
 
         if isempty(inertia_product)
@@ -1723,13 +1163,26 @@ function create_simulation(sys_MD::PSY.System,
 
     sequence = create_sequence(models, feedforward_dict, single_stage_bool)
 
+    # PSI writes its HDF5 store (data_store/simulation_store.h5), logs and recorder files
+    # under simulation_folder. Default "." = the case directory (Lustre). Set
+    # EMIS_PSI_SIMULATION_FOLDER to a node-local path (inside a Slurm job: under $TMPDIR;
+    # /tmp/scratch itself is not writable) to keep those writes off Lustre. Ported 2026-11-16
+    # from the MARKETS checkout, where repeated HDF5 errno 7 / LustreError DIF rc -7 failures
+    # hit simulation_store.h5. EMIS reads results below via PSI.SimulationResults(sim) in this
+    # same process; anything that reads emis_*/ by path afterwards needs the folder copied back.
+    psi_simulation_folder = get(ENV, "EMIS_PSI_SIMULATION_FOLDER", ".")
+    if psi_simulation_folder != "."
+        mkpath(psi_simulation_folder)
+    end
+    @info "PSI simulation_folder = $(abspath(psi_simulation_folder))"
+
     if md_market_bool == true
         sim = PSI.Simulation(;
             name = "emis_$(case_name)",
             steps = PSY.get_forecast_interval(sys_MD), # sys_MD.data.time_series_params.forecast_params.count
             models = models,
             sequence = sequence,
-            simulation_folder = ".",
+            simulation_folder = psi_simulation_folder,
             # initial_time = Dates.DateTime("2018-02-28T00:00:00")
         )
     else
@@ -1738,7 +1191,7 @@ function create_simulation(sys_MD::PSY.System,
             steps = 365, # sys_MD.data.time_series_params.forecast_params.count
             models = models,
             sequence = sequence,
-            simulation_folder = ".",
+            simulation_folder = psi_simulation_folder,
             # initial_time = Dates.DateTime("2018-02-28T00:00:00")
         )
     end
@@ -2300,9 +1753,7 @@ function create_simulation(sys_MD::PSY.System,
     end
 
     @info "Recorded sienna service prices"
-
     sys_techs = get_all_techs(sys_ED)
-
     tech_names = get_name.(sys_techs)
     capacity_factors_md = Dict([g => zeros(1, data_length_md) for g in tech_names])
     capacity_factors_uc = Dict([g => zeros(1, data_length_uc) for g in tech_names])
@@ -2330,12 +1781,6 @@ function create_simulation(sys_MD::PSY.System,
     )
 
     inertia_perc = Dict([g => zeros(1, data_length_ed) for g in tech_names])
-
-    # for g in tech_names
-    #     for product in only_da_products
-    #         reserve_perc[g][string(product)] = zeros(1, data_length_uc)
-    #     end
-    # end
 
     for tech in sys_techs
         name = get_name(tech)
