@@ -9,8 +9,8 @@ Every entry here was checked against code or data. Format: **claim** — evidenc
 not confirmed. When a new PSY/PSI issue is found, add it here in the same turn (claim, evidence, date); correct entries
 that turn out wrong instead of deleting them silently.
 
-Code paths are relative to `EMISAgentSimulation.jl/src/`. Line numbers are as of branch `aa/Claude` @ 2fe9c10 (+ the
-uncommitted `system_extractor.jl` fix of 2026-11-15); re-grep before relying on them.
+Code paths are relative to `EMISAgentSimulation.jl/src/`. Line numbers are as of branch `aa/Claude` @ 2fe9c10 (the
+`system_extractor.jl` base_power fix is committed only on `aa/ordc_tests` @ 0c204b1); re-grep before relying on them.
 
 ## 1. Units and sizes
 

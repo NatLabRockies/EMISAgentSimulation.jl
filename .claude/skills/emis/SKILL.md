@@ -9,8 +9,8 @@ Every entry was checked against code, data or a run. Format: **claim** — evide
 same turn they are found; mark unconfirmed items *hypothesis*; correct wrong entries explicitly. PSY/PSI details are in
 the `sienna-psy` skill, PRAS/derating in `sienna-pras`.
 
-Code paths are relative to `src/`, branch `aa/Claude` @ 2fe9c10 (+ uncommitted `system_extractor.jl` fix 2026-11-15);
-re-grep line numbers.
+Code paths are relative to `src/`, branch `aa/Claude` @ 2fe9c10 unless marked **[ordc_tests]**: those entries describe
+code committed on `aa/ordc_tests` @ 0c204b1 (2026-11-16) that is NOT on `aa/Claude`. Re-grep line numbers.
 
 ## 1. Project initialization (`project_init/project_initializer.jl`, `initialize_emis_project`)
 
@@ -19,6 +19,11 @@ re-grep line numbers.
   `Investor`, `GEN_UID` and an optional `Online Year` are used (`_ownership_override`); all other existing-unit economics
   (heat rate, fuel price, fixed O&M, capex, lifetime) come from `config/project_defaults.csv` (ATB) unless the spec
   supplies its own `project_defaults.csv`. — 2026-11-14
+  - **Correction [ordc_tests]:** `Lifetime` is now also a per-unit override:
+    `PER_UNIT_OVERRIDE_COLUMNS = ("Online Year", "Lifetime")` (`system_extractor.jl:574`), looped in `extract_fleet`.
+    `_ownership_override` parses whole numbers as `Int64` first, so `Online Year` stays an integer
+    (`calculate_capcost_and_wacc` dispatches on it; a Float64 was written back as `"1996.0"`). Regression test fails 25 vs
+    31 without the override. — 0c204b1, 2026-11-16
 - **A complete `projectoptions.csv`** (all `PROJECT_OPTION_DOWNSTREAM_COLUMNS`) is kept verbatim, filtered by an
   `Investor` column (`_complete_projectoptions_for_investor`); a minimal one is completed from defaults. — 2026-11-14
 - Spec top-level `characteristics.csv`, `finance_params.csv`, `MACRS Schedule.csv`, `project_capex.csv`, `sizedict.csv`
@@ -29,6 +34,26 @@ re-grep line numbers.
 - **`config/ercot_est/system_config/devices_to_remove.csv` lists 62 RTS-GMLC unit names** (e.g. `115_STEAM_1`), none in
   the ERCOT system; they are only skipped with warnings (`prune_system_devices!`). — 2026-11-14
 - An owned unit that is `available = false` in PSY makes `extract_fleet` error; remove it from ownership. — 2026-11-15
+- **ATB default lifetimes** (`config/project_defaults.csv`): ST 55, CT 55, CC 55, GT 56, NU_ST 100 years. Without a
+  per-unit `Lifetime`, every existing unit of a type gets that value. — verified in file 2026-11-16
+- **`validate_existing_project_lifetimes`** (`project_init/project_input_validation.jl:224`, called from `extract_fleet`,
+  `system_extractor.jl:743` on aa/Claude, `:761` [ordc_tests]) errors if any unit has `Lifetime - (start_year - Online
+  Year) < 0`. GS ERCOT uses per-unit lifetimes (GT 55-62, ST 55-67; 101 owned units differ from ATB), set so 24 old units
+  have exactly 3 years left in 2020; with ATB lifetimes those 24 fail. — data check 2026-11-15
+- **A relative `--output-dir` is stored relative** in `project_metadata.csv` (e.g. `base_dir,project/EMIS_RTS_Analysis`);
+  pass an absolute path. — 2026-11-15
+- **A failed init leaves a partial project** (including `project_metadata.csv`), and `initialize_emis_project` refuses an
+  existing target (`project_initializer.jl:943,948` [ordc_tests]: "target already exists"); delete it before re-running.
+  — 2026-11-15
+- **Init's `gen.csv` contains ALL available generators** (owned or not). `read_rts` builds availability for every
+  `gen.csv` row and fails on a hydro unit without a profile column (ERCOT AUSTIN_1/2, 0 MW; job 19915461).
+  **[ordc_tests]** init now runs `prune_configured_devices!(sys, target_config_dir)` before extraction
+  (`project_initializer.jl:1134`), so listing a unit in `devices_to_remove.csv` keeps it out of `gen.csv` and the investor
+  files (the system file is unchanged). `"Generator"` works as `device_type` for HydroDispatch (job 19920148).
+  — 2026-11-15/16
+- **Storage `Duration Hr`** = PSY `storage_capacity × base_power / size` (`system_extractor.jl:683` [ordc_tests]). GS
+  `projectexisting` durations disagree for 42/62 ERCOT storage units, so derating seeds may lack the
+  `existing_STOR_<d>` columns the validator requires. — 2026-11-15
 
 ## 2. What scenarios.csv and investor files control
 
@@ -40,6 +65,16 @@ re-grep line numbers.
   never used; investor weights come from `scenario_data.csv` `probability`. `pcm_label` is only used to build file names
   in the legacy (NTP `input_processing/`) path. — 2026-11-14
 - The validator accepts scenario probabilities that sum to 1 **or** are all 1.0. — `project_init/validate_project.jl:95-115`
+- **`_validate_psy_generator_names`** (`project_init/validate_project.jl:~350-390`) requires a WIND/PV column for every
+  WT/PVe generator and has **no `get_available` filter**, while PSI/PRAS skip unavailable units. Glove Solar (unavailable,
+  no column) therefore fails validation although it is inert in simulation (job 19902259). This corrects the earlier note
+  that Glove Solar needs no action: it needs action for validation. **[ordc_tests]** the validator now prunes
+  `devices_to_remove.csv` first (`prune_configured_devices!(..., config_root)`), so listing the unit there is the fix.
+  — 2026-11-15/16
+- **TopNetLoad derating is recomputed at simulation setup** (`struct_creators/simulation_structs/agent_simulation_creator.jl`
+  ~443-475, `setup/update_derating` pmap → `update_derating_factor!`) before year 1, overwriting the `existing_`/`new_` VRE
+  and STOR columns; seed values matter only for generic `STOR_<d>` (init_CC) and thermal columns (RTS log 19834716
+  l.783-787). — 2026-11-15
 
 ## 3. Code that uses unit sizes (`get_maxcap` / `Size`)
 
@@ -53,7 +88,7 @@ retirement (`npv_functions.jl:24`); TopNetLoad/ELCC derating denominators; capac
 existing capacity (`market_project_creator.jl:299`); non-ORDC reserve scaling by PV+wind capacity growth
 (`actual_market_simulation.jl:386`). — 2026-11-14
 
-## 4. gen.csv PMax bug (fixed 2026-11-15, uncommitted)
+## 4. gen.csv PMax bug (fixed; committed 0c204b1 on `aa/ordc_tests` 2026-11-16, not on `aa/Claude`)
 
 - **Before the fix, project-init `gen.csv` PMax for wind/PV was 100× too small:** `_component_capacity_mw` fell back to
   `get_rating` (system per unit) for RenewableDispatch. The investor reader computes availability = profile ÷ PMax
@@ -61,10 +96,16 @@ existing capacity (`market_project_creator.jl:299`); non-ORDC reserve scaling by
   and enters the investor CEM unclipped (`struct_creators/market_structs/market_project_creator.jl:10-33`). Affects every
   project built by project init before the fix (all Nov 8–11 RTS ORDC/seasonal runs). GS legacy (hand-made `gen.csv`) is
   not affected.
-- Fix: `_component_capacity_mw` returns `get_max_active_power × system base power` for `RenewableGen`
-  (`system_extractor.jl:109-125`). Regression test: last testset in `test/test_project_input_validation.jl` (fails with
+- Fix [ordc_tests]: `_component_capacity_mw` (`system_extractor.jl:109`) returns `get_max_active_power × system base
+  power` for `RenewableGen`. The same commit also changed the MethodError/ArgumentError fallback from `get_rating` to
+  `get_rating × base_power`, which changes the result for any other type that reaches it (none known: thermal, hydro and
+  storage read their limits directly). Regression test: last testset in `test/test_project_input_validation.jl` (fails with
   PMax 0.6 vs 60 without the fix). Full suite job 19898822: 1414 pass, 4 broken (pre-existing). — 2026-11-15
 - Check after any project init: `gen.csv` PMax must equal `projectexisting` Size for every owned unit.
+- **Who is affected:** `system_extractor.jl` is only reached through `initialize_emis_project` → `write_system_inputs`
+  (`project_initializer.jl:1140`; 1143 [ordc_tests]) → `extract_gen_table` → `_component_capacity_mw`. Runs from an already-initialized
+  project keep the old PMax until init is re-run. ERCOT `ercot_ordc/project` (init job 19902259) already has correct
+  PMax (`check_init.jl`: PMax = Size). — 2026-11-16
 
 ## 5. Running on Kestrel
 
