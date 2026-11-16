@@ -1129,6 +1129,9 @@ function initialize_emis_project(
     if !isempty(copied_system_path)
         source_data_dir = joinpath(test_system_dir, "RTS_Data", "SourceData")
         sys = PSY.System(copied_system_path; runchecks = false)
+        # Extract from the system the simulation will see: devices in devices_to_remove.csv are
+        # left out of gen.csv and the investor files (the system file itself is not changed).
+        prune_configured_devices!(sys, target_config_dir)
         # Ownership input is only Investor/GEN_UID; write_system_inputs completes the
         # full projectexisting.csv schema per investor via extract_fleet.
         spec_existing = joinpath(spec_dir, "projectexisting.csv")

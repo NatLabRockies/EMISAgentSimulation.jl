@@ -1163,13 +1163,26 @@ function create_simulation(sys_MD::PSY.System,
 
     sequence = create_sequence(models, feedforward_dict, single_stage_bool)
 
+    # PSI writes its HDF5 store (data_store/simulation_store.h5), logs and recorder files
+    # under simulation_folder. Default "." = the case directory (Lustre). Set
+    # EMIS_PSI_SIMULATION_FOLDER to a node-local path (inside a Slurm job: under $TMPDIR;
+    # /tmp/scratch itself is not writable) to keep those writes off Lustre. Ported 2026-11-16
+    # from the MARKETS checkout, where repeated HDF5 errno 7 / LustreError DIF rc -7 failures
+    # hit simulation_store.h5. EMIS reads results below via PSI.SimulationResults(sim) in this
+    # same process; anything that reads emis_*/ by path afterwards needs the folder copied back.
+    psi_simulation_folder = get(ENV, "EMIS_PSI_SIMULATION_FOLDER", ".")
+    if psi_simulation_folder != "."
+        mkpath(psi_simulation_folder)
+    end
+    @info "PSI simulation_folder = $(abspath(psi_simulation_folder))"
+
     if md_market_bool == true
         sim = PSI.Simulation(;
             name = "emis_$(case_name)",
             steps = PSY.get_forecast_interval(sys_MD), # sys_MD.data.time_series_params.forecast_params.count
             models = models,
             sequence = sequence,
-            simulation_folder = ".",
+            simulation_folder = psi_simulation_folder,
             # initial_time = Dates.DateTime("2018-02-28T00:00:00")
         )
     else
@@ -1178,7 +1191,7 @@ function create_simulation(sys_MD::PSY.System,
             steps = 365, # sys_MD.data.time_series_params.forecast_params.count
             models = models,
             sequence = sequence,
-            simulation_folder = ".",
+            simulation_folder = psi_simulation_folder,
             # initial_time = Dates.DateTime("2018-02-28T00:00:00")
         )
     end

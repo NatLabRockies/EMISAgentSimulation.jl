@@ -341,12 +341,14 @@ end
 For projects with a system file, check that each wind (WT) or solar (PVe) generator has a
 matching column in the day-ahead and real-time `WIND` or `PV` files. The simulation only
 warns if a column is missing, so this check catches the problem earlier. Extra columns are
-allowed for proposed units. Skip this check if the time-series directory, project metadata,
-or `system_file` setting is missing. Keep the generator types in sync with
-`rts_psy_creator.jl`.
+allowed for proposed units. Generators listed in `devices_to_remove.csv` (in `config_root`)
+are removed first, as the simulation does, so they need no column. Skip this check if the
+time-series directory, project metadata, or `system_file` setting is missing. Keep the
+generator types in sync with `rts_psy_creator.jl`.
 """
 function _validate_psy_generator_names(
     project_root::AbstractString,
+    config_root::AbstractString,
     ts_root::AbstractString,
 )
     isdir(ts_root) || return nothing
@@ -356,7 +358,7 @@ function _validate_psy_generator_names(
     isempty(system_file) && return nothing
     system_path = joinpath(metadata["test_system_dir"], system_file)
     isfile(system_path) || error("Project system file not found: $(system_path)")
-    sys = PSY.System(system_path; runchecks = false)
+    sys = prune_configured_devices!(PSY.System(system_path; runchecks = false), config_root)
     generator_names(prime_mover) = [
         PSY.get_name(gen) for gen in
         PSY.get_components(
@@ -495,7 +497,7 @@ function validate_emis_project(project_root::AbstractString)
     _validate_technology_finance_coverage(config_root, investor_root)
     _validate_project_investor_bundles(investor_root)
     _validate_system_market_files(config_root, investor_root)
-    _validate_psy_generator_names(project_root, ts_root)
+    _validate_psy_generator_names(project_root, config_root, ts_root)
     _validate_derating_columns(config_root, investor_root)
 
     return project_root
