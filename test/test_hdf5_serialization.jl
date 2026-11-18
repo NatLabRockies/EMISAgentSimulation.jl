@@ -14,22 +14,34 @@ import PowerSystems as PSY
 # ─────────────────────────────────────────────────────────────────────────────
 
 function vals_equal(a, b, path::String = "root")::Bool
-    if typeof(a) != typeof(b)
-        @info "FAIL [$path]: type $(typeof(a)) ≠ $(typeof(b))"
-        return false
-    end
-    if a isa AxisArrays.AxisArray
+    # AxisArrays are compared by content, not concrete type: HDF5 stores axis values
+    # as plain vectors, so an `Axis{:year}(1:3)` range comes back as `Axis{:year}([1, 2, 3])`.
+    # That changes the type parameters but not the axis names, values, or data.
+    if a isa AxisArrays.AxisArray && b isa AxisArrays.AxisArray
+        if eltype(a) != eltype(b) || ndims(a) != ndims(b)
+            println("FAIL [$path]: AxisArray $(eltype(a))/$(ndims(a))D ≠ $(eltype(b))/$(ndims(b))D")
+            return false
+        end
+        if AxisArrays.axisnames(a) != AxisArrays.axisnames(b)
+            println("FAIL [$path]: AxisArray axis names $(AxisArrays.axisnames(a)) ≠ $(AxisArrays.axisnames(b))")
+            return false
+        end
         if collect(a) != collect(b)
             @info "FAIL [$path]: AxisArray data differs"
             return false
         end
-        for (i, (ax_a, ax_b)) in enumerate(zip(AxisArrays.axes(a), AxisArrays.axes(b)))
-            if AxisArrays.axisvalues(ax_a) != AxisArrays.axisvalues(ax_b)
-                @info "FAIL [$path]: AxisArray axis $i values differ"
+        vals_a, vals_b = AxisArrays.axisvalues(a), AxisArrays.axisvalues(b)
+        for i in eachindex(vals_a)
+            if collect(vals_a[i]) != collect(vals_b[i])
+                println("FAIL [$path]: AxisArray axis $i values differ")
                 return false
             end
         end
         return true
+    end
+    if typeof(a) != typeof(b)
+        println("FAIL [$path]: type $(typeof(a)) ≠ $(typeof(b))")
+        return false
     end
     if a isa Dict
         if keys(a) != keys(b)
@@ -50,6 +62,13 @@ function vals_equal(a, b, path::String = "root")::Bool
             vals_equal(a[k], b[k], "$path.$k") || return false
         end
         return true
+    end
+    # PSY operation costs (Thermal/Renewable/HydroGenerationCost) don't define `==`,
+    # so two costs with identical contents compare unequal. Compare their fields;
+    # the cost curves inside (CostCurve / FuelCurve) do support `==`.
+    if a isa PSY.OperationalCost
+        return all(vals_equal(getfield(a, f), getfield(b, f), "$path.$f")
+                   for f in fieldnames(typeof(a)))
     end
     ok = (a == b)
     ok || @info "FAIL [$path]: $a ≠ $b"
@@ -120,8 +139,11 @@ function make_products()
         ),
         Capacity(
             :capacity,
-            Dict(s => 0.9 for s in SCENS),           # derating
-            Dict(s => rand(N_YRS) for s in SCENS),    # accepted_perc
+            # derating and accepted_perc are nested as: scenario → season → value.
+            # Two seasons exercise the nested structure; the project round-trip test
+            # below then validates save_product!/load_product for the new layout.
+            Dict(s => Dict("summer" => 0.82, "winter" => 0.55) for s in SCENS),  # derating
+            Dict(s => Dict("summer" => rand(N_YRS), "winter" => rand(N_YRS)) for s in SCENS),  # accepted_perc
             200.0, # capacity_bid
         ),
         OperatingReserve{ReserveUpEMIS}(:reg_up, 0.1, 1.0),
@@ -140,8 +162,10 @@ function make_thermal_tech()
         (up = 100.0, down = 100.0),
         (up = 2.0, down = 4.0),
         PSY.ThermalGenerationCost(;
+            # CostCurve takes a ValueCurve; piecewise (x, y) points are an
+            # InputOutputCurve over PiecewiseLinearData (a PiecewisePointCurve).
             variable = PSY.CostCurve(
-                PSY.PiecewiseLinearData([(0.0, 0.0), (400.0, 1200.0)]),
+                PSY.InputOutputCurve(PSY.PiecewiseLinearData([(0.0, 0.0), (400.0, 1200.0)])),
             ),
             fixed = 5000.0,
             start_up = (hot = 500.0, warm = 1000.0, cold = 2000.0),
@@ -162,9 +186,11 @@ function make_renewable_tech()
         (min = 0.0, max = 100.0),
         nothing,
         PSY.RenewableGenerationCost(;
-            variable = PSY.CostCurve(PSY.PiecewiseLinearData([(0.0, 0.0), (100.0, 0.0)])),
+            # Linear variable cost and a piecewise-point curtailment cost: two
+            # different value-curve types through the same save/load path.
+            variable = PSY.CostCurve(PSY.LinearCurve(0.0)),
             curtailment_cost = PSY.CostCurve(
-                PSY.PiecewiseLinearData([(0.0, 0.0), (100.0, 0.0)]),
+                PSY.InputOutputCurve(PSY.PiecewiseLinearData([(0.0, 0.0), (100.0, 5.0)])),
             ),
             fixed = 0.0,
         ),
@@ -182,7 +208,12 @@ function make_hydro_tech()
         (up = 50.0, down = 50.0),
         nothing,
         PSY.HydroGenerationCost(;
-            variable = PSY.CostCurve(PSY.PiecewiseLinearData([(0.0, 0.0), (200.0, 200.0)])),
+            # Piecewise incremental curve (PiecewiseStepData), the most common
+            # non-linear form in the RTS-based systems, in device-base units.
+            variable = PSY.CostCurve(;
+                value_curve = PSY.PiecewiseIncrementalCurve(10.0, [20.0, 100.0, 200.0], [15.0, 22.0]),
+                power_units = PSY.UnitSystem.DEVICE_BASE,
+            ),
             fixed = 1000.0,
         ),
         "BusC",
@@ -232,7 +263,8 @@ function make_market_prices()
         ) for s in SCENS
     )
     rp = Dict("reg_up" => Dict(s => rand(N_YRS, N_HRS) for s in SCENS))
-    cp = Dict(s => make_axis_1d() for s in SCENS)
+    # Capacity prices are scenario -> season -> AxisArray (MarketPrices.capacity_price).
+    cp = Dict(s => Dict("summer" => make_axis_1d(), "winter" => make_axis_1d()) for s in SCENS)
     rcp = Dict(s => make_axis_1d() for s in SCENS)
     inp = Dict(s => make_axis_2d() for s in SCENS)
     return MarketPrices(ep, rp, cp, rcp, inp)
@@ -319,8 +351,27 @@ function make_simulation()
         [Dict("eue" => rand(), "lolp" => rand()) for _ in 1:N_YRS],
     )
 
+    # CaseDefinition has no zero-argument constructor; use the keyword constructor.
+    # Its constructor calls make_case_data_dir, which copies
+    # {base_dir}/Homogeneous into {base_dir}/{name} when that case directory is
+    # missing or empty. So use a fresh temp base_dir (removed when Julia exits)
+    # with an empty Homogeneous/ source: the copy then only creates an empty case
+    # directory. The other paths are only stored. The solver is not serialized to
+    # HDF5, so any optimizer works here.
+    case_root = mktempdir()
+    mkpath(joinpath(case_root, "Homogeneous"))
+    case = CaseDefinition(
+        "hdf5_roundtrip_test",
+        case_root,
+        joinpath(case_root, "sys"),
+        joinpath(case_root, "scratch"),
+        joinpath(case_root, "outages"),
+        joinpath(case_root, "timeseries"),
+        EMISAgentSimulation.JuMP.optimizer_with_attributes(EMISAgentSimulation.HiGHS.Optimizer),
+    )
+
     return AgentSimulation(
-        CaseDefinition(),
+        case,
         "/results/test",
         2,
         nothing, nothing, nothing,
@@ -346,6 +397,9 @@ end
 
 function compare_products(orig::Vector, loaded::Vector, path::String)
     @test length(orig) == length(loaded)
+    # Products are compared by position, so order must survive the round trip
+    # (the fixture's product order is not alphabetical).
+    @test [p.name for p in loaded] == [p.name for p in orig]
     for (i, (po, pl)) in enumerate(zip(orig, loaded))
         @test typeof(po) == typeof(pl)
         for f in fieldnames(typeof(po))
@@ -424,9 +478,10 @@ function compare_investor(orig::Investor, loaded::Investor, path::String)
     )
 
     @test length(orig.projects) == length(loaded.projects)
-    orig_sorted = sort(orig.projects; by = p -> p.name)
-    loaded_sorted = sort(loaded.projects; by = p -> p.name)
-    for (po, pl) in zip(orig_sorted, loaded_sorted)
+    # Projects must come back in their original order, not sorted: the fixture's
+    # order (CC_plant, wind_opt, hydro_pl, batt_q) is deliberately not alphabetical.
+    @test [p.name for p in loaded.projects] == [p.name for p in orig.projects]
+    for (po, pl) in zip(orig.projects, loaded.projects)
         compare_project(po, pl, path)
     end
 end
@@ -490,29 +545,405 @@ end
 # Run
 # ─────────────────────────────────────────────────────────────────────────────
 
-# TODO: re-enable. make_simulation() calls CaseDefinition() with no arguments, a constructor
-# that does not exist; needs a CaseDefinition built from real (fixture) inputs. (2026-10-14)
-# @testset "HDF5 AgentSimulation roundtrip" begin
-#     tmpfile = tempname() * ".h5"
-#     try
-#         sim_orig = make_simulation()
-#
-#         @testset "save_simulation" begin
-#             @test_nowarn save_simulation(tmpfile, sim_orig)
-#             @test isfile(tmpfile)
-#         end
-#
-#         sim_loaded = nothing
-#         @testset "load_simulation" begin
-#             @test_nowarn (sim_loaded = load_simulation(tmpfile))
-#             @test sim_loaded isa AgentSimulation
-#         end
-#
-#         @testset "roundtrip comparison" begin
-#             compare_simulation(sim_orig, sim_loaded)
-#         end
-#     finally
-#         isfile(tmpfile) && rm(tmpfile)
-#     end
-# end
+# Re-enabled (was commented out on master on 2026-10-14 because make_simulation()
+# called a nonexistent CaseDefinition()): make_simulation() now builds a real
+# CaseDefinition in a temp directory, and the test uses the HDF5-level save/load API.
+@testset "HDF5 AgentSimulation roundtrip" begin
+    tmpfile = tempname() * ".h5"
+    try
+        sim_orig = make_simulation()
 
+        # Use the HDF5-level API (save_simulation! / load_simulation(f)). The
+        # directory-level save_simulation(sim, dir, year) also writes PSY systems,
+        # which this fixture doesn't have.
+        @testset "save_simulation!" begin
+            h5open(tmpfile, "w") do f
+                EMISAgentSimulation.save_simulation!(f, sim_orig)
+            end
+            @test isfile(tmpfile)
+        end
+
+        sim_loaded = nothing
+        @testset "load_simulation" begin
+            sim_loaded = h5open(tmpfile, "r") do f
+                EMISAgentSimulation.load_simulation(f)
+            end
+            @test sim_loaded isa AgentSimulation
+        end
+
+        @testset "roundtrip comparison" begin
+            compare_simulation(sim_orig, sim_loaded)
+        end
+    finally
+        isfile(tmpfile) && rm(tmpfile)
+    end
+end
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Backward compatibility — legacy (pre-seasonal) .h5 files load as annual mode
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Old saved files predate the seasonal capacity-markets feature: they stored
+# capacity data in the FLAT layout. These tests write the legacy layouts by hand
+# and assert the current loaders map them into the "annual" season shape, while
+# new seasonal layouts still load — so old result files remain openable for
+# post-processing.
+
+@testset "Backward compatibility — legacy flat .h5 loads as annual" begin
+    @testset "load_capacity_price_seasonal: legacy flat AxisArray -> annual" begin
+        tmpfile = tempname() * ".h5"
+        try
+            legacy = AxisArrays.AxisArray(reshape([42.0], 1), [1])
+            h5open(tmpfile, "w") do f
+                EMISAgentSimulation.save_axisarray!(HDF5.create_group(f, "capacity_price"), legacy)
+            end
+            loaded = h5open(tmpfile, "r") do f
+                EMISAgentSimulation.load_capacity_price_seasonal(f["capacity_price"])
+            end
+            @test collect(keys(loaded)) == ["annual"]
+            @test loaded["annual"][1] == 42.0
+        finally
+            isfile(tmpfile) && rm(tmpfile)
+        end
+    end
+
+    @testset "load_capacity_price_seasonal: new seasonal layout still loads" begin
+        tmpfile = tempname() * ".h5"
+        try
+            price = Dict("summer" => AxisArrays.AxisArray(reshape([1.0], 1), [1]),
+                        "winter" => AxisArrays.AxisArray(reshape([2.0], 1), [1]))
+            h5open(tmpfile, "w") do f
+                EMISAgentSimulation.save_capacity_price_seasonal!(
+                    HDF5.create_group(f, "capacity_price"), price)
+            end
+            loaded = h5open(tmpfile, "r") do f
+                EMISAgentSimulation.load_capacity_price_seasonal(f["capacity_price"])
+            end
+            @test Set(keys(loaded)) == Set(["summer", "winter"])
+        finally
+            isfile(tmpfile) && rm(tmpfile)
+        end
+    end
+
+    @testset "load_capacity_bids_seasonal: legacy flat Dict{name=>frac} -> annual" begin
+        tmpfile = tempname() * ".h5"
+        try
+            h5open(tmpfile, "w") do f
+                EMISAgentSimulation._save_dict_str_float!(
+                    HDF5.create_group(f, "capacity_accepted_bids"),
+                    Dict("Gen1" => 1.0, "Gen2" => 0.5))
+            end
+            loaded = h5open(tmpfile, "r") do f
+                EMISAgentSimulation.load_capacity_bids_seasonal(f["capacity_accepted_bids"])
+            end
+            @test collect(keys(loaded)) == ["annual"]
+            @test loaded["annual"]["Gen1"] == 1.0
+            @test loaded["annual"]["Gen2"] == 0.5
+        finally
+            isfile(tmpfile) && rm(tmpfile)
+        end
+    end
+
+    @testset "load_product(Capacity): legacy keys/values derating -> annual" begin
+        tmpfile = tempname() * ".h5"
+        try
+            h5open(tmpfile, "w") do f
+                g = HDF5.create_group(f, "product")
+                HDF5.attributes(g)["product_type"] = "Capacity"
+                write(g, "name", "Capacity")
+                write(g, "capacity_bid", 100.0)
+                # The layout real pre-seasonal checkpoints use: parallel datasets, in
+                # Dict iteration order rather than sorted, so pairing is by position.
+                der = HDF5.create_group(g, "derating")
+                write(der, "keys", ["scenario_2", "scenario_1"])
+                write(der, "values", [0.85, 0.71])
+                ap = HDF5.create_group(g, "accepted_perc")
+                write(ap, "scenario_1", [0.7, 0.8])
+            end
+            prod = h5open(tmpfile, "r") do f
+                EMISAgentSimulation.load_product(f["product"])
+            end
+            @test prod isa Capacity
+            @test Set(keys(prod.derating)) == Set(["scenario_1", "scenario_2"])
+            @test get_derating(prod, "scenario_2", "annual") == 0.85
+            @test get_derating(prod, "scenario_1", "annual") == 0.71
+            @test get_accepted_perc(prod, "scenario_1", "annual") == [0.7, 0.8]
+        finally
+            isfile(tmpfile) && rm(tmpfile)
+        end
+    end
+
+    @testset "load_case_definition: missing seasonal_capacity_market defaults to false" begin
+        # Pre-seasonal checkpoints have no such field. Start from a current case and
+        # remove it, so this keeps working as CaseDefinition gains other fields.
+        case_root = mktempdir()
+        mkpath(joinpath(case_root, "Homogeneous"))
+        case = CaseDefinition(
+            "legacy_case", case_root, case_root, case_root, case_root, case_root,
+            EMISAgentSimulation.JuMP.optimizer_with_attributes(EMISAgentSimulation.HiGHS.Optimizer);
+            seasonal_capacity_market = true,
+        )
+        tmpfile = tempname() * ".h5"
+        try
+            h5open(tmpfile, "w") do f
+                g = HDF5.create_group(f, "case")
+                EMISAgentSimulation.save_case_definition!(g, case)
+                # A current file keeps its saved value...
+                @test EMISAgentSimulation.get_seasonal_capacity_market(
+                    EMISAgentSimulation.load_case_definition(g)) == true
+                # ...and an old file without the field loads in annual mode.
+                HDF5.delete_object(g, "seasonal_capacity_market")
+                @test EMISAgentSimulation.get_seasonal_capacity_market(
+                    EMISAgentSimulation.load_case_definition(g)) == false
+            end
+        finally
+            isfile(tmpfile) && rm(tmpfile)
+        end
+    end
+
+    @testset "load_market_prices capacity_price: legacy flat scenario->AxisArray -> annual" begin
+        tmpfile = tempname() * ".h5"
+        try
+            legacy_price = AxisArrays.AxisArray(reshape([15.0], 1), [1])
+            h5open(tmpfile, "w") do f
+                cp = HDF5.create_group(f, "capacity_price")
+                HDF5.attributes(cp)["is_nothing"] = false
+                EMISAgentSimulation.save_axisarray!(HDF5.create_group(cp, "scenario_1"), legacy_price)
+            end
+            loaded = h5open(tmpfile, "r") do f
+                EMISAgentSimulation._load_optional_capacity_price(f["capacity_price"])
+            end
+            @test collect(keys(loaded)) == ["scenario_1"]
+            @test collect(keys(loaded["scenario_1"])) == ["annual"]
+            @test loaded["scenario_1"]["annual"][1] == 15.0
+        finally
+            isfile(tmpfile) && rm(tmpfile)
+        end
+    end
+
+    @testset "MarketPrices capacity_price: new 2-level layout round-trips" begin
+        tmpfile = tempname() * ".h5"
+        try
+            price = Dict("scenario_1" => Dict(
+                "summer" => AxisArrays.AxisArray(reshape([10.0], 1), [1]),
+                "winter" => AxisArrays.AxisArray(reshape([20.0], 1), [1])))
+            h5open(tmpfile, "w") do f
+                EMISAgentSimulation._save_optional_capacity_price!(
+                    HDF5.create_group(f, "capacity_price"), price)
+            end
+            loaded = h5open(tmpfile, "r") do f
+                EMISAgentSimulation._load_optional_capacity_price(f["capacity_price"])
+            end
+            @test Set(keys(loaded["scenario_1"])) == Set(["summer", "winter"])
+            @test loaded["scenario_1"]["winter"][1] == 20.0
+        finally
+            isfile(tmpfile) && rm(tmpfile)
+        end
+    end
+
+    @testset "MarketPrices capacity_price: nothing round-trips" begin
+        tmpfile = tempname() * ".h5"
+        try
+            h5open(tmpfile, "w") do f
+                EMISAgentSimulation._save_optional_capacity_price!(
+                    HDF5.create_group(f, "capacity_price"), nothing)
+            end
+            loaded = h5open(tmpfile, "r") do f
+                EMISAgentSimulation._load_optional_capacity_price(f["capacity_price"])
+            end
+            @test isnothing(loaded)
+        finally
+            isfile(tmpfile) && rm(tmpfile)
+        end
+    end
+end
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Plan 5d — whole-file round-trip of seasonal capacity data
+#
+# The tests above check the capacity helpers in isolation. These go through the
+# public file writers/readers used in a run:
+#   save_expected_market_data / load_expected_market_data   (CEM output, per investor)
+#   save_realized_market_data / load_realized_market_data   (actual clearing, per year)
+# They check that a two-season capacity_price (and, for realized data,
+# capacity_accepted_bids) survives with the right season keys and values, and that a
+# legacy file with the flat pre-seasonal layout loads as "annual".
+#
+# Non-capacity fields get small placeholder values of the right shape; they are only
+# there because the writers take every field positionally.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_ax1() = AxisArrays.AxisArray([1.0, 2.0], 1:2)
+_ax2() = AxisArrays.AxisArray([1.0 2.0; 3.0 4.0], ["a", "b"], 1:2)
+_dict_mat() = Dict("Gen1" => [1.0 2.0; 3.0 4.0])
+_dict_float() = Dict("Gen1" => 1.5)
+
+# Positional arguments of save_expected_market_data after `path`, in signature order.
+function _expected_market_args(capacity_price)
+    return (
+        capacity_price,                                  # capacity_price
+        _ax2(),                                          # energy_price
+        _dict_mat(),                                     # reserve_price
+        _ax1(),                                          # rec_price
+        _ax1(),                                          # inertia_price
+        _dict_mat(),                                     # capacity_factors
+        _dict_mat(),                                     # total_utilization
+        Dict("Gen1" => [0.25, 1.0]),                     # capacity_accepted_perc
+        Dict("option_WT_Z1" => 2),                       # new_options
+        _dict_float(),                                   # new_options_by_type
+        _ax1(), _ax1(), _ax1(),                          # REC_slack, REC_supply, REC_demand
+        ["Gen1"],                                        # rps_compliant_projects
+        _ax1(),                                          # rec_requirement
+        _ax2(), _ax2(),                                  # investment, retirement
+        _dict_float(), _dict_float(),                    # max_new_options, max_gen
+        _ax2(),                                          # demand_e
+        Dict("scenario_1" => Dict(1 => [1.0, 2.0])),     # rep_hour_weight
+        _ax2(), _ax2(), _ax2(), _ax2(), _ax2(),          # p_e_print, in/out_flow_print, v_e_print, p_in_print
+        _dict_float(), _dict_float(),                    # linepowerlimit, rec_correction
+        _ax2(),                                          # p_e_storage_print
+        Dict("Z1" => ["Batt1"], "Z2" => String[]),       # zone_storage
+        Dict("Z1" => ["Gen1"]),                          # zone_projects
+        Dict("Z1" => ["L1"]), Dict("Z1" => String[]),    # lines_to_zone, lines_from_zone
+        _dict_float(),                                   # init_storage
+        _ax2(),                                          # p_e_detail
+        _dict_float(),                                   # remaining_buildtime
+        ["Gen1", "Batt1"], ["Gen1"], ["Batt1"],          # projects, generator_projects, storage_projects
+        ["Reg_Up"], ["ORDC"], ["Reg_Down"],              # reserve_up/ordc/reserve_down products
+        _ax2(), _ax2(), _ax2(), _ax2(),                  # p_in_{ru,ordc,inertia,rd}_detail
+        _ax2(), _ax2(), _ax2(), _ax2(),                  # p_out_{ru,ordc,inertia,rd}_detail
+    )
+end
+
+# Positional arguments of save_realized_market_data after `path`, in signature order.
+function _realized_market_args(capacity_price, capacity_accepted_bids)
+    reserve_perc = Dict("Reg_Up" => Dict("Gen1" => [0.1 0.2]))
+    return (
+        capacity_price,                                  # capacity_price
+        _ax2(), _ax2(), _ax2(),                          # energy_price_ed/uc/md
+        _dict_mat(), _dict_mat(), _dict_mat(),           # reserve_price_ed/uc/md
+        _ax1(), _ax1(),                                  # rec_price, inertia_price
+        _dict_mat(), _dict_mat(), _dict_mat(),           # capacity_factors_md/uc/ed
+        reserve_perc, reserve_perc, reserve_perc,        # reserve_perc_md/uc/ed
+        capacity_accepted_bids,                          # capacity_accepted_bids
+        _dict_float(),                                   # rec_accepted_bids
+        _dict_mat(), _dict_mat(), _dict_mat(),           # inertia_perc, start_up_costs, shut_down_costs
+        _ax2(), _ax2(), _ax2(),                          # energy_voll, energy_voll_uc, energy_voll_md
+        _dict_mat(), _dict_mat(), _dict_mat(),           # reserve_voll, reserve_voll_uc, reserve_voll_md
+        _ax1(),                                          # inertia_voll
+        Vector{Union{String, Float64}}[["Gen1", 5.0, 100.0]],  # rec_supply_curve
+        1000.0,                                          # rec_energy_requirment
+        0.9,                                             # cet_achieved_ratio
+    )
+end
+
+# Replace a group in an existing file with the legacy flat layout, as files written
+# before the seasonal change have it.
+function _rewrite_as_legacy!(path, group_name, write_flat!)
+    h5open(path, "r+") do f
+        HDF5.delete_object(f, group_name)
+        write_flat!(HDF5.create_group(f, group_name))
+    end
+end
+
+@testset "Plan 5d — expected/realized market data files: seasonal capacity round-trip" begin
+    summer = AxisArrays.AxisArray([10.0, 11.0, 12.0], 1:3)
+    winter = AxisArrays.AxisArray([20.0, 21.0, 22.0], 1:3)
+    seasonal_price = Dict("summer" => summer, "winter" => winter)
+
+    @testset "expected market data: two seasons survive with keys and values" begin
+        tmpfile = tempname() * ".h5"
+        try
+            EMISAgentSimulation.save_expected_market_data(tmpfile, _expected_market_args(seasonal_price)...)
+            loaded = EMISAgentSimulation.load_expected_market_data(tmpfile)
+
+            cap = loaded["capacity_price"]
+            @test Set(keys(cap)) == Set(["summer", "winter"])
+            for (season, orig) in seasonal_price
+                @test collect(cap[season]) == collect(orig)
+                @test AxisArrays.axisvalues(cap[season]) == AxisArrays.axisvalues(orig)
+            end
+            # investor_iteration.jl takes the seasons from these keys and passes the
+            # nested dict to set_capacity_price! (Dict{String, <:AxisArray}).
+            @test cap isa Dict{String, <:AxisArrays.AxisArray{Float64, 1}}
+            # The rest of the file is unaffected by the capacity layout.
+            @test loaded["capacity_accepted_perc"] == Dict("Gen1" => [0.25, 1.0])
+        finally
+            isfile(tmpfile) && rm(tmpfile)
+        end
+    end
+
+    @testset "expected market data: annual mode writes and reads a single \"annual\" season" begin
+        tmpfile = tempname() * ".h5"
+        try
+            annual = Dict("annual" => AxisArrays.AxisArray([30.0, 31.0], 1:2))
+            EMISAgentSimulation.save_expected_market_data(tmpfile, _expected_market_args(annual)...)
+            cap = EMISAgentSimulation.load_expected_market_data(tmpfile)["capacity_price"]
+            @test collect(keys(cap)) == ["annual"]
+            @test collect(cap["annual"]) == [30.0, 31.0]
+        finally
+            isfile(tmpfile) && rm(tmpfile)
+        end
+    end
+
+    @testset "expected market data: legacy flat capacity_price loads as \"annual\"" begin
+        tmpfile = tempname() * ".h5"
+        try
+            EMISAgentSimulation.save_expected_market_data(tmpfile, _expected_market_args(seasonal_price)...)
+            legacy = AxisArrays.AxisArray([40.0, 41.0], 1:2)
+            _rewrite_as_legacy!(tmpfile, "capacity_price",
+                g -> EMISAgentSimulation.save_axisarray!(g, legacy))
+
+            cap = EMISAgentSimulation.load_expected_market_data(tmpfile)["capacity_price"]
+            @test collect(keys(cap)) == ["annual"]
+            @test collect(cap["annual"]) == [40.0, 41.0]
+        finally
+            isfile(tmpfile) && rm(tmpfile)
+        end
+    end
+
+    realized_price = Dict("summer" => AxisArrays.AxisArray(reshape([15000.0], 1), [1]),
+                          "winter" => AxisArrays.AxisArray(reshape([25000.0], 1), [1]))
+    realized_bids = Dict("summer" => Dict("Gen1" => 1.0, "Gen2" => 0.4),
+                         "winter" => Dict("Gen1" => 0.5))
+
+    @testset "realized market data: two seasons of price and accepted bids survive" begin
+        tmpfile = tempname() * ".h5"
+        try
+            EMISAgentSimulation.save_realized_market_data(
+                tmpfile, _realized_market_args(realized_price, realized_bids)...)
+            loaded = EMISAgentSimulation.load_realized_market_data(tmpfile)
+
+            cap = loaded["capacity_price"]
+            @test Set(keys(cap)) == Set(["summer", "winter"])
+            @test cap["summer"][1] == 15000.0
+            @test cap["winter"][1] == 25000.0
+
+            bids = loaded["capacity_accepted_bids"]
+            @test bids == realized_bids
+            # Shape expected by calculate_realized_profit / annual_updates.jl.
+            @test bids isa Dict{String, Dict{String, Float64}}
+            @test loaded["cet_achieved_ratio"] == 0.9
+        finally
+            isfile(tmpfile) && rm(tmpfile)
+        end
+    end
+
+    @testset "realized market data: legacy flat price and bids load as \"annual\"" begin
+        tmpfile = tempname() * ".h5"
+        try
+            EMISAgentSimulation.save_realized_market_data(
+                tmpfile, _realized_market_args(realized_price, realized_bids)...)
+            _rewrite_as_legacy!(tmpfile, "capacity_price",
+                g -> EMISAgentSimulation.save_axisarray!(g, AxisArrays.AxisArray(reshape([7000.0], 1), [1])))
+            _rewrite_as_legacy!(tmpfile, "capacity_accepted_bids",
+                g -> EMISAgentSimulation._save_dict_str_float!(g, Dict("Gen1" => 0.75)))
+
+            loaded = EMISAgentSimulation.load_realized_market_data(tmpfile)
+            @test collect(keys(loaded["capacity_price"])) == ["annual"]
+            @test loaded["capacity_price"]["annual"][1] == 7000.0
+            @test loaded["capacity_accepted_bids"] == Dict("annual" => Dict("Gen1" => 0.75))
+        finally
+            isfile(tmpfile) && rm(tmpfile)
+        end
+    end
+end

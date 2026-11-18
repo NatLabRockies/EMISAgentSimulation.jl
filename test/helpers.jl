@@ -55,10 +55,13 @@ function _write_cc_scalar(dir, scenario, cols::Pair{String, <:Real}...)
 end
 
 """Return the derating stored on the first Capacity product of a project."""
-function _get_derating(project, scenario)
+# Capacity derating is stored per scenario and per season
+# (Capacity.derating :: Dict{scenario => Dict{season => value}}). Annual-mode cases,
+# like the derating_dict.csv fixtures without a `season` column, use the "annual" season.
+function _get_derating(project, scenario, season::String = "annual")
     for prod in get_products(project)
         d = get_derating(prod)
-        isnothing(d) || return d[scenario]
+        isnothing(d) || return d[scenario][season]
     end
     error("no Capacity product found on $(get_name(project))")
 end

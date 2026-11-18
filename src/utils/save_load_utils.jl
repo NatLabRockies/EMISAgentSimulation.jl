@@ -83,6 +83,7 @@ function save_case_definition!(g::HDF5.Group, c::CaseDefinition)
     write(g, "ordc_unavailability_method", get_ordc_unavailability_method(c))
     write(g, "reserve_penalty", get_reserve_penalty(c))
     write(g, "static_capacity_market", get_static_capacity_market(c))
+    write(g, "seasonal_capacity_market", get_seasonal_capacity_market(c))
     write(g, "irm_scalar", get_irm_scalar(c))
     write(g, "accreditation_methodology", get_accreditation_methodology(c))
     write(g, "accreditation_metric", get_accreditation_metric(c))
@@ -138,6 +139,8 @@ function load_case_definition(g::HDF5.Group)
         read(g, "ordc_unavailability_method"),
         read(g, "reserve_penalty"),
         read(g, "static_capacity_market"),
+        # Checkpoints written before the seasonal feature don't have this field.
+        haskey(g, "seasonal_capacity_market") ? read(g, "seasonal_capacity_market") : false,
         read(g, "irm_scalar"),
         read(g, "accreditation_methodology"),
         read(g, "accreditation_metric"),
@@ -570,6 +573,8 @@ function save_investor!(g::HDF5.Group, inv::Investor)
     for proj in inv.projects
         save_project!(create_group(proj_g, proj.name), proj)
     end
+    # Keep the investor's project order (decision loops iterate projects in order).
+    _save_order!(g, "projects", (proj.name for proj in inv.projects))
 end
 
 function load_investor(g::HDF5.Group)
@@ -597,7 +602,7 @@ function load_investor(g::HDF5.Group)
     market_prices = load_market_prices(g["market_prices"])
 
     projects = Vector{Project{<:BuildPhase}}()
-    proj_keys = keys(g["projects"])
+    proj_keys = _ordered_keys(g, "projects")
     @info "      Loading $(length(proj_keys)) project(s) for investor: $name"
     for k in proj_keys
         @info "      Loading project: $k"
@@ -704,12 +709,37 @@ end
 # Forecast  (Perfect / Imperfect)
 # ─────────────────────────────────────────────────────────────────────────────
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Element order for vectors saved as name-keyed groups
+#
+# Products, projects and scenarios are saved as one sub-group per element, named by
+# the element. HDF5 lists group keys sorted by name, not in insertion order, so
+# without extra information the loaded vector comes back alphabetical.
+# `_save_order!` writes the original names, in order, as a sibling dataset
+# "<child>_order"; `_ordered_keys` reads it back. Files written before this was added
+# have no "<child>_order", so they load in the previous (alphabetical) order.
+# ─────────────────────────────────────────────────────────────────────────────
+
+function _save_order!(parent::HDF5.Group, child::String, names)
+    write(parent, child * "_order", Vector{String}(collect(names)))
+end
+
+function _ordered_keys(parent::HDF5.Group, child::String)
+    order_name = child * "_order"
+    return if haskey(parent, order_name)
+        read(parent, order_name)
+    else
+        collect(keys(parent[child]))
+    end
+end
+
 function save_forecast!(g::HDF5.Group, f::Perfect)
     attributes(g)["type"] = "Perfect"
     sg = create_group(g, "scenarios")
     for s in f.scenario_data
         save_scenario!(create_group(sg, s.name), s)
     end
+    _save_order!(g, "scenarios", (s.name for s in f.scenario_data))
 end
 
 function save_forecast!(g::HDF5.Group, f::Imperfect)
@@ -724,12 +754,13 @@ function save_forecast!(g::HDF5.Group, f::Imperfect)
     for s in f.scenario_data
         save_scenario!(create_group(sg, s.name), s)
     end
+    _save_order!(g, "scenarios", (s.name for s in f.scenario_data))
 end
 
 function load_forecast(g::HDF5.Group)
     t = read_attribute(g, "type")
     sg = g["scenarios"]
-    scenarios = [load_scenario(sg[k]) for k in keys(sg)]
+    scenarios = [load_scenario(sg[k]) for k in _ordered_keys(g, "scenarios")]
     if t == "Perfect"
         return Perfect(scenarios)
     elseif t == "Imperfect"
@@ -831,9 +862,47 @@ end
 function save_market_prices!(g::HDF5.Group, mp::MarketPrices)
     _save_optional_axis_dict!(create_group(g, "energy_price"), mp.energy_price)
     _save_optional_reserve_price!(create_group(g, "reserve_price"), mp.reserve_price)
-    _save_optional_axis_dict!(create_group(g, "capacity_price"), mp.capacity_price)
+    _save_optional_capacity_price!(create_group(g, "capacity_price"), mp.capacity_price)
     _save_optional_axis_dict!(create_group(g, "rec_price"), mp.rec_price)
     _save_optional_axis_dict!(create_group(g, "inertia_price"), mp.inertia_price)
+end
+
+# capacity_price: Dict{scenario => Dict{season => AxisArray{Float64,1}}} (two-level).
+# Written as scenario sub-group -> season sub-group -> AxisArray.
+function _save_optional_capacity_price!(g::HDF5.Group, d)
+    if isnothing(d)
+        attributes(g)["is_nothing"] = true
+        return
+    end
+    attributes(g)["is_nothing"] = false
+    for (scen, season_dict) in d
+        sg = create_group(g, scen)
+        for (season, ax) in season_dict
+            save_axisarray!(create_group(sg, String(season)), ax)
+        end
+    end
+end
+
+# Backward compatibility: legacy (pre-seasonal) files stored capacity_price as
+# scenario -> AxisArray (one level). Detect that a scenario group is itself a flat
+# AxisArray (leaf "data") and wrap it under the "annual" season.
+function _load_optional_capacity_price(g::HDF5.Group)
+    read_attribute(g, "is_nothing") && return nothing
+    out = Dict{String, Dict{String, AxisArrays.AxisArray{Float64, 1}}}()
+    for scen in keys(g)
+        scen == "is_nothing" && continue
+        scen_g = g[scen]
+        if haskey(scen_g, "data")
+            # Legacy flat layout: scenario -> AxisArray.
+            out[scen] = Dict("annual" => load_axisarray(scen_g))
+        else
+            # Seasonal layout: scenario -> season -> AxisArray.
+            out[scen] = Dict(
+                String(season) => load_axisarray(scen_g[season]) for season in keys(scen_g)
+            )
+        end
+    end
+    return out
 end
 
 # Dict{String, AxisArray} — used by energy_price, capacity_price, rec_price, inertia_price
@@ -882,7 +951,7 @@ function load_market_prices(g::HDF5.Group)
     return MarketPrices(
         _load_optional_axis_dict(g["energy_price"]),
         _load_optional_reserve_price(g["reserve_price"]),
-        _load_optional_axis_dict(g["capacity_price"]),
+        _load_optional_capacity_price(g["capacity_price"]),
         _load_optional_axis_dict(g["rec_price"]),
         _load_optional_axis_dict(g["inertia_price"]),
     )
@@ -937,6 +1006,7 @@ function _save_project_common!(g::HDF5.Group, p)
     for prod in p.products
         save_product!(create_group(prod_g, string(prod.name)), prod)
     end
+    _save_order!(g, "products", (string(prod.name) for prod in p.products))
 end
 
 function load_project(g::HDF5.Group)
@@ -952,7 +1022,7 @@ function load_project(g::HDF5.Group)
     retirement_year = read(g, "retirement_year")
     end_life_year = read(g, "end_life_year")
     finance_data = load_finance(g["finance_data"])
-    products = [load_product(g["products"][k]) for k in keys(g["products"])]
+    products = [load_product(g["products"][k]) for k in _ordered_keys(g, "products")]
     tech = load_tech(g["tech"])
 
     if pt == "ThermalGenEMIS"
@@ -1239,37 +1309,31 @@ function save_operation_cost!(g::HDF5.Group, oc::PSY.HydroGenerationCost)
     _save_psy_cost_curve!(create_group(g, "variable"), oc.variable)
 end
 
+"""
+Saves a PSY production cost curve (`CostCurve` or `FuelCurve`, or `nothing`).
+
+The curve is stored as InfrastructureSystems' own JSON serialization (the format PSY
+uses in system `.json` files), under `curve_kind = "IS_JSON"`. This keeps every
+value-curve type exactly (linear, quadratic, piecewise point, piecewise incremental /
+average with or without initial input), plus `power_units`, `vom_cost`, and the
+`FuelCurve` fuel fields.
+
+Previous versions saved only linear and piecewise-point curves and called
+`PSY.get_breakpoint_vars`, which does not exist in the PSY version in use. The error was
+caught, so every non-linear curve was written as a zero-cost `LinearCurve`, and
+checkpoint restores lost thermal/renewable/hydro variable costs.
+`_load_psy_cost_curve` still reads those older `"Linear"` / `"Piecewise"` layouts.
+"""
 function _save_psy_cost_curve!(g::HDF5.Group, curve)
     if isnothing(curve)
         attributes(g)["is_nothing"] = true
         return
     end
     attributes(g)["is_nothing"] = false
-    vc = PSY.get_value_curve(curve)
-    if vc isa PSY.LinearCurve
-        attributes(g)["curve_kind"] = "Linear"
-        write(g, "proportional_term", PSY.get_proportional_term(vc))
-        write(g, "constant_term", PSY.get_constant_term(vc))
-    else
-        # Try to extract piecewise breakpoints; if we can't get ≥2, fall back to
-        # zero-cost LinearCurve so the load path stays unambiguous.
-        pts = nothing
-        try
-            extracted = PSY.get_breakpoint_vars(curve)
-            length(extracted) >= 2 && (pts = extracted)
-        catch
-        end
-        if !isnothing(pts)
-            attributes(g)["curve_kind"] = "Piecewise"
-            write(g, "x", Float64[p[1] for p in pts])
-            write(g, "y", Float64[p[2] for p in pts])
-        else
-            attributes(g)["curve_kind"] = "Linear"
-            write(g, "proportional_term", 0.0)
-            write(g, "constant_term", 0.0)
-            @warn "Could not extract ≥2 breakpoints from PSY cost curve; saved as zero-cost LinearCurve"
-        end
-    end
+    attributes(g)["curve_kind"] = "IS_JSON"
+    # Concrete wrapper name ("CostCurve" / "FuelCurve") selects the type to deserialize.
+    attributes(g)["curve_type"] = string(nameof(typeof(curve)))
+    write(g, "json", IS.JSON3.write(IS.serialize(curve)))
 end
 
 function load_operation_cost(g::HDF5.Group)
@@ -1309,6 +1373,14 @@ function load_operation_cost(g::HDF5.Group)
     end
 end
 
+"""
+Loads a cost curve written by `_save_psy_cost_curve!`.
+
+- `"IS_JSON"` (current): exact InfrastructureSystems deserialization.
+- `"Linear"` / `"Piecewise"` / no `curve_kind` (older checkpoints): rebuilt from the stored
+  terms or points, as before. Older files cannot recover curves that were already saved
+  as zero-cost (see `_save_psy_cost_curve!`).
+"""
 function _load_psy_cost_curve(g::HDF5.Group)
     read_attribute(g, "is_nothing") && return nothing
     # curve_kind absent in files saved before this fix → assume Piecewise
@@ -1317,7 +1389,17 @@ function _load_psy_cost_curve(g::HDF5.Group)
     else
         "Piecewise"
     end
-    if curve_kind == "Linear"
+    if curve_kind == "IS_JSON"
+        curve_type = read_attribute(g, "curve_type")
+        T = if curve_type == "CostCurve"
+            PSY.CostCurve
+        elseif curve_type == "FuelCurve"
+            PSY.FuelCurve
+        else
+            error("Unknown cost curve type '$curve_type' in $(HDF5.name(g))")
+        end
+        return IS.deserialize(T, IS.JSON3.read(read(g, "json"), Dict{String, Any}))
+    elseif curve_kind == "Linear"
         prop = read(g, "proportional_term")
         const_term = read(g, "constant_term")
         return PSY.CostCurve(PSY.LinearCurve(prop, const_term))
@@ -1439,13 +1521,18 @@ function save_product!(g::HDF5.Group, p::Capacity)
     write(g, "name", string(p.name))
     write(g, "capacity_bid", p.capacity_bid)
     der_g = create_group(g, "derating")
-    ks = collect(String, keys(p.derating))
-    vs = [p.derating[k] for k in ks]
-    write(der_g, "keys", ks)
-    write(der_g, "values", vs)
+    for (scen, season_dict) in p.derating
+        scen_g = create_group(der_g, scen)
+        for (season, val) in season_dict
+            write(scen_g, season, val)
+        end
+    end
     ap_g = create_group(g, "accepted_perc")
-    for (scen, v) in p.accepted_perc
-        write(ap_g, scen, v)
+    for (scen, season_dict) in p.accepted_perc
+        scen_g = create_group(ap_g, scen)
+        for (season, vec) in season_dict
+            write(scen_g, season, vec)
+        end
     end
 end
 
@@ -1495,12 +1582,38 @@ function load_product(g::HDF5.Group)
     elseif pt == "Capacity"
         name = Symbol(read(g, "name"))
         bid = read(g, "capacity_bid")
+        # Backward compatibility: pre-seasonal files map to the "annual" season so they
+        # load in default annual mode. New files store scenario -> season -> value for
+        # both fields. The legacy layouts differ:
+        #   derating:      parallel datasets derating/keys and derating/values, paired
+        #                  by position (keys are not sorted)
+        #   accepted_perc: one dataset per scenario
         der_g = g["derating"]
-        ks = read(der_g, "keys")
-        vs = read(der_g, "values")
-        der = Dict(ks[i] => vs[i] for i in eachindex(ks))
+        der = if haskey(der_g, "keys") && der_g["keys"] isa HDF5.Dataset
+            scenarios = read(der_g, "keys")
+            values = read(der_g, "values")
+            Dict{String, Dict{String, Float64}}(
+                scenarios[i] => Dict("annual" => values[i]) for i in eachindex(scenarios)
+            )
+        else
+            Dict(
+                scen => Dict(
+                    season => read(der_g[scen], season) for season in keys(der_g[scen])
+                )
+                for scen in keys(der_g)
+            )
+        end
         ap_g = g["accepted_perc"]
-        ap = Dict(k => read(ap_g, k) for k in keys(ap_g))
+        ap = Dict(
+            scen => (
+                if ap_g[scen] isa HDF5.Group
+                    Dict(season => read(ap_g[scen], season) for season in keys(ap_g[scen]))
+                else
+                    Dict("annual" => read(ap_g, scen))
+                end
+            )
+            for scen in keys(ap_g)
+        )
         return Capacity(name, der, ap, bid)
 
     elseif startswith(pt, "OperatingReserve{")
@@ -1848,6 +1961,49 @@ function _load_dict_str_float(g::HDF5.Group)
     return Dict(ks[i] => vs[i] for i in eachindex(ks))
 end
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Seasonal capacity realized-market persistence (Phase 4e)
+#   capacity_price          Dict{season => AxisArray{Float64,1}}     -> one sub-group per season
+#   capacity_accepted_bids  Dict{season => Dict{name => fraction}}   -> one sub-group per season
+# Each season sub-group reuses the existing generic single-value writers/readers.
+# ─────────────────────────────────────────────────────────────────────────────
+
+function save_capacity_price_seasonal!(g::HDF5.Group, capacity_price::AbstractDict)
+    for (season, prices) in capacity_price
+        save_axisarray!(create_group(g, String(season)), prices)
+    end
+end
+
+function load_capacity_price_seasonal(g::HDF5.Group)
+    # Backward compatibility: legacy (pre-seasonal) files stored capacity_price as a single
+    # flat AxisArray group (leaf datasets "data"/"axis_count"). New files store one sub-group
+    # per season. Detect the flat layout and map it to the annual season.
+    if haskey(g, "data")
+        return Dict{String, AxisArrays.AxisArray{Float64, 1}}("annual" => load_axisarray(g))
+    end
+    return Dict{String, AxisArrays.AxisArray{Float64, 1}}(
+        String(season) => load_axisarray(g[season]) for season in keys(g)
+    )
+end
+
+function save_capacity_bids_seasonal!(g::HDF5.Group, capacity_accepted_bids::AbstractDict)
+    for (season, bids) in capacity_accepted_bids
+        _save_dict_str_float!(create_group(g, String(season)), bids)
+    end
+end
+
+function load_capacity_bids_seasonal(g::HDF5.Group)
+    # Backward compatibility: legacy files stored capacity_accepted_bids as a single flat
+    # Dict{String,Float64} group (leaf datasets "keys"/"values"). New files store one
+    # sub-group per season. Detect the flat layout and map it to the annual season.
+    if haskey(g, "keys")
+        return Dict{String, Dict{String, Float64}}("annual" => _load_dict_str_float(g))
+    end
+    return Dict{String, Dict{String, Float64}}(
+        String(season) => _load_dict_str_float(g[season]) for season in keys(g)
+    )
+end
+
 function _save_dict_str_int!(g::HDF5.Group, d::AbstractDict)
     ks = collect(String, keys(d))
     vs = [Int64(d[k]) for k in ks]
@@ -1977,6 +2133,11 @@ end
 Write the outputs of one CEM solve to a standalone HDF5 file at `path`.
 The file is created (or overwritten) by this function; it is separate from
 simulation_data_year_N.h5.
+
+`capacity_price` is a `Dict{season => AxisArray{Float64,1}}` (a single `"annual"`
+key in non-seasonal mode) and is stored as one sub-group per season under
+`capacity_price/`. `load_expected_market_data` also reads legacy files where
+`capacity_price` was a single flat AxisArray, mapping it to `"annual"`.
 """
 function save_expected_market_data(path::String,
     capacity_price,
@@ -2034,7 +2195,7 @@ function save_expected_market_data(path::String,
     h5open(path, "w") do f
         attributes(f)["schema_version"] = SCHEMA_VERSION
 
-        save_axisarray!(create_group(f, "capacity_price"), capacity_price)
+        save_capacity_price_seasonal!(create_group(f, "capacity_price"), capacity_price)
         save_axisarray!(create_group(f, "energy_price"), energy_price)
         _save_dict_str_matrix!(create_group(f, "reserve_price"), reserve_price)
         save_axisarray!(create_group(f, "rec_price"), rec_price)
@@ -2119,7 +2280,7 @@ that call sites in investor_iteration.jl need no changes.
 function load_expected_market_data(path::String)
     h5open(path, "r") do f
         return Dict{String, Any}(
-            "capacity_price" => load_axisarray(f["capacity_price"]),
+            "capacity_price" => load_capacity_price_seasonal(f["capacity_price"]),
             "energy_price" => load_axisarray(f["energy_price"]),
             "reserve_price" => _load_dict_str_matrix(f["reserve_price"]),
             "rec_price" => load_axisarray(f["rec_price"]),
@@ -2171,6 +2332,106 @@ function load_expected_market_data(path::String)
             "p_out_inertia_detail" => _load_axisarray_guarded(f["p_out_inertia_detail"]),
             "p_out_rd_detail" => _load_axisarray_guarded(f["p_out_rd_detail"]),
         )
+    end
+end
+
+# investor_iteration.jl calls save_expected_market_data
+# This code snippet transforms the jld2 to new h5 format
+# Note: this is a one-time utility function to convert existing JLD2 files to the new HDF5 format.
+# base_path = "/projects/gmlcmarkets/Phase2_EMIS_Analysis/GS_AAYAD/EMIS_RTS_Analysis_GS/20250310_no_sdes_High_RECT_Static_ORDC_RA_Cap_wo_md_storff_High_RPS/investors"
+
+function transform_jld2_to_h5(base_path::String)
+    for investor_id in 1:4
+        investor_name = "investor$(investor_id)"
+        for scenario_name in ["scenario_1", "scenario_2", "scenario_3"]
+            for iteration_year in 1:15
+                @info "Loading OLD format expected market data for $(investor_name) iteration year $(iteration_year)"
+                data_path = joinpath(
+                    base_path,
+                    investor_name,
+                    "expected_market_data",
+                    "$(scenario_name)_year_$(iteration_year).jld2",
+                )
+                expected_data = FileIO.load(data_path)
+
+                capacity_price = Dict("annual" => expected_data["capacity_price"])
+                energy_price = expected_data["energy_price"]
+                reserve_price = expected_data["reserve_price"]
+                rec_price = expected_data["rec_price"]
+                inertia_price = expected_data["inertia_price"]
+                capacity_factors = expected_data["capacity_factors"]
+                total_utilization = expected_data["total_utilization"]
+                capacity_accepted_perc = expected_data["capacity_accepted_perc"]
+                new_options = expected_data["new_options"]
+                new_options_by_type = expected_data["new_options_by_type"]
+                REC_slack = expected_data["REC_slack"]
+                REC_supply = expected_data["REC_supply"]
+                REC_demand = expected_data["REC_demand"]
+                rps_compliant_projects = expected_data["rps_compliant_projects"]
+                rec_requirement = expected_data["rec_requirement"]
+                investment = expected_data["investment"]
+                retirement = expected_data["retirement"]
+                max_new_options = expected_data["max_new_options"]
+                max_gen = expected_data["max_gen"]
+                demand_e = expected_data["demand_e"]
+                rep_hour_weight = expected_data["rep_hour_weight"]
+                p_e_print = expected_data["p_e_print"]
+                in_flow_print = expected_data["in_flow_print"]
+                out_flow_print = expected_data["out_flow_print"]
+                v_e_print = expected_data["v_e_print"]
+                p_in_print = expected_data["p_in_print"]
+                linepowerlimit = expected_data["linepowerlimit"]
+                rec_correction = expected_data["rec_correction"]
+                p_e_storage_print = expected_data["p_e_storage_print"]
+                zone_storage = expected_data["zone_storage"]
+                zone_projects = expected_data["zone_projects"]
+                lines_to_zone = expected_data["lines_to_zone"]
+                lines_from_zone = expected_data["lines_from_zone"]
+                init_storage = expected_data["init_storage"]
+                p_e_detail = expected_data["p_e_detail"]
+                remaining_buildtime = expected_data["remaining_buildtime"]
+                projects = expected_data["projects"]
+                generator_projects = expected_data["generator_projects"]
+                storage_projects = expected_data["storage_projects"]
+                reserve_up_products = expected_data["reserve_up_products"]
+                ordc_products = expected_data["ordc_products"]
+                reserve_down_products = expected_data["reserve_down_products"]
+                p_in_ru_detail = expected_data["p_in_ru_detail"]
+                p_in_ordc_detail = expected_data["p_in_ordc_detail"]
+                p_in_inertia_detail = expected_data["p_in_inertia_detail"]
+                p_in_rd_detail = expected_data["p_in_rd_detail"]
+                p_out_ru_detail = expected_data["p_out_ru_detail"]
+                p_out_ordc_detail = expected_data["p_out_ordc_detail"]
+                p_out_inertia_detail = expected_data["p_out_inertia_detail"]
+                p_out_rd_detail = expected_data["p_out_rd_detail"]
+
+                @info "Saving NEW format expected market data for $(investor_name) iteration year $(iteration_year)"
+                h5_data_path = joinpath(
+                    base_path,
+                    investor_name,
+                    "expected_market_data",
+                    "$(scenario_name)_year_$(iteration_year).h5",
+                )
+                save_expected_market_data(h5_data_path,
+                    capacity_price, energy_price, reserve_price, rec_price, inertia_price,
+                    capacity_factors, total_utilization, capacity_accepted_perc,
+                    new_options, new_options_by_type,
+                    REC_slack, REC_supply, REC_demand,
+                    rps_compliant_projects, rec_requirement,
+                    investment, retirement,
+                    max_new_options, max_gen, demand_e, rep_hour_weight,
+                    p_e_print, in_flow_print, out_flow_print, v_e_print, p_in_print,
+                    linepowerlimit, rec_correction, p_e_storage_print,
+                    zone_storage, zone_projects, lines_to_zone, lines_from_zone,
+                    init_storage, p_e_detail, remaining_buildtime,
+                    projects, generator_projects, storage_projects,
+                    reserve_up_products, ordc_products, reserve_down_products,
+                    p_in_ru_detail, p_in_ordc_detail, p_in_inertia_detail, p_in_rd_detail,
+                    p_out_ru_detail, p_out_ordc_detail, p_out_inertia_detail,
+                    p_out_rd_detail,
+                )
+            end
+        end
     end
 end
 
@@ -2281,7 +2542,7 @@ function save_realized_market_data(path::String,
     h5open(path, "w") do f
         attributes(f)["schema_version"] = SCHEMA_VERSION
 
-        save_axisarray!(create_group(f, "capacity_price"), capacity_price)
+        save_capacity_price_seasonal!(create_group(f, "capacity_price"), capacity_price)
         save_axisarray!(create_group(f, "energy_price_ed"), energy_price_ed)
         save_axisarray!(create_group(f, "energy_price_uc"), energy_price_uc)
         save_axisarray!(create_group(f, "energy_price_md"), energy_price_md)
@@ -2301,7 +2562,7 @@ function save_realized_market_data(path::String,
         _save_nested_dict_str_matrix!(create_group(f, "reserve_perc_uc"), reserve_perc_uc)
         _save_nested_dict_str_matrix!(create_group(f, "reserve_perc_ed"), reserve_perc_ed)
 
-        _save_dict_str_float!(
+        save_capacity_bids_seasonal!(
             create_group(f, "capacity_accepted_bids"),
             capacity_accepted_bids,
         )
@@ -2336,7 +2597,7 @@ Returns a `Dict{String, Any}` with the same keys as the old JLD2 format.
 function load_realized_market_data(path::String)
     h5open(path, "r") do f
         return Dict{String, Any}(
-            "capacity_price" => load_axisarray(f["capacity_price"]),
+            "capacity_price" => load_capacity_price_seasonal(f["capacity_price"]),
             "energy_price_ed" => load_axisarray(f["energy_price_ed"]),
             "energy_price_uc" => load_axisarray(f["energy_price_uc"]),
             "energy_price_md" => load_axisarray(f["energy_price_md"]),
@@ -2351,7 +2612,8 @@ function load_realized_market_data(path::String)
             "reserve_perc_md" => _load_nested_dict_str_matrix(f["reserve_perc_md"]),
             "reserve_perc_uc" => _load_nested_dict_str_matrix(f["reserve_perc_uc"]),
             "reserve_perc_ed" => _load_nested_dict_str_matrix(f["reserve_perc_ed"]),
-            "capacity_accepted_bids" => _load_dict_str_float(f["capacity_accepted_bids"]),
+            "capacity_accepted_bids" =>
+                load_capacity_bids_seasonal(f["capacity_accepted_bids"]),
             "rec_accepted_bids" => _load_dict_str_float(f["rec_accepted_bids"]),
             "inertia_perc" => _load_dict_str_matrix(f["inertia_perc"]),
             "start_up_costs" => _load_dict_str_matrix(f["start_up_costs"]),

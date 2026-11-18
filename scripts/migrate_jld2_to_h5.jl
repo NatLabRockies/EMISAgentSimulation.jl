@@ -24,7 +24,12 @@ function transform_jld2_to_h5(base_path::String)
                 )
                 expected_data = FileIO.load(data_path)
 
+                # Pre-seasonal JLD2 files hold one flat AxisArray; the HDF5 writer expects
+                # Dict{season => AxisArray}, with "annual" as the non-seasonal key.
                 capacity_price = expected_data["capacity_price"]
+                if !(capacity_price isa AbstractDict)
+                    capacity_price = Dict("annual" => capacity_price)
+                end
                 energy_price = expected_data["energy_price"]
                 reserve_price = expected_data["reserve_price"]
                 rec_price = expected_data["rec_price"]

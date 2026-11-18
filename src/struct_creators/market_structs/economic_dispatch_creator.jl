@@ -35,12 +35,6 @@ function create_economic_dispatch_problem(simulation::AgentSimulation,
         end
     end
 
-    # for zone in zones
-    #     for h in 1:num_hours
-    #         zonal_load[zone, h] = load_data[:, Symbol(zone)][h]
-    #     end
-    # end
-
     if isnothing(sys_UC)
         lines = get_lines(simulation)
 
@@ -161,7 +155,7 @@ function create_economic_dispatch_problem(simulation::AgentSimulation,
         rec_req = REC_mkt_params.rec_req[1] * rec_market_bool
         rec_annual_increment = REC_mkt_params.annual_increment[1] * rec_market_bool
 
-        capacity_markets = Vector{CapacityMarket}(undef, num_invperiods)
+        capacity_markets = Vector{Dict{String, CapacityMarket}}(undef, num_invperiods)
         energy_markets = Vector{EnergyMarket}(undef, num_invperiods)
         reserve_up_markets = Vector{ReserveUpMarket}(undef, num_invperiods)
         reserve_down_markets = Vector{ReserveDownMarket}(undef, num_invperiods)
@@ -172,12 +166,10 @@ function create_economic_dispatch_problem(simulation::AgentSimulation,
         # Create market products data for the horizon
         for p in 1:num_invperiods
             system_peak_load = peak_load
-            capacity_markets[p] = create_capacity_demand_curve(
-                capacity_mkt_param_file,
-                system_peak_load,
-                irm_scalar,
-                delta_irm,
-                capacity_market_bool,
+            capacity_markets[p] = Dict(
+                "annual" => create_capacity_demand_curve(
+                    capacity_mkt_param_file, system_peak_load, irm_scalar,
+                    delta_irm, capacity_market_bool),
             )
 
             energy_markets[p] = EnergyMarket(
