@@ -44,6 +44,7 @@
         risk_aversion: Whether investors are risk averse.
         parallel_investors: Whether investors' price prediction is to be parallelized.
         parallel_scenarios: Whether each investor's price prediction scenarios are to be parallelized.
+        template_name: Folder in base_dir copied into the case data dir. Default "" uses Heterogeneous/Homogeneous based on heterogeneity.
 """
 
 mutable struct CaseDefinition
@@ -146,7 +147,8 @@ mutable struct CaseDefinition
                             ed_horizon,
                             ed_interval,
                             md_market,
-                            skip_data_dir::Bool = false)
+                            skip_data_dir::Bool = false,
+                            template_name::String = "")
 
         @assert total_horizon >= simulation_years
 
@@ -221,7 +223,7 @@ mutable struct CaseDefinition
                    ed_interval,
                    md_market,)
 
-        skip_data_dir || make_case_data_dir(case)
+        skip_data_dir || make_case_data_dir(case, template_name)
         return case
     end
 end
@@ -274,7 +276,8 @@ function CaseDefinition(name::String,
                         uc_interval::Int64 = 24,
                         ed_horizon::Int64 = 2,
                         ed_interval::Int64 = 1,
-                        md_market::Bool = false,)
+                        md_market::Bool = false,
+                        template_name::String = "",)
 
     CaseDefinition(name,
                    base_dir,
@@ -324,7 +327,9 @@ function CaseDefinition(name::String,
                    uc_interval,
                    ed_horizon,
                    ed_interval,
-                   md_market,)
+                   md_market,
+                   false,
+                   template_name,)
 end
 
 set_solver!(case::CaseDefinition, solver) = (case.solver = solver)

@@ -249,9 +249,12 @@ end
 """
 This function creates the data directory for the simulated case.
 """
-function make_case_data_dir(case::CaseDefinition)
+function make_case_data_dir(case::CaseDefinition, template_name::String = "")
     base_dir = get_base_dir(case)
-    if get_heterogeneity(case)
+    if !isempty(template_name)
+        sys_data_dir = joinpath(base_dir, template_name)
+        isdir(sys_data_dir) || error("Template folder not found: $(sys_data_dir)")
+    elseif get_heterogeneity(case)
         sys_data_dir = joinpath(base_dir, "Heterogeneous")
 
     else
